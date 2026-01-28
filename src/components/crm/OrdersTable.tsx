@@ -186,7 +186,9 @@ const OrdersTable = () => {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <span className="text-sm">{order.modelType}</span>
+                  <span className="text-sm">
+                    {order.modelItems.map(item => item.modelName).join(', ')}
+                  </span>
                 </TableCell>
                 <TableCell className="text-right">
                   <span className="font-medium text-accent">
