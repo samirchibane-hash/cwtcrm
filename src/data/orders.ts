@@ -3,6 +3,7 @@ import { productModels } from './productModels';
 export interface OrderModelItem {
   quantity: number;
   modelName: string;
+  tierOverride?: number; // Optional manual pricing tier override (0-4)
 }
 
 export interface Order {

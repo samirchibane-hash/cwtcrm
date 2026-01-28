@@ -58,10 +58,8 @@ const OrderPage = () => {
   useEffect(() => {
     if (order) {
       setFormData({ ...order });
-      setModelItems(order.modelItems.map(item => ({
-        ...item,
-        tierOverride: undefined
-      })));
+      // IMPORTANT: preserve any saved manual pricing tier overrides
+      setModelItems(order.modelItems.map(item => ({ ...item })));
     }
   }, [order]);
 
@@ -95,7 +93,11 @@ const OrderPage = () => {
     const updatedOrder: Order = {
       ...formData,
       units: totalUnits,
-      modelItems: modelItems.map(({ quantity, modelName }) => ({ quantity, modelName })),
+      modelItems: modelItems.map(({ quantity, modelName, tierOverride }) => ({
+        quantity,
+        modelName,
+        tierOverride,
+      })),
       totalValue: calculatedTotalValue,
       modelType: modelItems.map(item => `${item.quantity}x ${item.modelName}`).join(', ')
     };
@@ -184,10 +186,7 @@ const OrderPage = () => {
                 <>
                 <Button variant="outline" size="sm" onClick={() => {
                     setFormData({ ...order });
-                    setModelItems(order.modelItems.map(item => ({
-                      ...item,
-                      tierOverride: undefined
-                    })));
+                    setModelItems(order.modelItems.map(item => ({ ...item })));
                     setIsEditing(false);
                   }}>
                     Cancel
