@@ -4,6 +4,7 @@ import Sidebar from '@/components/crm/Sidebar';
 import Dashboard from '@/components/crm/Dashboard';
 import ProspectsTable from '@/components/crm/ProspectsTable';
 import PipelineView from '@/components/crm/PipelineView';
+import OrdersTable from '@/components/crm/OrdersTable';
 import { Prospect } from '@/data/prospects';
 
 const Index = () => {
@@ -22,6 +23,8 @@ const Index = () => {
         return <ProspectsTable onSelectProspect={handleSelectProspect} />;
       case 'pipeline':
         return <PipelineView onSelectProspect={handleSelectProspect} />;
+      case 'orders':
+        return <OrdersTable />;
       default:
         return <Dashboard onSelectProspect={handleSelectProspect} />;
     }
@@ -35,6 +38,8 @@ const Index = () => {
         return 'All Prospects';
       case 'pipeline':
         return 'Sales Pipeline';
+      case 'orders':
+        return 'Orders';
       default:
         return 'Dashboard';
     }
@@ -48,6 +53,8 @@ const Index = () => {
         return 'Manage and track all your prospects';
       case 'pipeline':
         return 'Visual view of your sales stages';
+      case 'orders':
+        return 'Track all customer orders and shipments';
       default:
         return 'Overview of your sales pipeline';
     }
