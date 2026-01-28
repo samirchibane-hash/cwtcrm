@@ -125,6 +125,9 @@ export const ProductModelsProvider = ({ children }: { children: ReactNode }) => 
   };
 
   const updateModel = async (model: ProductModel) => {
+    // Optimistically update the UI first
+    setModels(prev => prev.map(m => m.id === model.id ? model : m));
+    
     try {
       const { error } = await supabase
         .from('product_models')
@@ -136,10 +139,21 @@ export const ProductModelsProvider = ({ children }: { children: ReactNode }) => 
         .eq('id', model.id);
 
       if (error) throw error;
-
-      setModels(prev => prev.map(m => m.id === model.id ? model : m));
+      
+      console.log('Product model updated successfully:', model.name);
     } catch (error) {
       console.error('Failed to update model:', error);
+      // Revert the optimistic update by reloading from database
+      const { data } = await supabase.from('product_models').select('*').order('name');
+      if (data) {
+        const mappedModels: ProductModel[] = data.map(row => ({
+          id: row.id,
+          name: row.name,
+          description: row.description || '',
+          pricingTiers: (row.pricing_tiers as unknown as PricingTier[]) || [],
+        }));
+        setModels(mappedModels);
+      }
       toast({
         title: 'Error',
         description: 'Failed to update product model.',
