@@ -1,7 +1,7 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { ArrowLeft, ChevronLeft, ChevronRight, Package, Building2, Truck, FileText, Save, Calendar, Hash, Tag, DollarSign, Plus, Trash2 } from 'lucide-react';
-import { Order, OrderModelItem, getStatusColor, formatCurrency } from '@/data/orders';
+import { ArrowLeft, ChevronLeft, ChevronRight, Package, Building2, Truck, FileText, Save, Calendar, Hash, Tag, DollarSign, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import { Order, OrderModelItem, OrderType, getStatusColor, formatCurrency } from '@/data/orders';
 import { defaultTierNames } from '@/data/productModels';
 import { useProductModels } from '@/context/ProductModelsContext';
 import { useOrders } from '@/context/OrdersContext';
@@ -17,6 +17,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 
 // Get pricing tier index based on quantity
@@ -37,7 +48,7 @@ const OrderPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { models: productModels, getModelByName } = useProductModels();
-  const { orders, getOrderById, updateOrder } = useOrders();
+  const { orders, getOrderById, updateOrder, deleteOrder } = useOrders();
 
   // Calculate item value based on model, tier, and quantity
   const calculateItemValue = (modelName: string, quantity: number, tierOverride?: number): number => {
@@ -68,10 +79,14 @@ const OrderPage = () => {
     }
   }, [order]);
 
-  // Calculate total value from model items
-  const calculatedTotalValue = modelItems.reduce((total, item) => {
+  // Calculate total value from model items (Sample/Replacement = $0)
+  const rawTotalValue = modelItems.reduce((total, item) => {
     return total + calculateItemValue(item.modelName, item.quantity, item.tierOverride);
   }, 0);
+  
+  const calculatedTotalValue = formData?.orderType === 'Sample' || formData?.orderType === 'Replacement' 
+    ? 0 
+    : rawTotalValue;
 
   // Calculate total units
   const totalUnits = modelItems.reduce((sum, item) => sum + item.quantity, 0);
@@ -142,6 +157,20 @@ const OrderPage = () => {
 
   const removeModelItem = (index: number) => {
     setModelItems(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleDelete = () => {
+    deleteOrder(order.id);
+    toast({
+      title: 'Order deleted',
+      description: `Order #${order.id} has been removed.`,
+    });
+    navigate('/?view=orders');
+  };
+
+  const handleOrderTypeChange = (value: string) => {
+    const orderType = value === 'Standard' ? undefined : value as OrderType;
+    setFormData(prev => prev ? { ...prev, orderType } : null);
   };
 
   return (
@@ -225,9 +254,35 @@ const OrderPage = () => {
                   </Button>
                 </>
               ) : (
-                <Button size="sm" onClick={() => setIsEditing(true)}>
-                  Edit Order
-                </Button>
+                <div className="flex items-center gap-2">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle className="flex items-center gap-2">
+                          <AlertTriangle className="w-5 h-5 text-destructive" />
+                          Delete Order #{formData.id}?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently delete the order for {formData.customer}.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                  <Button size="sm" onClick={() => setIsEditing(true)}>
+                    Edit Order
+                  </Button>
+                </div>
               )}
             </div>
           </div>
@@ -288,10 +343,42 @@ const OrderPage = () => {
               </div>
 
               <div>
+                <Label className="text-xs text-muted-foreground">Order Type</Label>
+                {isEditing ? (
+                  <Select 
+                    value={formData.orderType || 'Standard'} 
+                    onValueChange={handleOrderTypeChange}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Standard">Standard</SelectItem>
+                      <SelectItem value="Sample">Sample ($0)</SelectItem>
+                      <SelectItem value="Replacement">Replacement ($0)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="mt-1">
+                    {formData.orderType && formData.orderType !== 'Standard' ? (
+                      <Badge variant="secondary" className="bg-purple-500/10 text-purple-600 border-0">
+                        {formData.orderType}
+                      </Badge>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Standard</span>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div>
                 <Label className="text-xs text-muted-foreground">Total Value</Label>
                 <p className="font-medium text-lg flex items-center gap-2 text-accent">
                   <DollarSign className="w-4 h-4" />
                   {formatCurrency(calculatedTotalValue)}
+                  {(formData.orderType === 'Sample' || formData.orderType === 'Replacement') && (
+                    <span className="text-xs text-muted-foreground font-normal">({formData.orderType})</span>
+                  )}
                 </p>
               </div>
 
