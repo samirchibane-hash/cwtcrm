@@ -1,7 +1,8 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Package, Building2, Truck, FileText, Save, Calendar, Hash, Tag } from 'lucide-react';
-import { orders, Order, getStatusColor } from '@/data/orders';
+import { ArrowLeft, Package, Building2, Truck, FileText, Save, Calendar, Hash, Tag, DollarSign, Plus, Trash2 } from 'lucide-react';
+import { orders, Order, OrderModelItem, getStatusColor, formatCurrency } from '@/data/orders';
+import { productModels, defaultTierNames } from '@/data/productModels';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,6 +17,31 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 
+// Get pricing tier index based on quantity
+const getTierIndex = (quantity: number): number => {
+  if (quantity >= 100) return 4;
+  if (quantity >= 51) return 3;
+  if (quantity >= 26) return 2;
+  if (quantity >= 11) return 1;
+  return 0;
+};
+
+// Calculate item value based on model, tier, and quantity
+const calculateItemValue = (modelName: string, quantity: number, tierOverride?: number): number => {
+  const model = productModels.find(m => 
+    modelName.toLowerCase().includes(m.name.toLowerCase())
+  );
+  if (!model) return 0;
+  
+  const tierIndex = tierOverride !== undefined ? tierOverride : getTierIndex(quantity);
+  const unitPrice = model.pricingTiers[tierIndex]?.price || 0;
+  return unitPrice * quantity;
+};
+
+interface EditableModelItem extends OrderModelItem {
+  tierOverride?: number; // Allow manual tier selection
+}
+
 const OrderPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -24,13 +50,26 @@ const OrderPage = () => {
   const order = orders.find(o => o.id === id);
 
   const [formData, setFormData] = useState<Order | null>(null);
+  const [modelItems, setModelItems] = useState<EditableModelItem[]>([]);
   const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     if (order) {
       setFormData({ ...order });
+      setModelItems(order.modelItems.map(item => ({
+        ...item,
+        tierOverride: undefined
+      })));
     }
   }, [order]);
+
+  // Calculate total value from model items
+  const calculatedTotalValue = modelItems.reduce((total, item) => {
+    return total + calculateItemValue(item.modelName, item.quantity, item.tierOverride);
+  }, 0);
+
+  // Calculate total units
+  const totalUnits = modelItems.reduce((sum, item) => sum + item.quantity, 0);
 
   if (!order || !formData) {
     return (
@@ -50,8 +89,16 @@ const OrderPage = () => {
   const statusColors = getStatusColor(formData.status);
 
   const handleSave = () => {
-    // In a real app, this would update the database
-    // For now, we just show a toast
+    // Update formData with calculated values
+    const updatedOrder = {
+      ...formData,
+      units: totalUnits,
+      modelItems: modelItems,
+      totalValue: calculatedTotalValue,
+      modelType: modelItems.map(item => `${item.quantity}x ${item.modelName}`).join(', ')
+    };
+    setFormData(updatedOrder);
+    
     toast({
       title: 'Order updated',
       description: 'Your changes have been saved.',
@@ -61,6 +108,28 @@ const OrderPage = () => {
 
   const handleChange = (field: keyof Order, value: string) => {
     setFormData(prev => prev ? { ...prev, [field]: value } : null);
+  };
+
+  const handleModelItemChange = (index: number, field: keyof EditableModelItem, value: string | number) => {
+    setModelItems(prev => {
+      const updated = [...prev];
+      if (field === 'quantity') {
+        updated[index] = { ...updated[index], quantity: Number(value) || 0 };
+      } else if (field === 'modelName') {
+        updated[index] = { ...updated[index], modelName: String(value) };
+      } else if (field === 'tierOverride') {
+        updated[index] = { ...updated[index], tierOverride: value === 'auto' ? undefined : Number(value) };
+      }
+      return updated;
+    });
+  };
+
+  const addModelItem = () => {
+    setModelItems(prev => [...prev, { quantity: 1, modelName: productModels[0]?.name || '2 GPM' }]);
+  };
+
+  const removeModelItem = (index: number) => {
+    setModelItems(prev => prev.filter((_, i) => i !== index));
   };
 
   return (
@@ -108,8 +177,12 @@ const OrderPage = () => {
             <div className="flex items-center gap-2">
               {isEditing ? (
                 <>
-                  <Button variant="outline" size="sm" onClick={() => {
+                <Button variant="outline" size="sm" onClick={() => {
                     setFormData({ ...order });
+                    setModelItems(order.modelItems.map(item => ({
+                      ...item,
+                      tierOverride: undefined
+                    })));
                     setIsEditing(false);
                   }}>
                     Cancel
@@ -168,35 +241,26 @@ const OrderPage = () => {
 
               <div>
                 <Label className="text-xs text-muted-foreground">Units</Label>
-                {isEditing ? (
-                  <Input 
-                    type="number"
-                    value={formData.units}
-                    onChange={(e) => handleChange('units', e.target.value)}
-                    className="mt-1"
-                  />
-                ) : (
-                  <p className="font-medium flex items-center gap-2">
-                    <Hash className="w-4 h-4 text-muted-foreground" />
-                    {formData.units} units
-                  </p>
-                )}
+                <p className="font-medium flex items-center gap-2">
+                  <Hash className="w-4 h-4 text-muted-foreground" />
+                  {totalUnits} units
+                </p>
               </div>
 
               <div>
                 <Label className="text-xs text-muted-foreground">Model Type</Label>
-                {isEditing ? (
-                  <Input 
-                    value={formData.modelType}
-                    onChange={(e) => handleChange('modelType', e.target.value)}
-                    className="mt-1"
-                  />
-                ) : (
-                  <p className="font-medium flex items-center gap-2">
-                    <Tag className="w-4 h-4 text-muted-foreground" />
-                    {formData.modelType}
-                  </p>
-                )}
+                <p className="font-medium flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-muted-foreground" />
+                  {formData.modelType}
+                </p>
+              </div>
+
+              <div>
+                <Label className="text-xs text-muted-foreground">Total Value</Label>
+                <p className="font-medium text-lg flex items-center gap-2 text-accent">
+                  <DollarSign className="w-4 h-4" />
+                  {formatCurrency(calculatedTotalValue)}
+                </p>
               </div>
 
               <div>
@@ -228,10 +292,147 @@ const OrderPage = () => {
             </div>
           </section>
 
-          {/* Links & Tracking */}
+          {/* Product Models & Pricing */}
           <section className="content-card p-6 animate-fade-in" style={{ animationDelay: '100ms' }}>
-            <h2 className="section-header">Links & Tracking</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="section-header mb-0">Product Models & Pricing</h2>
+              {isEditing && (
+                <Button size="sm" variant="outline" onClick={addModelItem}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Model
+                </Button>
+              )}
+            </div>
+            
             <div className="space-y-4">
+              {modelItems.map((item, index) => {
+                const model = productModels.find(m => 
+                  item.modelName.toLowerCase().includes(m.name.toLowerCase())
+                );
+                const effectiveTier = item.tierOverride !== undefined ? item.tierOverride : getTierIndex(item.quantity);
+                const unitPrice = model?.pricingTiers[effectiveTier]?.price || 0;
+                const itemTotal = calculateItemValue(item.modelName, item.quantity, item.tierOverride);
+
+                return (
+                  <div key={index} className="p-4 rounded-lg border bg-muted/30">
+                    {isEditing ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <Label className="text-sm font-medium">Item {index + 1}</Label>
+                          {modelItems.length > 1 && (
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                              onClick={() => removeModelItem(index)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Model</Label>
+                            <Select 
+                              value={model?.name || item.modelName}
+                              onValueChange={(value) => handleModelItemChange(index, 'modelName', value)}
+                            >
+                              <SelectTrigger className="mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {productModels.map(pm => (
+                                  <SelectItem key={pm.id} value={pm.name}>{pm.name}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Quantity</Label>
+                            <Input 
+                              type="number"
+                              min="1"
+                              value={item.quantity}
+                              onChange={(e) => handleModelItemChange(index, 'quantity', e.target.value)}
+                              className="mt-1"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div>
+                          <Label className="text-xs text-muted-foreground">Pricing Tier</Label>
+                          <Select 
+                            value={item.tierOverride !== undefined ? String(item.tierOverride) : 'auto'}
+                            onValueChange={(value) => handleModelItemChange(index, 'tierOverride', value)}
+                          >
+                            <SelectTrigger className="mt-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="auto">Auto (based on quantity)</SelectItem>
+                              {defaultTierNames.map((tierName, tierIndex) => (
+                                <SelectItem key={tierIndex} value={String(tierIndex)}>
+                                  {tierName} - {model ? formatCurrency(model.pricingTiers[tierIndex]?.price || 0) : 'N/A'}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        
+                        <div className="flex justify-between items-center pt-2 border-t">
+                          <span className="text-sm text-muted-foreground">
+                            {item.quantity} × {formatCurrency(unitPrice)}
+                          </span>
+                          <span className="font-semibold text-accent">
+                            {formatCurrency(itemTotal)}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{item.quantity}x {item.modelName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {defaultTierNames[effectiveTier]} @ {formatCurrency(unitPrice)}/unit
+                          </p>
+                        </div>
+                        <span className="font-semibold text-accent">
+                          {formatCurrency(itemTotal)}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              
+              {modelItems.length === 0 && (
+                <div className="text-center py-6 text-muted-foreground">
+                  <Package className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No product models</p>
+                  {isEditing && (
+                    <Button size="sm" variant="link" onClick={addModelItem}>
+                      Add a model
+                    </Button>
+                  )}
+                </div>
+              )}
+              
+              {/* Total */}
+              <div className="pt-4 border-t flex justify-between items-center">
+                <span className="font-medium">Order Total</span>
+                <span className="text-xl font-bold text-accent">
+                  {formatCurrency(calculatedTotalValue)}
+                </span>
+              </div>
+            </div>
+          </section>
+
+          {/* Links & Tracking */}
+          <section className="content-card p-6 animate-fade-in lg:col-span-2" style={{ animationDelay: '150ms' }}>
+            <h2 className="section-header">Links & Tracking</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label className="text-xs text-muted-foreground">Invoice URL</Label>
                 {isEditing ? (
@@ -283,7 +484,7 @@ const OrderPage = () => {
           </section>
 
           {/* Order Updates / Notes */}
-          <section className="content-card p-6 animate-fade-in lg:col-span-2" style={{ animationDelay: '150ms' }}>
+          <section className="content-card p-6 animate-fade-in lg:col-span-2" style={{ animationDelay: '200ms' }}>
             <h2 className="section-header">Order Updates</h2>
             {isEditing ? (
               <Textarea 
