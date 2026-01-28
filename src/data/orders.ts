@@ -6,6 +6,8 @@ export interface OrderModelItem {
   tierOverride?: number; // Optional manual pricing tier override (0-4)
 }
 
+export type OrderType = 'Standard' | 'Sample' | 'Replacement';
+
 export interface Order {
   id: string;
   customer: string;
@@ -19,6 +21,7 @@ export interface Order {
   status: 'Delivered' | 'Partially Shipped' | 'Paid' | 'PO/Invoice' | 'Loaner';
   tracking: string;
   orderUpdates: string;
+  orderType?: OrderType; // Sample/Replacement orders have $0 value
 }
 
 // Get pricing tier based on quantity

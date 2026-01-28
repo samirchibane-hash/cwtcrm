@@ -4,6 +4,7 @@ import { orders as initialOrders, Order } from '@/data/orders';
 interface OrdersContextType {
   orders: Order[];
   updateOrder: (order: Order) => void;
+  deleteOrder: (id: string) => void;
   getOrderById: (id: string) => Order | undefined;
 }
 
@@ -45,12 +46,16 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
     setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
   };
 
+  const deleteOrder = (id: string) => {
+    setOrders(prev => prev.filter(o => o.id !== id));
+  };
+
   const getOrderById = (id: string): Order | undefined => {
     return orders.find(o => o.id === id);
   };
 
   return (
-    <OrdersContext.Provider value={{ orders, updateOrder, getOrderById }}>
+    <OrdersContext.Provider value={{ orders, updateOrder, deleteOrder, getOrderById }}>
       {children}
     </OrdersContext.Provider>
   );
