@@ -1,18 +1,31 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, ExternalLink, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload } from 'lucide-react';
-import { getProspectById, Prospect, Contact, Engagement } from '@/data/prospects';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload } from 'lucide-react';
+import { getProspectById, Contact, Engagement } from '@/data/prospects';
 import StageBadge from '@/components/crm/StageBadge';
 import TypeBadge from '@/components/crm/TypeBadge';
+import AddContactDialog from '@/components/crm/AddContactDialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useToast } from '@/hooks/use-toast';
 
 const CompanyPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
   const [newNote, setNewNote] = useState('');
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [engagements, setEngagements] = useState<Engagement[]>([]);
   
   const prospect = id ? getProspectById(id) : null;
+
+  // Initialize contacts and engagements from prospect data
+  useEffect(() => {
+    if (prospect) {
+      setContacts(prospect.contacts);
+      setEngagements(prospect.engagements);
+    }
+  }, [prospect]);
 
   if (!prospect) {
     return (
@@ -28,21 +41,27 @@ const CompanyPage = () => {
     );
   }
 
-  const handleAddNote = () => {
-    if (!newNote.trim()) return;
-    // In a real app, this would save to the database
-    console.log('Adding note:', newNote);
-    setNewNote('');
+  const handleAddContact = (newContact: Contact) => {
+    setContacts(prev => [...prev, newContact]);
   };
 
-  const getEngagementIcon = (type: Engagement['type']) => {
-    switch (type) {
-      case 'call': return Phone;
-      case 'email': return Mail;
-      case 'meeting': return Calendar;
-      case 'note': return FileText;
-      default: return MessageSquare;
-    }
+  const handleAddNote = () => {
+    if (!newNote.trim()) return;
+    
+    const newEngagement: Engagement = {
+      id: `eng-${Date.now()}`,
+      date: new Date().toLocaleDateString(),
+      type: 'note',
+      summary: newNote.length > 60 ? newNote.slice(0, 60) + '...' : newNote,
+      details: newNote,
+    };
+    
+    setEngagements(prev => [newEngagement, ...prev]);
+    toast({
+      title: 'Note saved',
+      description: 'Your note has been added to engagements.',
+    });
+    setNewNote('');
   };
 
   return (
@@ -134,24 +153,27 @@ const CompanyPage = () => {
             <section className="content-card p-6 animate-fade-in" style={{ animationDelay: '100ms' }}>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="section-header mb-0">Contacts</h2>
-                <Button variant="ghost" size="sm" className="h-8 px-2">
-                  <Plus className="w-4 h-4" />
-                </Button>
+                <AddContactDialog onAddContact={handleAddContact} />
               </div>
               
-              {prospect.contacts.length > 0 ? (
+              {contacts.length > 0 ? (
                 <div className="space-y-4">
-                  {prospect.contacts.map((contact) => (
+                  {contacts.map((contact) => (
                     <ContactCard key={contact.id} contact={contact} />
                   ))}
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
                   <p className="text-sm">No contacts added yet</p>
-                  <Button variant="outline" size="sm" className="mt-3">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Contact
-                  </Button>
+                  <AddContactDialog 
+                    onAddContact={handleAddContact}
+                    trigger={
+                      <Button variant="outline" size="sm" className="mt-3">
+                        <Plus className="w-4 h-4 mr-2" />
+                        Add Contact
+                      </Button>
+                    }
+                  />
                 </div>
               )}
             </section>
@@ -187,9 +209,9 @@ const CompanyPage = () => {
                 <h2 className="section-header mb-0">Recent Engagements</h2>
               </div>
               
-              {prospect.engagements.length > 0 ? (
+              {engagements.length > 0 ? (
                 <div className="divide-y divide-border">
-                  {prospect.engagements.map((engagement) => (
+                  {engagements.map((engagement) => (
                     <EngagementCard key={engagement.id} engagement={engagement} />
                   ))}
                 </div>
@@ -227,29 +249,41 @@ const ContactCard = ({ contact }: { contact: Contact }) => {
           )}
         </div>
       </div>
-      <div className="flex items-center gap-2 mt-3">
-        {contact.email && (
-          <Button variant="ghost" size="sm" className="h-7 px-2" asChild>
-            <a href={`mailto:${contact.email}`}>
+      {(contact.email || contact.phone) && (
+        <div className="mt-3 space-y-1.5">
+          {contact.email && (
+            <a 
+              href={`mailto:${contact.email}`}
+              className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
               <Mail className="w-3.5 h-3.5" />
+              {contact.email}
             </a>
-          </Button>
-        )}
-        {contact.phone && (
-          <Button variant="ghost" size="sm" className="h-7 px-2" asChild>
-            <a href={`tel:${contact.phone}`}>
+          )}
+          {contact.phone && (
+            <a 
+              href={`tel:${contact.phone}`}
+              className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
               <Phone className="w-3.5 h-3.5" />
+              {contact.phone}
             </a>
-          </Button>
-        )}
-        {contact.linkedIn && (
-          <Button variant="ghost" size="sm" className="h-7 px-2" asChild>
-            <a href={contact.linkedIn} target="_blank" rel="noopener noreferrer">
-              <Linkedin className="w-3.5 h-3.5" />
-            </a>
-          </Button>
-        )}
-      </div>
+          )}
+        </div>
+      )}
+      {contact.linkedIn && (
+        <div className="mt-2">
+          <a 
+            href={contact.linkedIn} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-xs text-accent hover:text-accent/80 transition-colors"
+          >
+            <Linkedin className="w-3.5 h-3.5" />
+            LinkedIn Profile
+          </a>
+        </div>
+      )}
     </div>
   );
 };
