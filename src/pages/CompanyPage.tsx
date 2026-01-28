@@ -7,6 +7,7 @@ import StageBadge from '@/components/crm/StageBadge';
 import TypeBadge from '@/components/crm/TypeBadge';
 import MarketTypeBadge from '@/components/crm/MarketTypeBadge';
 import AddContactDialog from '@/components/crm/AddContactDialog';
+import EditContactDialog from '@/components/crm/EditContactDialog';
 import EditCompanyDetailsDialog from '@/components/crm/EditCompanyDetailsDialog';
 import EditNoteDialog from '@/components/crm/EditNoteDialog';
 import { Button } from '@/components/ui/button';
@@ -99,6 +100,20 @@ const CompanyPage = () => {
 
   const handleAddContact = (newContact: Contact) => {
     const updatedContacts = [...contacts, newContact];
+    setContacts(updatedContacts);
+    saveProspect({ contacts: updatedContacts });
+  };
+
+  const handleUpdateContact = (updatedContact: Contact) => {
+    const updatedContacts = contacts.map(c => 
+      c.id === updatedContact.id ? updatedContact : c
+    );
+    setContacts(updatedContacts);
+    saveProspect({ contacts: updatedContacts });
+  };
+
+  const handleDeleteContact = (contactId: string) => {
+    const updatedContacts = contacts.filter(c => c.id !== contactId);
     setContacts(updatedContacts);
     saveProspect({ contacts: updatedContacts });
   };
@@ -310,6 +325,7 @@ const CompanyPage = () => {
                         <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Email</th>
                         <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Cell Phone</th>
                         <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">LinkedIn</th>
+                        <th className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -360,6 +376,13 @@ const CompanyPage = () => {
                             ) : (
                               <span className="text-sm text-muted-foreground">—</span>
                             )}
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <EditContactDialog
+                              contact={contact}
+                              onUpdateContact={handleUpdateContact}
+                              onDeleteContact={handleDeleteContact}
+                            />
                           </td>
                         </tr>
                       ))}
