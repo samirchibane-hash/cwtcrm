@@ -1,3 +1,10 @@
+import { productModels } from './productModels';
+
+export interface OrderModelItem {
+  quantity: number;
+  modelName: string;
+}
+
 export interface Order {
   id: string;
   customer: string;
@@ -5,11 +12,39 @@ export interface Order {
   placed: string;
   units: number;
   modelType: string;
+  modelItems: OrderModelItem[]; // Parsed model items for pricing
+  totalValue: number; // Calculated from pricing tiers
   invoice: string;
   status: 'Delivered' | 'Partially Shipped' | 'Paid' | 'PO/Invoice' | 'Loaner';
   tracking: string;
   orderUpdates: string;
 }
+
+// Get pricing tier based on quantity
+const getTierPrice = (modelName: string, quantity: number): number => {
+  const model = productModels.find(m => 
+    modelName.toLowerCase().includes(m.name.toLowerCase())
+  );
+  if (!model) return 0;
+
+  // Determine tier based on quantity
+  let tierIndex = 0;
+  if (quantity >= 100) tierIndex = 4;
+  else if (quantity >= 51) tierIndex = 3;
+  else if (quantity >= 26) tierIndex = 2;
+  else if (quantity >= 11) tierIndex = 1;
+  else tierIndex = 0;
+
+  return model.pricingTiers[tierIndex]?.price || 0;
+};
+
+// Calculate total value for an order
+const calculateOrderValue = (modelItems: OrderModelItem[]): number => {
+  return modelItems.reduce((total, item) => {
+    const unitPrice = getTierPrice(item.modelName, item.quantity);
+    return total + (unitPrice * item.quantity);
+  }, 0);
+};
 
 // Customer name to company ID mapping
 const customerToCompanyId: Record<string, string> = {
@@ -42,25 +77,37 @@ const getCompanyId = (customer: string): string | undefined => {
 };
 
 // Parse total string like "(50) 2 GPM" or "(1) 20 GPM (1) 10 GPM"
-const parseTotal = (totalStr: string): { units: number; modelType: string } => {
+const parseTotal = (totalStr: string): { units: number; modelType: string; modelItems: OrderModelItem[]; totalValue: number } => {
   const matches = totalStr.match(/\((\d+)\)\s*([^()]+)/g);
-  if (!matches) return { units: 0, modelType: '' };
+  if (!matches) return { units: 0, modelType: '', modelItems: [], totalValue: 0 };
   
   let totalUnits = 0;
   const models: string[] = [];
+  const modelItems: OrderModelItem[] = [];
   
   matches.forEach(match => {
     const parsed = match.match(/\((\d+)\)\s*(.+)/);
     if (parsed) {
-      totalUnits += parseInt(parsed[1], 10);
-      models.push(`${parsed[1]}x ${parsed[2].trim()}`);
+      const quantity = parseInt(parsed[1], 10);
+      const modelName = parsed[2].trim();
+      totalUnits += quantity;
+      models.push(`${quantity}x ${modelName}`);
+      modelItems.push({ quantity, modelName });
     }
   });
   
-  return { units: totalUnits, modelType: models.join(', ') };
+  const totalValue = calculateOrderValue(modelItems);
+  
+  return { units: totalUnits, modelType: models.join(', '), modelItems, totalValue };
 };
 
-export const orders: Order[] = [
+// Parse date string (M/D/YYYY) to Date object for sorting
+const parseDate = (dateStr: string): Date => {
+  const [month, day, year] = dateStr.split('/').map(Number);
+  return new Date(year, month - 1, day);
+};
+
+const unsortedOrders: Order[] = [
   { id: '1', customer: 'US Water Systems', companyId: getCompanyId('US Water Systems'), placed: '4/20/2025', ...parseTotal('(50) 2 GPM'), invoice: '', status: 'Delivered', tracking: '', orderUpdates: '6/24 Steve confirmed they received it' },
   { id: '2', customer: 'Next Gen Septic', companyId: getCompanyId('Next Gen Septic'), placed: '4/25/2025', ...parseTotal('(1) 2 GPM'), invoice: '', status: 'Delivered', tracking: '', orderUpdates: '6/10: Rakesh said another 10-15 days to get a better idea on test results' },
   { id: '3', customer: 'Premier Pump', companyId: getCompanyId('Premier Pump'), placed: '5/9/2025', ...parseTotal('(1) 20 GPM (1) 10 GPM'), invoice: '', status: 'Delivered', tracking: '', orderUpdates: '6/2: Told them 20 GPM will be shipped next week' },
@@ -99,6 +146,21 @@ export const orders: Order[] = [
   { id: '36', customer: 'Grande Ice', companyId: getCompanyId('Grande Ice'), placed: '12/11/2025', ...parseTotal('(10) 4 GPM'), invoice: 'https://connect.intuit.com/t/scs-v1-3cf8b5c3b15d414eb8e622df436852de0b78c34800c443c1ab5c50cf8f1efbd0e5e37cbdb23e403281389246721334ec', status: 'Paid', tracking: '', orderUpdates: '' },
   { id: '37', customer: 'US Water Systems', companyId: getCompanyId('US Water Systems'), placed: '1/21/2026', ...parseTotal('(50) 2 GPM'), invoice: '', status: 'PO/Invoice', tracking: '', orderUpdates: '' },
 ];
+
+// Sort orders by date (most recent first)
+export const orders: Order[] = unsortedOrders.sort((a, b) => {
+  return parseDate(b.placed).getTime() - parseDate(a.placed).getTime();
+});
+
+// Format currency
+export const formatCurrency = (amount: number): string => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(amount);
+};
 // Helper to get orders by customer name
 export const getOrdersByCustomer = (customerName: string): Order[] => {
   return orders.filter(o => o.customer.toLowerCase() === customerName.toLowerCase());
@@ -112,10 +174,11 @@ export const getOrdersByCompanyId = (companyId: string): Order[] => {
 export const getOrderStats = () => {
   const totalOrders = orders.length;
   const totalUnits = orders.reduce((sum, o) => sum + o.units, 0);
+  const totalValue = orders.reduce((sum, o) => sum + o.totalValue, 0);
   const delivered = orders.filter(o => o.status === 'Delivered').length;
   const pending = orders.filter(o => o.status === 'Partially Shipped' || o.status === 'Paid' || o.status === 'PO/Invoice').length;
   
-  return { totalOrders, totalUnits, delivered, pending };
+  return { totalOrders, totalUnits, totalValue, delivered, pending };
 };
 
 export const getStatusColor = (status: Order['status']): { bg: string; text: string } => {

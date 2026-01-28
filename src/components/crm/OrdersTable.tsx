@@ -25,8 +25,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { orders, Order, getStatusColor, getOrderStats } from '@/data/orders';
+import { orders, Order, getStatusColor, getOrderStats, formatCurrency } from '@/data/orders';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { DollarSign } from 'lucide-react';
 import ProductModelsDialog from './ProductModelsDialog';
 
 const NONE_VALUE = '__none__';
@@ -57,7 +58,7 @@ const OrdersTable = () => {
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Orders</CardTitle>
@@ -72,6 +73,17 @@ const OrdersTable = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{stats.totalUnits}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-1">
+              <DollarSign className="h-4 w-4" />
+              Total Value
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-accent">{formatCurrency(stats.totalValue)}</div>
           </CardContent>
         </Card>
         <Card>
@@ -130,6 +142,7 @@ const OrdersTable = () => {
               <TableHead className="font-semibold">Date Placed</TableHead>
               <TableHead className="font-semibold text-center">Units</TableHead>
               <TableHead className="font-semibold">Model Type</TableHead>
+              <TableHead className="font-semibold text-right">Total Value</TableHead>
               <TableHead className="font-semibold">Status</TableHead>
               <TableHead className="font-semibold">Links</TableHead>
               <TableHead className="font-semibold">Order Updates</TableHead>
@@ -171,6 +184,11 @@ const OrdersTable = () => {
                 </TableCell>
                 <TableCell>
                   <span className="text-sm">{order.modelType}</span>
+                </TableCell>
+                <TableCell className="text-right">
+                  <span className="font-medium text-accent">
+                    {order.totalValue > 0 ? formatCurrency(order.totalValue) : '—'}
+                  </span>
                 </TableCell>
                 <TableCell>
                   <StatusBadge status={order.status} />
