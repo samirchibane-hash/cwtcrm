@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -72,11 +73,38 @@ const Auth = () => {
     }
   };
 
+  const checkEmailAllowed = async (emailToCheck: string): Promise<boolean> => {
+    const { data, error } = await supabase.rpc('is_email_allowed', { 
+      check_email: emailToCheck 
+    });
+    
+    if (error) {
+      console.error('Error checking email allowlist:', error);
+      return false;
+    }
+    
+    return data === true;
+  };
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
     
     setIsSubmitting(true);
+    
+    // Check if email is in the allowlist
+    const isAllowed = await checkEmailAllowed(email);
+    
+    if (!isAllowed) {
+      setIsSubmitting(false);
+      toast({
+        title: 'Registration not allowed',
+        description: 'Your email address is not authorized to register. Please contact an administrator.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
     const { error } = await signUp(email, password);
     setIsSubmitting(false);
     
@@ -124,7 +152,7 @@ const Auth = () => {
           <Tabs defaultValue="signin" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              <TabsTrigger value="signup">Request Access</TabsTrigger>
             </TabsList>
             
             <TabsContent value="signin">
@@ -172,6 +200,9 @@ const Auth = () => {
             
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4 mt-4">
+                <p className="text-sm text-muted-foreground mb-4">
+                  Registration is by invitation only. If your email has been pre-approved, you can create your account below.
+                </p>
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">Email</Label>
                   <Input
