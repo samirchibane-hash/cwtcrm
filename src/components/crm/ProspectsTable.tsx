@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ExternalLink, Filter, ChevronDown } from 'lucide-react';
-import { prospects, Prospect } from '@/data/prospects';
+import { Search, ExternalLink, Filter, ChevronDown, Loader2 } from 'lucide-react';
+import { useProspects } from '@/context/ProspectsContext';
+import { Prospect } from '@/data/prospects';
 import StageBadge from './StageBadge';
 import TypeBadge from './TypeBadge';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,7 @@ interface ProspectsTableProps {
 
 const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const navigate = useNavigate();
+  const { prospects, isLoading } = useProspects();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [stageFilter, setStageFilter] = useState<string[]>([]);
@@ -44,6 +46,14 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const handleRowClick = (prospect: Prospect) => {
     navigate(`/company/${prospect.id}`);
   };
+
+  if (isLoading) {
+    return (
+      <div className="content-card p-12 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="content-card overflow-hidden animate-fade-in">
