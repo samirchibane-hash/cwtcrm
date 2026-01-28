@@ -1,5 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { productModels as initialModels, ProductModel } from '@/data/productModels';
+import { ProductModel, productModels as initialModels, PricingTier } from '@/data/productModels';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface ProductModelsContextType {
   models: ProductModel[];
@@ -7,52 +9,163 @@ interface ProductModelsContextType {
   updateModel: (model: ProductModel) => void;
   deleteModel: (id: string) => void;
   getModelByName: (name: string) => ProductModel | undefined;
+  isLoading: boolean;
 }
 
 const ProductModelsContext = createContext<ProductModelsContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'product-models';
-
-// Load from localStorage or use initial models
-const loadModels = (): ProductModel[] => {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      return JSON.parse(stored);
-    }
-  } catch (e) {
-    console.error('Failed to load product models from storage:', e);
-  }
-  return initialModels;
-};
-
-// Save to localStorage
-const saveModels = (models: ProductModel[]) => {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(models));
-  } catch (e) {
-    console.error('Failed to save product models to storage:', e);
-  }
-};
-
 export const ProductModelsProvider = ({ children }: { children: ReactNode }) => {
-  const [models, setModels] = useState<ProductModel[]>(loadModels);
+  const [models, setModels] = useState<ProductModel[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
-  // Persist changes to localStorage
+  // Load models from Supabase on mount
   useEffect(() => {
-    saveModels(models);
-  }, [models]);
+    const loadModels = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('product_models')
+          .select('*')
+          .order('name');
 
-  const addModel = (model: ProductModel) => {
-    setModels(prev => [...prev, model]);
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          // Map database format to app format
+          const mappedModels: ProductModel[] = data.map(row => ({
+            id: row.id,
+            name: row.name,
+            description: row.description || '',
+            pricingTiers: (row.pricing_tiers as unknown as PricingTier[]) || [],
+          }));
+          setModels(mappedModels);
+        } else {
+          // Seed initial models if database is empty
+          await seedInitialModels();
+        }
+      } catch (error) {
+        console.error('Failed to load product models:', error);
+        toast({
+          title: 'Error',
+          description: 'Failed to load product models from database.',
+          variant: 'destructive',
+        });
+        // Fallback to initial models
+        setModels(initialModels);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadModels();
+  }, []);
+
+  const seedInitialModels = async () => {
+    try {
+      const modelsToInsert = initialModels.map(model => ({
+        id: model.id,
+        name: model.name,
+        description: model.description,
+        pricing_tiers: JSON.parse(JSON.stringify(model.pricingTiers)),
+      }));
+
+      const { data, error } = await supabase
+        .from('product_models')
+        .insert(modelsToInsert)
+        .select();
+
+      if (error) throw error;
+
+      if (data) {
+        const mappedModels: ProductModel[] = data.map(row => ({
+          id: row.id,
+          name: row.name,
+          description: row.description || '',
+          pricingTiers: (row.pricing_tiers as unknown as PricingTier[]) || [],
+        }));
+        setModels(mappedModels);
+      }
+    } catch (error) {
+      console.error('Failed to seed initial models:', error);
+      setModels(initialModels);
+    }
   };
 
-  const updateModel = (model: ProductModel) => {
-    setModels(prev => prev.map(m => m.id === model.id ? model : m));
+  const addModel = async (model: ProductModel) => {
+    try {
+      const { data, error } = await supabase
+        .from('product_models')
+        .insert({
+          name: model.name,
+          description: model.description,
+          pricing_tiers: JSON.parse(JSON.stringify(model.pricingTiers)),
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        const newModel: ProductModel = {
+          id: data.id,
+          name: data.name,
+          description: data.description || '',
+          pricingTiers: (data.pricing_tiers as unknown as PricingTier[]) || [],
+        };
+        setModels(prev => [...prev, newModel]);
+      }
+    } catch (error) {
+      console.error('Failed to add model:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save product model.',
+        variant: 'destructive',
+      });
+    }
   };
 
-  const deleteModel = (id: string) => {
-    setModels(prev => prev.filter(m => m.id !== id));
+  const updateModel = async (model: ProductModel) => {
+    try {
+      const { error } = await supabase
+        .from('product_models')
+        .update({
+          name: model.name,
+          description: model.description,
+          pricing_tiers: JSON.parse(JSON.stringify(model.pricingTiers)),
+        })
+        .eq('id', model.id);
+
+      if (error) throw error;
+
+      setModels(prev => prev.map(m => m.id === model.id ? model : m));
+    } catch (error) {
+      console.error('Failed to update model:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update product model.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const deleteModel = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('product_models')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setModels(prev => prev.filter(m => m.id !== id));
+    } catch (error) {
+      console.error('Failed to delete model:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete product model.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const getModelByName = (name: string): ProductModel | undefined => {
@@ -62,7 +175,7 @@ export const ProductModelsProvider = ({ children }: { children: ReactNode }) => 
   };
 
   return (
-    <ProductModelsContext.Provider value={{ models, addModel, updateModel, deleteModel, getModelByName }}>
+    <ProductModelsContext.Provider value={{ models, addModel, updateModel, deleteModel, getModelByName, isLoading }}>
       {children}
     </ProductModelsContext.Provider>
   );
