@@ -138,8 +138,13 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   }, [prospects, searchQuery, typeFilter, stageFilter, sortField, sortDirection]);
 
   const handleRowClick = (prospect: Prospect) => {
+    // Pass the sorted/filtered prospect IDs for Previous/Next navigation
+    const prospectIds = filteredAndSortedProspects.map(p => p.id);
     navigate(`/company/${prospect.id}`, {
-      state: { from: `${location.pathname}${location.search}` },
+      state: { 
+        from: `${location.pathname}${location.search}`,
+        prospectIds,
+      },
     });
   };
 
