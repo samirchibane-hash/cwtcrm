@@ -338,49 +338,66 @@ const CompanyPage = () => {
 const ContactCard = ({ contact }: { contact: Contact }) => {
   return (
     <div className="p-4 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="font-medium text-sm">{contact.name}</p>
-          {contact.role && (
-            <p className="text-xs text-muted-foreground mt-0.5">{contact.role}</p>
+      <div className="grid grid-cols-1 gap-3">
+        {/* Name & Role */}
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-semibold text-sm">{contact.name}</p>
+            {contact.role && (
+              <p className="text-xs text-muted-foreground mt-0.5">{contact.role}</p>
+            )}
+          </div>
+          {contact.linkedIn && (
+            <a 
+              href={contact.linkedIn} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+            >
+              <Linkedin className="w-4 h-4" />
+            </a>
           )}
+        </div>
+        
+        {/* Contact Details Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          {/* Email */}
+          <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg">
+            <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Email</p>
+              {contact.email ? (
+                <a 
+                  href={`mailto:${contact.email}`}
+                  className="text-xs text-foreground hover:text-accent transition-colors truncate block"
+                >
+                  {contact.email}
+                </a>
+              ) : (
+                <p className="text-xs text-muted-foreground/60">Not provided</p>
+              )}
+            </div>
+          </div>
+          
+          {/* Phone */}
+          <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg">
+            <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Cell Phone</p>
+              {contact.phone ? (
+                <a 
+                  href={`tel:${contact.phone}`}
+                  className="text-xs text-foreground hover:text-accent transition-colors font-mono"
+                >
+                  {contact.phone}
+                </a>
+              ) : (
+                <p className="text-xs text-muted-foreground/60">Not provided</p>
+              )}
+            </div>
+          </div>
         </div>
       </div>
-      {(contact.email || contact.phone) && (
-        <div className="mt-3 space-y-1.5">
-          {contact.email && (
-            <a 
-              href={`mailto:${contact.email}`}
-              className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Mail className="w-3.5 h-3.5" />
-              {contact.email}
-            </a>
-          )}
-          {contact.phone && (
-            <a 
-              href={`tel:${contact.phone}`}
-              className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Phone className="w-3.5 h-3.5" />
-              {contact.phone}
-            </a>
-          )}
-        </div>
-      )}
-      {contact.linkedIn && (
-        <div className="mt-2">
-          <a 
-            href={contact.linkedIn} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-xs text-accent hover:text-accent/80 transition-colors"
-          >
-            <Linkedin className="w-3.5 h-3.5" />
-            LinkedIn Profile
-          </a>
-        </div>
-      )}
     </div>
   );
 };
