@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink, Settings } from 'lucide-react';
+import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,13 +19,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { orders, Order, getStatusColor, getOrderStats, formatCurrency } from '@/data/orders';
+import { Order, getStatusColor, formatCurrency } from '@/data/orders';
+import { useOrders } from '@/context/OrdersContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign } from 'lucide-react';
 import ProductModelsDialog from './ProductModelsDialog';
@@ -35,8 +30,16 @@ const NONE_VALUE = '__none__';
 const OrdersTable = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(NONE_VALUE);
+  const { orders } = useOrders();
 
-  const stats = getOrderStats();
+  const stats = useMemo(() => {
+    const totalOrders = orders.length;
+    const totalUnits = orders.reduce((sum, o) => sum + o.units, 0);
+    const totalValue = orders.reduce((sum, o) => sum + o.totalValue, 0);
+    const delivered = orders.filter(o => o.status === 'Delivered').length;
+    const pending = orders.filter(o => o.status === 'Partially Shipped' || o.status === 'Paid' || o.status === 'PO/Invoice').length;
+    return { totalOrders, totalUnits, totalValue, delivered, pending };
+  }, [orders]);
 
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
