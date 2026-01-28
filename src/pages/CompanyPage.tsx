@@ -37,10 +37,14 @@ const CompanyPage = () => {
   const prospect = id ? getProspectById(id) : null;
   const { prospects } = useProspects();
   
-  // Get previous and next prospect for navigation
-  const currentIndex = prospects.findIndex(p => p.id === id);
-  const previousProspect = currentIndex > 0 ? prospects[currentIndex - 1] : null;
-  const nextProspect = currentIndex < prospects.length - 1 ? prospects[currentIndex + 1] : null;
+  // Use passed prospect IDs from navigation state (sorted/filtered order) or fallback to default
+  const prospectIds: string[] = (location.state as { prospectIds?: string[] } | null)?.prospectIds 
+    || prospects.map(p => p.id);
+  
+  // Get previous and next prospect for navigation based on the passed order
+  const currentIndex = prospectIds.findIndex(pId => pId === id);
+  const previousProspectId = currentIndex > 0 ? prospectIds[currentIndex - 1] : null;
+  const nextProspectId = currentIndex < prospectIds.length - 1 ? prospectIds[currentIndex + 1] : null;
   // Initialize state from prospect data
   useEffect(() => {
     if (prospect) {
@@ -227,10 +231,10 @@ const CompanyPage = () => {
                 variant="outline"
                 size="sm"
                 onClick={() =>
-                  previousProspect &&
-                  navigate(`/company/${previousProspect.id}`, { state: location.state })
+                  previousProspectId &&
+                  navigate(`/company/${previousProspectId}`, { state: location.state })
                 }
-                disabled={!previousProspect}
+                disabled={!previousProspectId}
                 className="gap-1"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -240,10 +244,10 @@ const CompanyPage = () => {
                 variant="outline"
                 size="sm"
                 onClick={() =>
-                  nextProspect &&
-                  navigate(`/company/${nextProspect.id}`, { state: location.state })
+                  nextProspectId &&
+                  navigate(`/company/${nextProspectId}`, { state: location.state })
                 }
-                disabled={!nextProspect}
+                disabled={!nextProspectId}
                 className="gap-1"
               >
                 Next
