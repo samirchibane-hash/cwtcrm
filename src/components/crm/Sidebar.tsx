@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, FileText, Settings, Droplets } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, Settings, Droplets, ShoppingCart } from 'lucide-react';
 
 interface SidebarProps {
   activeView: string;
@@ -10,6 +10,7 @@ const Sidebar = ({ activeView, onViewChange }: SidebarProps) => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'prospects', label: 'Prospects', icon: Users },
     { id: 'pipeline', label: 'Pipeline', icon: FileText },
+    { id: 'orders', label: 'Orders', icon: ShoppingCart },
   ];
 
   return (
