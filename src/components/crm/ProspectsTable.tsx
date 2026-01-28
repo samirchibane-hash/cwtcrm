@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown } from 'lucide-react';
 import { useProspects } from '@/context/ProspectsContext';
 import { Prospect } from '@/data/prospects';
@@ -24,6 +24,7 @@ type SortDirection = 'asc' | 'desc' | null;
 
 const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { prospects, isLoading } = useProspects();
   const [searchQuery, setSearchQuery] = useState('');
@@ -54,8 +55,10 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
       newParams.delete('sortField');
       newParams.delete('sortDir');
     }
-    setSearchParams(newParams, { replace: true });
-  }, [sortField, sortDirection]);
+    if (newParams.toString() !== searchParams.toString()) {
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [sortField, sortDirection, searchParams, setSearchParams]);
 
   const types = ['OEM', 'Distributor', 'eCommerce'];
   const stages = ['Quotes', 'Contact Made', 'No Current Interest'];
@@ -135,7 +138,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   }, [prospects, searchQuery, typeFilter, stageFilter, sortField, sortDirection]);
 
   const handleRowClick = (prospect: Prospect) => {
-    navigate(`/company/${prospect.id}`);
+    navigate(`/company/${prospect.id}`, {
+      state: { from: `${location.pathname}${location.search}` },
+    });
   };
 
   if (isLoading) {
