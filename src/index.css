@@ -49,6 +49,12 @@
     --stage-closed-foreground: 0 0% 100%;
     --stage-lost: 0 0% 60%;
     --stage-lost-foreground: 0 0% 100%;
+    --stage-sample: 280 70% 55%;
+    --stage-sample-foreground: 0 0% 100%;
+    --stage-disco: 190 80% 45%;
+    --stage-disco-foreground: 0 0% 100%;
+    --stage-negotiation: 45 90% 50%;
+    --stage-negotiation-foreground: 0 0% 9%;
 
     --type-oem: 271 91% 65%;
     --type-oem-foreground: 0 0% 100%;

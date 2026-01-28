@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Pencil } from 'lucide-react';
-import { CompanyType, MarketType, COMPANY_TYPES, MARKET_TYPES } from '@/data/prospects';
+import { Pencil, X } from 'lucide-react';
+import { CompanyType, MarketType, COMPANY_TYPES, MARKET_TYPES, PIPELINE_STAGES, getStageColor } from '@/data/prospects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,16 +21,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-
-const PIPELINE_STAGES = [
-  'New Lead',
-  'Contact Made',
-  'Disco Call',
-  'Quotes',
-  'Negotiation',
-  'Closed Won',
-  'No Current Interest',
-];
 
 const US_STATES = [
   'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
@@ -60,7 +50,24 @@ const NONE_VALUE = '__none__';
 const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetailsDialogProps) => {
   const [open, setOpen] = useState(false);
   const [details, setDetails] = useState<CompanyDetails>(currentDetails);
+  const [stageInput, setStageInput] = useState('');
   const { toast } = useToast();
+
+  // Parse stages from comma-separated string
+  const selectedStages = details.stage ? details.stage.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  const addStage = (stage: string) => {
+    if (!selectedStages.includes(stage)) {
+      const newStages = [...selectedStages, stage];
+      setDetails(prev => ({ ...prev, stage: newStages.join(', ') }));
+    }
+    setStageInput('');
+  };
+
+  const removeStage = (stage: string) => {
+    const newStages = selectedStages.filter(s => s !== stage);
+    setDetails(prev => ({ ...prev, stage: newStages.join(', ') }));
+  };
 
   const handleSave = () => {
     if (!details.companyName.trim()) {
@@ -186,19 +193,46 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
             </Select>
           </div>
 
-          {/* Pipeline Stage */}
+          {/* Pipeline Stages (Multi-select) */}
           <div className="space-y-2">
-            <Label>Pipeline Stage</Label>
-            <Select 
-              value={toSelectValue(details.stage)} 
-              onValueChange={(value) => updateField('stage', fromSelectValue(value))}
+            <Label>Pipeline Stages</Label>
+            {/* Selected stages */}
+            {selectedStages.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {selectedStages.map((stage) => {
+                  const colors = getStageColor(stage);
+                  return (
+                    <span
+                      key={stage}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}
+                    >
+                      {stage}
+                      <button
+                        type="button"
+                        onClick={() => removeStage(stage)}
+                        className="hover:opacity-70 transition-opacity"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            {/* Add stage dropdown */}
+            <Select
+              value={stageInput}
+              onValueChange={(value) => {
+                if (value && value !== NONE_VALUE) {
+                  addStage(value);
+                }
+              }}
             >
               <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Select pipeline stage" />
+                <SelectValue placeholder="Add a stage..." />
               </SelectTrigger>
               <SelectContent className="rounded-xl bg-background">
-                <SelectItem value={NONE_VALUE}>Not set</SelectItem>
-                {PIPELINE_STAGES.map((s) => (
+                {PIPELINE_STAGES.filter(s => !selectedStages.includes(s)).map((s) => (
                   <SelectItem key={s} value={s}>
                     {s}
                   </SelectItem>
