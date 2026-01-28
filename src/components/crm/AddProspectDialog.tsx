@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { useProspects } from '@/context/ProspectsContext';
 import { useToast } from '@/hooks/use-toast';
-import { CompanyType, MarketType } from '@/data/prospects';
+import { CompanyType, MarketType, PIPELINE_STAGES, getStageColor } from '@/data/prospects';
 
 const AddProspectDialog = () => {
   const [open, setOpen] = useState(false);
@@ -29,12 +29,22 @@ const AddProspectDialog = () => {
   const [state, setState] = useState('');
   const [type, setType] = useState<CompanyType | ''>('');
   const [marketType, setMarketType] = useState<MarketType | ''>('');
-  const [stage, setStage] = useState('');
+  const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [linkedIn, setLinkedIn] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { addProspect } = useProspects();
   const { toast } = useToast();
+
+  const addStage = (stage: string) => {
+    if (!selectedStages.includes(stage)) {
+      setSelectedStages([...selectedStages, stage]);
+    }
+  };
+
+  const removeStage = (stage: string) => {
+    setSelectedStages(selectedStages.filter(s => s !== stage));
+  };
 
   const handleSubmit = async () => {
     if (!companyName.trim()) {
@@ -52,7 +62,7 @@ const AddProspectDialog = () => {
       state: state.trim(),
       type: type || '',
       marketType: marketType || '',
-      stage: stage || 'Contact Made',
+      stage: selectedStages.length > 0 ? selectedStages.join(', ') : 'Contact Made',
       lastContact: new Date().toLocaleDateString('en-US'),
       engagementNotes: '',
       linkedIn: linkedIn.trim(),
@@ -71,7 +81,7 @@ const AddProspectDialog = () => {
       setState('');
       setType('');
       setMarketType('');
-      setStage('');
+      setSelectedStages([]);
       setLinkedIn('');
       setOpen(false);
     }
@@ -141,15 +151,45 @@ const AddProspectDialog = () => {
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="stage">Stage</Label>
-              <Select value={stage} onValueChange={setStage}>
+              <Label>Stages</Label>
+              {/* Selected stages */}
+              {selectedStages.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-1">
+                  {selectedStages.map((stg) => {
+                    const colors = getStageColor(stg);
+                    return (
+                      <span
+                        key={stg}
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}
+                      >
+                        {stg}
+                        <button
+                          type="button"
+                          onClick={() => removeStage(stg)}
+                          className="hover:opacity-70 transition-opacity"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              <Select
+                value=""
+                onValueChange={(value) => {
+                  if (value) addStage(value);
+                }}
+              >
                 <SelectTrigger>
-                  <SelectValue placeholder="Select stage" />
+                  <SelectValue placeholder="Add a stage..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="Contact Made">Contact Made</SelectItem>
-                  <SelectItem value="Quotes">Quotes</SelectItem>
-                  <SelectItem value="No Current Interest">No Current Interest</SelectItem>
+                  {PIPELINE_STAGES.filter(s => !selectedStages.includes(s)).map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

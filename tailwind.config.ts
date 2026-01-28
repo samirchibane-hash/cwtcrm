@@ -68,6 +68,12 @@ export default {
           "closed-foreground": "hsl(var(--stage-closed-foreground))",
           lost: "hsl(var(--stage-lost))",
           "lost-foreground": "hsl(var(--stage-lost-foreground))",
+          sample: "hsl(var(--stage-sample))",
+          "sample-foreground": "hsl(var(--stage-sample-foreground))",
+          disco: "hsl(var(--stage-disco))",
+          "disco-foreground": "hsl(var(--stage-disco-foreground))",
+          negotiation: "hsl(var(--stage-negotiation))",
+          "negotiation-foreground": "hsl(var(--stage-negotiation-foreground))",
         },
         type: {
           oem: "hsl(var(--type-oem))",

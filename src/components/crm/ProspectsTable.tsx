@@ -61,7 +61,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   }, [sortField, sortDirection, searchParams, setSearchParams]);
 
   const types = ['OEM', 'Distributor', 'eCommerce'];
-  const stages = ['Quotes', 'Contact Made', 'No Current Interest'];
+  const stages = ['Contact Made', 'Disco Call', 'Sample Req', 'Quotes', 'Negotiation', 'Closed Won', 'No Current Interest'];
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {

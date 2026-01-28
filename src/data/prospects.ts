@@ -144,12 +144,27 @@ export const getProspectById = (id: string): Prospect | undefined => {
   return prospects.find(p => p.id === id);
 };
 
+export const PIPELINE_STAGES = [
+  'New Lead',
+  'Contact Made',
+  'Disco Call',
+  'Sample Req',
+  'Quotes',
+  'Negotiation',
+  'Closed Won',
+  'No Current Interest',
+];
+
 export const getStageColor = (stage: string): { bg: string; text: string } => {
-  const stageLower = stage.toLowerCase();
-  if (stageLower.includes('quotes')) return { bg: 'bg-stage-quotes', text: 'text-stage-quotes-foreground' };
-  if (stageLower.includes('contact made')) return { bg: 'bg-stage-contact', text: 'text-stage-contact-foreground' };
-  if (stageLower.includes('no current interest')) return { bg: 'bg-stage-lost', text: 'text-stage-lost-foreground' };
-  if (stageLower.includes('closed')) return { bg: 'bg-stage-closed', text: 'text-stage-closed-foreground' };
+  const stageLower = stage.toLowerCase().trim();
+  if (stageLower === 'quotes') return { bg: 'bg-stage-quotes', text: 'text-stage-quotes-foreground' };
+  if (stageLower === 'contact made') return { bg: 'bg-stage-contact', text: 'text-stage-contact-foreground' };
+  if (stageLower === 'no current interest') return { bg: 'bg-stage-lost', text: 'text-stage-lost-foreground' };
+  if (stageLower === 'closed won' || stageLower === 'closed') return { bg: 'bg-stage-closed', text: 'text-stage-closed-foreground' };
+  if (stageLower === 'sample req') return { bg: 'bg-stage-sample', text: 'text-stage-sample-foreground' };
+  if (stageLower === 'disco call') return { bg: 'bg-stage-disco', text: 'text-stage-disco-foreground' };
+  if (stageLower === 'negotiation') return { bg: 'bg-stage-negotiation', text: 'text-stage-negotiation-foreground' };
+  if (stageLower === 'new lead') return { bg: 'bg-stage-new', text: 'text-stage-new-foreground' };
   return { bg: 'bg-stage-new', text: 'text-stage-new-foreground' };
 };
 

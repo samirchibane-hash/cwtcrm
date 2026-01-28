@@ -7,12 +7,22 @@ interface StageBadgeProps {
 const StageBadge = ({ stage }: StageBadgeProps) => {
   if (!stage) return <span className="text-muted-foreground text-sm">—</span>;
   
-  const colors = getStageColor(stage);
+  // Split by comma to handle multiple stages
+  const stages = stage.split(',').map(s => s.trim()).filter(Boolean);
+  
+  if (stages.length === 0) return <span className="text-muted-foreground text-sm">—</span>;
   
   return (
-    <span className={`stage-badge ${colors.bg} ${colors.text}`}>
-      {stage}
-    </span>
+    <div className="flex flex-wrap gap-1">
+      {stages.map((s, index) => {
+        const colors = getStageColor(s);
+        return (
+          <span key={index} className={`stage-badge ${colors.bg} ${colors.text}`}>
+            {s}
+          </span>
+        );
+      })}
+    </div>
   );
 };
 
