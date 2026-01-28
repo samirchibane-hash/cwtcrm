@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import AddProspectDialog from './AddProspectDialog';
 
 interface ProspectsTableProps {
   onSelectProspect: (prospect: Prospect) => void;
@@ -192,6 +193,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          <AddProspectDialog />
         </div>
       </div>
 

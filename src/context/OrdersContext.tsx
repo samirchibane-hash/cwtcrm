@@ -8,6 +8,7 @@ interface OrdersContextType {
   updateOrder: (order: Order) => void;
   deleteOrder: (id: string) => void;
   getOrderById: (id: string) => Order | undefined;
+  addOrder: (order: Omit<Order, 'id'>) => Promise<Order | null>;
   isLoading: boolean;
 }
 
@@ -163,8 +164,65 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
     return orders.find(o => o.id === id);
   };
 
+  const addOrder = async (orderData: Omit<Order, 'id'>): Promise<Order | null> => {
+    try {
+      // Calculate total value based on model items and order type
+      let totalValue = 0;
+      if (orderData.orderType === 'Standard') {
+        // Simple calculation - you may want to use the pricing tier logic
+        totalValue = orderData.totalValue || 0;
+      }
+
+      const { data, error } = await supabase
+        .from('orders')
+        .insert({
+          po_number: orderData.invoice || '',
+          company: orderData.customer,
+          order_total: orderData.placed,
+          status: orderData.status,
+          order_type: orderData.orderType || 'Standard',
+          model_type: orderData.modelType,
+          model_items: JSON.parse(JSON.stringify([
+            ...orderData.modelItems,
+            { tracking: orderData.tracking || '', orderUpdates: orderData.orderUpdates || '' }
+          ])),
+          total_value: totalValue,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const newOrder: Order = {
+        id: data.id,
+        customer: data.company,
+        placed: data.order_total,
+        units: orderData.units,
+        modelType: data.model_type || '',
+        modelItems: orderData.modelItems,
+        totalValue: Number(data.total_value) || 0,
+        invoice: data.po_number || '',
+        status: data.status as Order['status'],
+        tracking: orderData.tracking || '',
+        orderUpdates: orderData.orderUpdates || '',
+        orderType: (data.order_type as Order['orderType']) || 'Standard',
+      };
+
+      setOrders(prev => [newOrder, ...prev]);
+      return newOrder;
+    } catch (error) {
+      console.error('Failed to add order:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to create order.',
+        variant: 'destructive',
+      });
+      return null;
+    }
+  };
+
   return (
-    <OrdersContext.Provider value={{ orders, updateOrder, deleteOrder, getOrderById, isLoading }}>
+    <OrdersContext.Provider value={{ orders, updateOrder, deleteOrder, getOrderById, addOrder, isLoading }}>
       {children}
     </OrdersContext.Provider>
   );

@@ -24,6 +24,7 @@ import { useOrders } from '@/context/OrdersContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign } from 'lucide-react';
 import ProductModelsDialog from './ProductModelsDialog';
+import AddOrderDialog from './AddOrderDialog';
 
 type OrderSortField = 'id' | 'customer' | 'placed' | 'units' | 'modelType' | 'totalValue' | 'status';
 type SortDirection = 'asc' | 'desc' | null;
@@ -200,6 +201,7 @@ const OrdersTable = () => {
             <SelectItem value="Loaner">Loaner</SelectItem>
           </SelectContent>
         </Select>
+        <AddOrderDialog />
         <ProductModelsDialog />
       </div>
 
