@@ -96,6 +96,18 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
       return matchesSearch && matchesType && matchesStage;
     });
 
+    // Helper to parse mm/dd/yyyy date strings
+    const parseDateString = (dateStr: string): number => {
+      if (!dateStr) return 0;
+      const parts = dateStr.split('/');
+      if (parts.length === 3) {
+        const [month, day, year] = parts.map(p => parseInt(p, 10));
+        // Create date as YYYYMMDD number for proper sorting
+        return year * 10000 + month * 100 + day;
+      }
+      return 0;
+    };
+
     if (sortField && sortDirection) {
       result = [...result].sort((a, b) => {
         let aVal: string | number = '';
@@ -123,8 +135,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
             bVal = (b.stage || '').toLowerCase();
             break;
           case 'lastContact':
-            aVal = a.lastContact || '';
-            bVal = b.lastContact || '';
+            aVal = parseDateString(a.lastContact || '');
+            bVal = parseDateString(b.lastContact || '');
             break;
         }
 
