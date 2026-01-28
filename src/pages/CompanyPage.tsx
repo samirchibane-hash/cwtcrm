@@ -1,6 +1,7 @@
-import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload } from 'lucide-react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink } from 'lucide-react';
 import { getProspectById, Contact, Engagement, CompanyType, MarketType } from '@/data/prospects';
+import { getOrdersByCustomer, Order, getStatusColor } from '@/data/orders';
 import StageBadge from '@/components/crm/StageBadge';
 import TypeBadge from '@/components/crm/TypeBadge';
 import MarketTypeBadge from '@/components/crm/MarketTypeBadge';
@@ -9,6 +10,7 @@ import EditCompanyDetailsDialog from '@/components/crm/EditCompanyDetailsDialog'
 import EditNoteDialog from '@/components/crm/EditNoteDialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -392,8 +394,130 @@ const CompanyPage = () => {
             )}
           </section>
         </div>
+
+        {/* Order History Section */}
+        <OrderHistorySection companyName={companyName} />
       </main>
     </div>
+  );
+};
+
+const OrderHistorySection = ({ companyName }: { companyName: string }) => {
+  const companyOrders = getOrdersByCustomer(companyName);
+
+  if (companyOrders.length === 0) {
+    return (
+      <section className="content-card animate-fade-in" style={{ animationDelay: '250ms' }}>
+        <div className="p-6 border-b border-border">
+          <h2 className="section-header mb-0 flex items-center gap-2">
+            <Package className="w-5 h-5" />
+            Order History
+          </h2>
+        </div>
+        <div className="p-12 text-center text-muted-foreground">
+          <Package className="w-12 h-12 mx-auto mb-4 opacity-30" />
+          <p className="text-sm">No orders found for this company</p>
+        </div>
+      </section>
+    );
+  }
+
+  const totalUnits = companyOrders.reduce((sum, o) => sum + o.units, 0);
+  const totalOrders = companyOrders.length;
+
+  return (
+    <section className="content-card animate-fade-in" style={{ animationDelay: '250ms' }}>
+      <div className="p-6 border-b border-border flex items-center justify-between">
+        <h2 className="section-header mb-0 flex items-center gap-2">
+          <Package className="w-5 h-5" />
+          Order History
+        </h2>
+        <div className="flex items-center gap-4 text-sm">
+          <span className="text-muted-foreground">
+            <strong className="text-foreground">{totalOrders}</strong> orders
+          </span>
+          <span className="text-muted-foreground">
+            <strong className="text-foreground">{totalUnits}</strong> total units
+          </span>
+        </div>
+      </div>
+      
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border bg-muted/30">
+              <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Order</th>
+              <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Date</th>
+              <th className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Units</th>
+              <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Model</th>
+              <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Status</th>
+              <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Links</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {companyOrders.map((order) => {
+              const statusColors = getStatusColor(order.status);
+              return (
+                <tr key={order.id} className="hover:bg-muted/30 transition-colors group">
+                  <td className="px-6 py-4">
+                    <Link 
+                      to={`/order/${order.id}`}
+                      className="font-medium text-accent hover:underline flex items-center gap-1.5"
+                    >
+                      #{order.id}
+                      <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </Link>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm font-mono text-muted-foreground">{order.placed}</span>
+                  </td>
+                  <td className="px-6 py-4 text-center">
+                    <Badge variant="outline" className="font-mono">{order.units}</Badge>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm">{order.modelType}</span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <Badge variant="secondary" className={`${statusColors.bg} ${statusColors.text} border-0`}>
+                      {order.status}
+                    </Badge>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center gap-2">
+                      {order.invoice && order.invoice.startsWith('http') && (
+                        <a 
+                          href={order.invoice} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors"
+                          title="View Invoice"
+                        >
+                          <FileText className="w-4 h-4" />
+                        </a>
+                      )}
+                      {order.tracking && (
+                        <a 
+                          href={order.tracking} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-green-500/10 text-green-500 hover:bg-green-500/20 transition-colors"
+                          title="Track Shipment"
+                        >
+                          <Truck className="w-4 h-4" />
+                        </a>
+                      )}
+                      {!order.invoice?.startsWith('http') && !order.tracking && (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 };
 

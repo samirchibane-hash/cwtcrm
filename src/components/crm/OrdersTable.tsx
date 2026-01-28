@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Search, ExternalLink, Package, Truck, FileText, Filter } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -116,6 +117,7 @@ const OrdersTable = () => {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
+              <TableHead className="font-semibold">Order</TableHead>
               <TableHead className="font-semibold">Customer</TableHead>
               <TableHead className="font-semibold">Date Placed</TableHead>
               <TableHead className="font-semibold text-center">Units</TableHead>
@@ -127,8 +129,32 @@ const OrdersTable = () => {
           </TableHeader>
           <TableBody>
             {filteredOrders.map((order) => (
-              <TableRow key={order.id} className="hover:bg-muted/30 transition-colors">
-                <TableCell className="font-medium">{order.customer}</TableCell>
+              <TableRow key={order.id} className="hover:bg-muted/30 transition-colors group">
+                <TableCell>
+                  <Link 
+                    to={`/order/${order.id}`}
+                    className="font-medium text-accent hover:underline flex items-center gap-1.5"
+                  >
+                    #{order.id}
+                    <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </Link>
+                </TableCell>
+                <TableCell className="font-medium">
+                  {order.companyId ? (
+                    <Link 
+                      to={`/company/${order.companyId}`}
+                      className="flex items-center gap-1.5 text-foreground hover:text-accent transition-colors"
+                    >
+                      <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+                      {order.customer}
+                    </Link>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
+                      {order.customer}
+                    </span>
+                  )}
+                </TableCell>
                 <TableCell className="text-muted-foreground">{order.placed}</TableCell>
                 <TableCell className="text-center">
                   <Badge variant="outline" className="font-mono">
