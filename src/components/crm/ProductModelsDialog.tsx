@@ -10,7 +10,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import {
   Table,
   TableBody,
@@ -26,10 +25,11 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { useToast } from '@/hooks/use-toast';
-import { productModels as initialModels, ProductModel, createEmptyModel, defaultTierNames } from '@/data/productModels';
+import { ProductModel, createEmptyModel } from '@/data/productModels';
+import { useProductModels } from '@/context/ProductModelsContext';
 
 const ProductModelsDialog = () => {
-  const [models, setModels] = useState<ProductModel[]>(initialModels);
+  const { models, addModel, updateModel, deleteModel } = useProductModels();
   const [editingModel, setEditingModel] = useState<ProductModel | null>(null);
   const [isAddingNew, setIsAddingNew] = useState(false);
   const { toast } = useToast();
@@ -46,15 +46,11 @@ const ProductModelsDialog = () => {
       return;
     }
 
-    setModels(prev => {
-      const existingIndex = prev.findIndex(m => m.id === editingModel.id);
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = editingModel;
-        return updated;
-      }
-      return [...prev, editingModel];
-    });
+    if (isAddingNew) {
+      addModel(editingModel);
+    } else {
+      updateModel(editingModel);
+    }
 
     toast({
       title: isAddingNew ? 'Model Added' : 'Model Updated',
@@ -67,7 +63,7 @@ const ProductModelsDialog = () => {
 
   const handleDeleteModel = (id: string) => {
     const model = models.find(m => m.id === id);
-    setModels(prev => prev.filter(m => m.id !== id));
+    deleteModel(id);
     toast({
       title: 'Model Deleted',
       description: `${model?.name} has been removed.`,

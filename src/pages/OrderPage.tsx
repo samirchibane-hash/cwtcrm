@@ -2,7 +2,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Package, Building2, Truck, FileText, Save, Calendar, Hash, Tag, DollarSign, Plus, Trash2 } from 'lucide-react';
 import { orders, Order, OrderModelItem, getStatusColor, formatCurrency } from '@/data/orders';
-import { productModels, defaultTierNames } from '@/data/productModels';
+import { defaultTierNames } from '@/data/productModels';
+import { useProductModels } from '@/context/ProductModelsContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -26,18 +27,6 @@ const getTierIndex = (quantity: number): number => {
   return 0;
 };
 
-// Calculate item value based on model, tier, and quantity
-const calculateItemValue = (modelName: string, quantity: number, tierOverride?: number): number => {
-  const model = productModels.find(m => 
-    modelName.toLowerCase().includes(m.name.toLowerCase())
-  );
-  if (!model) return 0;
-  
-  const tierIndex = tierOverride !== undefined ? tierOverride : getTierIndex(quantity);
-  const unitPrice = model.pricingTiers[tierIndex]?.price || 0;
-  return unitPrice * quantity;
-};
-
 interface EditableModelItem extends OrderModelItem {
   tierOverride?: number; // Allow manual tier selection
 }
@@ -46,6 +35,17 @@ const OrderPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { models: productModels, getModelByName } = useProductModels();
+
+  // Calculate item value based on model, tier, and quantity
+  const calculateItemValue = (modelName: string, quantity: number, tierOverride?: number): number => {
+    const model = getModelByName(modelName);
+    if (!model) return 0;
+    
+    const tierIndex = tierOverride !== undefined ? tierOverride : getTierIndex(quantity);
+    const unitPrice = model.pricingTiers[tierIndex]?.price || 0;
+    return unitPrice * quantity;
+  };
 
   const order = orders.find(o => o.id === id);
 
