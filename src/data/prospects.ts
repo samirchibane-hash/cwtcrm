@@ -5,6 +5,7 @@ export interface Contact {
   email?: string;
   phone?: string;
   linkedIn?: string;
+  isChampion?: boolean;
 }
 
 export interface Engagement {

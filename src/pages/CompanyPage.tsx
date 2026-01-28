@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2 } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2, Star } from 'lucide-react';
 import { Contact, Engagement, CompanyType, MarketType } from '@/data/prospects';
 import { getOrdersByCustomer, Order, getStatusColor } from '@/data/orders';
 import { useProspects } from '@/context/ProspectsContext';
@@ -116,6 +116,24 @@ const CompanyPage = () => {
     const updatedContacts = contacts.filter(c => c.id !== contactId);
     setContacts(updatedContacts);
     saveProspect({ contacts: updatedContacts });
+  };
+
+  const handleToggleChampion = (contactId: string) => {
+    const updatedContacts = contacts.map(c => ({
+      ...c,
+      isChampion: c.id === contactId ? !c.isChampion : false,
+    }));
+    setContacts(updatedContacts);
+    saveProspect({ contacts: updatedContacts });
+    
+    const contact = contacts.find(c => c.id === contactId);
+    const isNowChampion = !contact?.isChampion;
+    toast({
+      title: isNowChampion ? 'Champion set' : 'Champion removed',
+      description: isNowChampion 
+        ? `${contact?.name} is now the company champion.`
+        : `${contact?.name} is no longer the champion.`,
+    });
   };
 
   const handleAddNote = () => {
@@ -320,6 +338,7 @@ const CompanyPage = () => {
                   <table className="w-full">
                     <thead>
                       <tr className="border-b border-border bg-muted/30">
+                        <th className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3 py-3 w-12">★</th>
                         <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Name</th>
                         <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Role</th>
                         <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Email</th>
@@ -331,6 +350,19 @@ const CompanyPage = () => {
                     <tbody className="divide-y divide-border">
                       {contacts.map((contact) => (
                         <tr key={contact.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-3 py-4 text-center">
+                            <button
+                              onClick={() => handleToggleChampion(contact.id)}
+                              className={`p-1.5 rounded-lg transition-colors ${
+                                contact.isChampion 
+                                  ? 'text-amber-500 bg-amber-500/10 hover:bg-amber-500/20' 
+                                  : 'text-muted-foreground hover:text-amber-500 hover:bg-muted'
+                              }`}
+                              title={contact.isChampion ? 'Remove as champion' : 'Set as champion'}
+                            >
+                              <Star className={`w-4 h-4 ${contact.isChampion ? 'fill-current' : ''}`} />
+                            </button>
+                          </td>
                           <td className="px-6 py-4">
                             <p className="font-medium text-sm">{contact.name}</p>
                           </td>

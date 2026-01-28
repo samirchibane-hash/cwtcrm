@@ -250,9 +250,20 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   <span className="font-medium">{prospect.companyName}</span>
                 </td>
                 <td className="p-4 text-sm text-muted-foreground">
-                  {prospect.contacts.length > 0 
-                    ? prospect.contacts.map(c => c.name).join(', ') 
-                    : '—'}
+                  {(() => {
+                    const champion = prospect.contacts.find(c => c.isChampion);
+                    if (champion) {
+                      return (
+                        <span className="flex items-center gap-1.5">
+                          <span className="text-amber-500">★</span>
+                          <span className="font-medium text-foreground">{champion.name}</span>
+                        </span>
+                      );
+                    }
+                    return prospect.contacts.length > 0 
+                      ? `${prospect.contacts.length} contact${prospect.contacts.length > 1 ? 's' : ''}`
+                      : '—';
+                  })()}
                 </td>
                 <td className="p-4 text-sm font-mono text-muted-foreground">
                   {prospect.state || '—'}
