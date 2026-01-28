@@ -1,9 +1,10 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Package, Building2, Truck, FileText, Save, Calendar, Hash, Tag, DollarSign, Plus, Trash2 } from 'lucide-react';
-import { orders, Order, OrderModelItem, getStatusColor, formatCurrency } from '@/data/orders';
+import { Order, OrderModelItem, getStatusColor, formatCurrency } from '@/data/orders';
 import { defaultTierNames } from '@/data/productModels';
 import { useProductModels } from '@/context/ProductModelsContext';
+import { useOrders } from '@/context/OrdersContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -36,6 +37,7 @@ const OrderPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { models: productModels, getModelByName } = useProductModels();
+  const { getOrderById, updateOrder } = useOrders();
 
   // Calculate item value based on model, tier, and quantity
   const calculateItemValue = (modelName: string, quantity: number, tierOverride?: number): number => {
@@ -47,7 +49,7 @@ const OrderPage = () => {
     return unitPrice * quantity;
   };
 
-  const order = orders.find(o => o.id === id);
+  const order = getOrderById(id || '');
 
   const [formData, setFormData] = useState<Order | null>(null);
   const [modelItems, setModelItems] = useState<EditableModelItem[]>([]);
@@ -90,14 +92,17 @@ const OrderPage = () => {
 
   const handleSave = () => {
     // Update formData with calculated values
-    const updatedOrder = {
+    const updatedOrder: Order = {
       ...formData,
       units: totalUnits,
-      modelItems: modelItems,
+      modelItems: modelItems.map(({ quantity, modelName }) => ({ quantity, modelName })),
       totalValue: calculatedTotalValue,
       modelType: modelItems.map(item => `${item.quantity}x ${item.modelName}`).join(', ')
     };
     setFormData(updatedOrder);
+    
+    // Persist to context (and localStorage)
+    updateOrder(updatedOrder);
     
     toast({
       title: 'Order updated',
