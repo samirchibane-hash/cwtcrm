@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
-import { productModels as initialModels, ProductModel, createEmptyModel, defaultTierNames } from '@/data/productModels';
+import { productModels as initialModels, ProductModel } from '@/data/productModels';
 
 interface ProductModelsContextType {
   models: ProductModel[];
