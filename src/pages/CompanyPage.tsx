@@ -39,7 +39,12 @@ const CompanyPage = () => {
   useEffect(() => {
     if (prospect) {
       setCompanyName(prospect.companyName);
-      setContacts(prospect.contacts);
+      // Ensure all contacts have unique IDs
+      const contactsWithIds = prospect.contacts.map((c, idx) => ({
+        ...c,
+        id: c.id || `contact-${Date.now()}-${idx}`,
+      }));
+      setContacts(contactsWithIds);
       setEngagements(prospect.engagements);
       setCompanyType(prospect.type);
       setMarketType(prospect.marketType);
