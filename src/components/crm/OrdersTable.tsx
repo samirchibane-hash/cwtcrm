@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink } from 'lucide-react';
+import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink, Settings } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,8 +19,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { orders, Order, getStatusColor, getOrderStats } from '@/data/orders';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import ProductModelsDialog from './ProductModelsDialog';
 
 const NONE_VALUE = '__none__';
 
@@ -110,6 +117,7 @@ const OrdersTable = () => {
             <SelectItem value="Loaner">Loaner</SelectItem>
           </SelectContent>
         </Select>
+        <ProductModelsDialog />
       </div>
 
       {/* Table */}
