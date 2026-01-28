@@ -1,9 +1,12 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload } from 'lucide-react';
-import { getProspectById, Contact, Engagement } from '@/data/prospects';
+import { getProspectById, Contact, Engagement, CompanyType, MarketType } from '@/data/prospects';
 import StageBadge from '@/components/crm/StageBadge';
 import TypeBadge from '@/components/crm/TypeBadge';
+import MarketTypeBadge from '@/components/crm/MarketTypeBadge';
 import AddContactDialog from '@/components/crm/AddContactDialog';
+import EditCompanyTypeDialog from '@/components/crm/EditCompanyTypeDialog';
+import EditNoteDialog from '@/components/crm/EditNoteDialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useState, useEffect } from 'react';
@@ -16,14 +19,18 @@ const CompanyPage = () => {
   const [newNote, setNewNote] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [engagements, setEngagements] = useState<Engagement[]>([]);
+  const [companyType, setCompanyType] = useState<CompanyType>('');
+  const [marketType, setMarketType] = useState<MarketType>('');
   
   const prospect = id ? getProspectById(id) : null;
 
-  // Initialize contacts and engagements from prospect data
+  // Initialize state from prospect data
   useEffect(() => {
     if (prospect) {
       setContacts(prospect.contacts);
       setEngagements(prospect.engagements);
+      setCompanyType(prospect.type);
+      setMarketType(prospect.marketType);
     }
   }, [prospect]);
 
@@ -64,6 +71,27 @@ const CompanyPage = () => {
     setNewNote('');
   };
 
+  const handleEditNote = (engagementId: string, newDetails: string) => {
+    setEngagements(prev => prev.map(eng => 
+      eng.id === engagementId 
+        ? { 
+            ...eng, 
+            details: newDetails,
+            summary: newDetails.length > 60 ? newDetails.slice(0, 60) + '...' : newDetails,
+          }
+        : eng
+    ));
+  };
+
+  const handleDeleteNote = (engagementId: string) => {
+    setEngagements(prev => prev.filter(eng => eng.id !== engagementId));
+  };
+
+  const handleUpdateCompanyType = (newType: CompanyType, newMarketType: MarketType) => {
+    setCompanyType(newType);
+    setMarketType(newMarketType);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -84,8 +112,9 @@ const CompanyPage = () => {
               </div>
               <div>
                 <h1 className="text-2xl font-semibold tracking-tight">{prospect.companyName}</h1>
-                <div className="flex items-center gap-3 mt-2">
-                  <TypeBadge type={prospect.type} />
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <TypeBadge type={companyType} />
+                  <MarketTypeBadge marketType={marketType} />
                   <StageBadge stage={prospect.stage} />
                   {prospect.state && (
                     <span className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -129,8 +158,27 @@ const CompanyPage = () => {
                   <p className="font-medium">{prospect.companyName}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">Type</label>
-                  <p className="font-medium">{prospect.type || 'Not specified'}</p>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs text-muted-foreground">Company Type</label>
+                    <EditCompanyTypeDialog
+                      currentType={companyType}
+                      currentMarketType={marketType}
+                      onSave={handleUpdateCompanyType}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <TypeBadge type={companyType} />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Market Type</label>
+                  <div className="mt-1">
+                    {marketType ? (
+                      <MarketTypeBadge marketType={marketType} />
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Not specified</span>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Location</label>
@@ -212,7 +260,12 @@ const CompanyPage = () => {
               {engagements.length > 0 ? (
                 <div className="divide-y divide-border">
                   {engagements.map((engagement) => (
-                    <EngagementCard key={engagement.id} engagement={engagement} />
+                    <EngagementCard 
+                      key={engagement.id} 
+                      engagement={engagement}
+                      onEdit={handleEditNote}
+                      onDelete={handleDeleteNote}
+                    />
                   ))}
                 </div>
               ) : (
@@ -288,13 +341,19 @@ const ContactCard = ({ contact }: { contact: Contact }) => {
   );
 };
 
-const EngagementCard = ({ engagement }: { engagement: Engagement }) => {
+interface EngagementCardProps {
+  engagement: Engagement;
+  onEdit: (id: string, details: string) => void;
+  onDelete: (id: string) => void;
+}
+
+const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) => {
   const Icon = engagement.type === 'call' ? Phone :
                engagement.type === 'email' ? Mail :
                engagement.type === 'meeting' ? Calendar : FileText;
   
   return (
-    <div className="p-6 hover:bg-muted/30 transition-colors">
+    <div className="p-6 hover:bg-muted/30 transition-colors group">
       <div className="flex items-start gap-4">
         <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
           <Icon className="w-5 h-5 text-muted-foreground" />
@@ -304,7 +363,16 @@ const EngagementCard = ({ engagement }: { engagement: Engagement }) => {
             <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground capitalize">
               {engagement.type}
             </span>
-            <span className="text-xs text-muted-foreground font-mono">{engagement.date}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground font-mono">{engagement.date}</span>
+              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                <EditNoteDialog 
+                  engagement={engagement}
+                  onSave={onEdit}
+                  onDelete={onDelete}
+                />
+              </div>
+            </div>
           </div>
           <p className="text-sm font-medium">{engagement.summary}</p>
           {engagement.details && engagement.details !== engagement.summary && (
