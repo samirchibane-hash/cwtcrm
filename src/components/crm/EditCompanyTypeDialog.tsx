@@ -27,6 +27,8 @@ interface EditCompanyTypeDialogProps {
   onSave: (type: CompanyType, marketType: MarketType) => void;
 }
 
+const NONE_VALUE = '__none__';
+
 const EditCompanyTypeDialog = ({ currentType, currentMarketType, onSave }: EditCompanyTypeDialogProps) => {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<CompanyType>(currentType);
@@ -50,6 +52,10 @@ const EditCompanyTypeDialog = ({ currentType, currentMarketType, onSave }: EditC
     }
   };
 
+  // Convert empty string to NONE_VALUE for Select, and back
+  const toSelectValue = (val: string) => val === '' ? NONE_VALUE : val;
+  const fromSelectValue = (val: string) => val === NONE_VALUE ? '' : val;
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -68,12 +74,15 @@ const EditCompanyTypeDialog = ({ currentType, currentMarketType, onSave }: EditC
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>Company Type</Label>
-            <Select value={type} onValueChange={(value) => setType(value as CompanyType)}>
+            <Select 
+              value={toSelectValue(type)} 
+              onValueChange={(value) => setType(fromSelectValue(value) as CompanyType)}
+            >
               <SelectTrigger className="rounded-xl">
                 <SelectValue placeholder="Select company type" />
               </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="">None</SelectItem>
+              <SelectContent className="rounded-xl bg-background">
+                <SelectItem value={NONE_VALUE}>None</SelectItem>
                 {COMPANY_TYPES.map((t) => (
                   <SelectItem key={t} value={t}>
                     {t}
@@ -85,12 +94,15 @@ const EditCompanyTypeDialog = ({ currentType, currentMarketType, onSave }: EditC
           
           <div className="space-y-2">
             <Label>Market Type</Label>
-            <Select value={marketType} onValueChange={(value) => setMarketType(value as MarketType)}>
+            <Select 
+              value={toSelectValue(marketType)} 
+              onValueChange={(value) => setMarketType(fromSelectValue(value) as MarketType)}
+            >
               <SelectTrigger className="rounded-xl">
                 <SelectValue placeholder="Select market type" />
               </SelectTrigger>
-              <SelectContent className="rounded-xl">
-                <SelectItem value="">None</SelectItem>
+              <SelectContent className="rounded-xl bg-background">
+                <SelectItem value={NONE_VALUE}>None</SelectItem>
                 {MARKET_TYPES.map((t) => (
                   <SelectItem key={t} value={t}>
                     {t}
