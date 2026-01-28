@@ -175,12 +175,12 @@ const CompanyPage = () => {
       </header>
 
       {/* Content */}
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
+        {/* Top Row - Company Details & Contacts side by side */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Company Details & Contacts */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Company Details */}
-            <section className="content-card p-6 animate-fade-in">
+          {/* Company Details - Left */}
+          <div className="lg:col-span-1">
+            <section className="content-card p-6 animate-fade-in h-full">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="section-header mb-0">Company Details</h2>
                 <EditCompanyDetailsDialog
@@ -240,22 +240,84 @@ const CompanyPage = () => {
                 </div>
               </div>
             </section>
+          </div>
 
-            {/* Contacts */}
-            <section className="content-card p-6 animate-fade-in" style={{ animationDelay: '100ms' }}>
-              <div className="flex items-center justify-between mb-4">
+          {/* Contacts - Right, expanded */}
+          <div className="lg:col-span-2">
+            <section className="content-card animate-fade-in h-full" style={{ animationDelay: '100ms' }}>
+              <div className="flex items-center justify-between p-6 border-b border-border">
                 <h2 className="section-header mb-0">Contacts</h2>
                 <AddContactDialog onAddContact={handleAddContact} />
               </div>
               
               {contacts.length > 0 ? (
-                <div className="space-y-4">
-                  {contacts.map((contact) => (
-                    <ContactCard key={contact.id} contact={contact} />
-                  ))}
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-border bg-muted/30">
+                        <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Name</th>
+                        <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Role</th>
+                        <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Email</th>
+                        <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Cell Phone</th>
+                        <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">LinkedIn</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {contacts.map((contact) => (
+                        <tr key={contact.id} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-6 py-4">
+                            <p className="font-medium text-sm">{contact.name}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm text-muted-foreground">{contact.role || '—'}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            {contact.email ? (
+                              <a 
+                                href={`mailto:${contact.email}`}
+                                className="text-sm text-accent hover:underline flex items-center gap-1.5"
+                              >
+                                <Mail className="w-3.5 h-3.5" />
+                                {contact.email}
+                              </a>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            {contact.phone ? (
+                              <a 
+                                href={`tel:${contact.phone}`}
+                                className="text-sm font-mono text-foreground hover:text-accent flex items-center gap-1.5"
+                              >
+                                <Phone className="w-3.5 h-3.5" />
+                                {contact.phone}
+                              </a>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            {contact.linkedIn ? (
+                              <a 
+                                href={contact.linkedIn}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+                              >
+                                <Linkedin className="w-4 h-4" />
+                              </a>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               ) : (
-                <div className="text-center py-8 text-muted-foreground">
+                <div className="text-center py-12 text-muted-foreground">
                   <p className="text-sm">No contacts added yet</p>
                   <AddContactDialog 
                     onAddContact={handleAddContact}
@@ -270,65 +332,65 @@ const CompanyPage = () => {
               )}
             </section>
           </div>
+        </div>
 
-          {/* Right Column - Engagements */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Quick Add Note */}
-            <section className="content-card p-6 animate-fade-in" style={{ animationDelay: '150ms' }}>
-              <h2 className="section-header">Quick Note</h2>
-              <div className="space-y-3">
-                <Textarea
-                  placeholder="Add a note about this company..."
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  className="min-h-[100px] resize-none border-0 bg-muted/50 focus:bg-card focus:ring-2 focus:ring-accent rounded-xl"
-                />
-                <div className="flex items-center justify-between">
-                  <Button variant="outline" size="sm">
-                    <Upload className="w-4 h-4 mr-2" />
-                    Attach File
-                  </Button>
-                  <Button size="sm" onClick={handleAddNote} disabled={!newNote.trim()}>
-                    Save Note
-                  </Button>
-                </div>
+        {/* Engagements Section */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Quick Add Note */}
+          <section className="content-card p-6 animate-fade-in lg:col-span-1" style={{ animationDelay: '150ms' }}>
+            <h2 className="section-header">Quick Note</h2>
+            <div className="space-y-3">
+              <Textarea
+                placeholder="Add a note about this company..."
+                value={newNote}
+                onChange={(e) => setNewNote(e.target.value)}
+                className="min-h-[100px] resize-none border-0 bg-muted/50 focus:bg-card focus:ring-2 focus:ring-accent rounded-xl"
+              />
+              <div className="flex items-center justify-between">
+                <Button variant="outline" size="sm">
+                  <Upload className="w-4 h-4 mr-2" />
+                  Attach File
+                </Button>
+                <Button size="sm" onClick={handleAddNote} disabled={!newNote.trim()}>
+                  Save Note
+                </Button>
               </div>
-            </section>
+            </div>
+          </section>
 
-            {/* Engagement History */}
-            <section className="content-card animate-fade-in" style={{ animationDelay: '200ms' }}>
-              <div className="p-6 border-b border-border">
-                <h2 className="section-header mb-0">Recent Engagements</h2>
+          {/* Engagement History */}
+          <section className="content-card animate-fade-in lg:col-span-2" style={{ animationDelay: '200ms' }}>
+            <div className="p-6 border-b border-border">
+              <h2 className="section-header mb-0">Recent Engagements</h2>
+            </div>
+            
+            {engagements.length > 0 ? (
+              <div className="divide-y divide-border">
+                {engagements.map((engagement) => (
+                  <EngagementCard 
+                    key={engagement.id} 
+                    engagement={engagement}
+                    onEdit={handleEditNote}
+                    onDelete={handleDeleteNote}
+                  />
+                ))}
               </div>
-              
-              {engagements.length > 0 ? (
-                <div className="divide-y divide-border">
-                  {engagements.map((engagement) => (
-                    <EngagementCard 
-                      key={engagement.id} 
-                      engagement={engagement}
-                      onEdit={handleEditNote}
-                      onDelete={handleDeleteNote}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="p-12 text-center text-muted-foreground">
-                  <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                  <p className="text-sm">No engagements recorded yet</p>
-                  <p className="text-xs mt-1">Add a note above to start tracking interactions</p>
-                </div>
-              )}
+            ) : (
+              <div className="p-12 text-center text-muted-foreground">
+                <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                <p className="text-sm">No engagements recorded yet</p>
+                <p className="text-xs mt-1">Add a note above to start tracking interactions</p>
+              </div>
+            )}
 
-              {/* Original Notes */}
-              {prospect.engagementNotes && (
-                <div className="p-6 bg-muted/30 border-t border-border">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Original Notes</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{prospect.engagementNotes}</p>
-                </div>
-              )}
-            </section>
-          </div>
+            {/* Original Notes */}
+            {prospect.engagementNotes && (
+              <div className="p-6 bg-muted/30 border-t border-border">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Original Notes</h3>
+                <p className="text-sm text-muted-foreground leading-relaxed">{prospect.engagementNotes}</p>
+              </div>
+            )}
+          </section>
         </div>
       </main>
     </div>
