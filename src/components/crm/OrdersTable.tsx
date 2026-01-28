@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink } from 'lucide-react';
+import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,11 +25,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign } from 'lucide-react';
 import ProductModelsDialog from './ProductModelsDialog';
 
+type OrderSortField = 'id' | 'customer' | 'placed' | 'units' | 'modelType' | 'totalValue' | 'status';
+type SortDirection = 'asc' | 'desc' | null;
+
 const NONE_VALUE = '__none__';
 
 const OrdersTable = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(NONE_VALUE);
+  const [sortField, setSortField] = useState<OrderSortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const { orders } = useOrders();
 
   const stats = useMemo(() => {
@@ -41,13 +46,76 @@ const OrdersTable = () => {
     return { totalOrders, totalUnits, totalValue, delivered, pending };
   }, [orders]);
 
-  const filteredOrders = orders.filter((order) => {
-    const matchesSearch =
-      order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      order.modelType.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === NONE_VALUE || order.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const handleSort = (field: OrderSortField) => {
+    if (sortField === field) {
+      if (sortDirection === 'asc') setSortDirection('desc');
+      else if (sortDirection === 'desc') { setSortField(null); setSortDirection(null); }
+      else setSortDirection('asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
+
+  const getSortIcon = (field: OrderSortField) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-50" />;
+    if (sortDirection === 'asc') return <ChevronUp className="w-3 h-3 ml-1" />;
+    return <ChevronDown className="w-3 h-3 ml-1" />;
+  };
+
+  const filteredAndSortedOrders = useMemo(() => {
+    let result = orders.filter((order) => {
+      const matchesSearch =
+        order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        order.modelType.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesStatus = statusFilter === NONE_VALUE || order.status === statusFilter;
+      return matchesSearch && matchesStatus;
+    });
+
+    if (sortField && sortDirection) {
+      result = [...result].sort((a, b) => {
+        let aVal: string | number = '';
+        let bVal: string | number = '';
+
+        switch (sortField) {
+          case 'id':
+            aVal = a.id.toLowerCase();
+            bVal = b.id.toLowerCase();
+            break;
+          case 'customer':
+            aVal = a.customer.toLowerCase();
+            bVal = b.customer.toLowerCase();
+            break;
+          case 'placed':
+            aVal = a.placed || '';
+            bVal = b.placed || '';
+            break;
+          case 'units':
+            aVal = a.units;
+            bVal = b.units;
+            break;
+          case 'modelType':
+            aVal = a.modelType.toLowerCase();
+            bVal = b.modelType.toLowerCase();
+            break;
+          case 'totalValue':
+            aVal = a.totalValue;
+            bVal = b.totalValue;
+            break;
+          case 'status':
+            aVal = a.status.toLowerCase();
+            bVal = b.status.toLowerCase();
+            break;
+        }
+
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [orders, searchTerm, statusFilter, sortField, sortDirection]);
 
   const StatusBadge = ({ status }: { status: Order['status'] }) => {
     const colors = getStatusColor(status);
@@ -140,22 +208,36 @@ const OrdersTable = () => {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead className="font-semibold">Order</TableHead>
-              <TableHead className="font-semibold">Customer</TableHead>
-              <TableHead className="font-semibold">Date Placed</TableHead>
-              <TableHead className="font-semibold text-center">Units</TableHead>
-              <TableHead className="font-semibold">Model Type</TableHead>
-              <TableHead className="font-semibold text-right">Total Value</TableHead>
-              <TableHead className="font-semibold">Status</TableHead>
+              <TableHead className="font-semibold cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('id')}>
+                <span className="flex items-center">Order{getSortIcon('id')}</span>
+              </TableHead>
+              <TableHead className="font-semibold cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('customer')}>
+                <span className="flex items-center">Customer{getSortIcon('customer')}</span>
+              </TableHead>
+              <TableHead className="font-semibold cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('placed')}>
+                <span className="flex items-center">Date Placed{getSortIcon('placed')}</span>
+              </TableHead>
+              <TableHead className="font-semibold text-center cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('units')}>
+                <span className="flex items-center justify-center">Units{getSortIcon('units')}</span>
+              </TableHead>
+              <TableHead className="font-semibold cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('modelType')}>
+                <span className="flex items-center">Model Type{getSortIcon('modelType')}</span>
+              </TableHead>
+              <TableHead className="font-semibold text-right cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('totalValue')}>
+                <span className="flex items-center justify-end">Total Value{getSortIcon('totalValue')}</span>
+              </TableHead>
+              <TableHead className="font-semibold cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('status')}>
+                <span className="flex items-center">Status{getSortIcon('status')}</span>
+              </TableHead>
               <TableHead className="font-semibold">Links</TableHead>
               <TableHead className="font-semibold">Order Updates</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredOrders.map((order) => (
+            {filteredAndSortedOrders.map((order) => (
               <TableRow key={order.id} className="hover:bg-muted/30 transition-colors group">
                 <TableCell>
-                  <Link 
+                  <Link
                     to={`/order/${order.id}`}
                     className="font-medium text-accent hover:underline flex items-center gap-1.5"
                   >
@@ -237,7 +319,7 @@ const OrdersTable = () => {
         </Table>
       </div>
 
-      {filteredOrders.length === 0 && (
+      {filteredAndSortedOrders.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
           <p>No orders found matching your criteria.</p>

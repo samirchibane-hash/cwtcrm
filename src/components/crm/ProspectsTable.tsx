@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ExternalLink, Filter, ChevronDown, Loader2 } from 'lucide-react';
+import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown } from 'lucide-react';
 import { useProspects } from '@/context/ProspectsContext';
 import { Prospect } from '@/data/prospects';
 import StageBadge from './StageBadge';
@@ -18,30 +18,94 @@ interface ProspectsTableProps {
   onSelectProspect: (prospect: Prospect) => void;
 }
 
+type SortField = 'companyName' | 'contacts' | 'state' | 'type' | 'stage' | 'lastContact';
+type SortDirection = 'asc' | 'desc' | null;
+
 const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const navigate = useNavigate();
   const { prospects, isLoading } = useProspects();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [stageFilter, setStageFilter] = useState<string[]>([]);
+  const [sortField, setSortField] = useState<SortField | null>(null);
+  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
 
   const types = ['OEM', 'Distributor', 'eCommerce'];
   const stages = ['Quotes', 'Contact Made', 'No Current Interest'];
 
-  const filteredProspects = prospects.filter((prospect) => {
-    const matchesSearch = 
-      prospect.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prospect.contacts.some(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
-      prospect.state.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prospect.engagementNotes.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    const matchesType = typeFilter.length === 0 || typeFilter.includes(prospect.type);
-    
-    const matchesStage = stageFilter.length === 0 || 
-      stageFilter.some(s => prospect.stage.toLowerCase().includes(s.toLowerCase()));
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      if (sortDirection === 'asc') setSortDirection('desc');
+      else if (sortDirection === 'desc') { setSortField(null); setSortDirection(null); }
+      else setSortDirection('asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+  };
 
-    return matchesSearch && matchesType && matchesStage;
-  });
+  const getSortIcon = (field: SortField) => {
+    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-50" />;
+    if (sortDirection === 'asc') return <ChevronUp className="w-3 h-3 ml-1" />;
+    return <ChevronDown className="w-3 h-3 ml-1" />;
+  };
+
+  const filteredAndSortedProspects = useMemo(() => {
+    let result = prospects.filter((prospect) => {
+      const matchesSearch = 
+        prospect.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        prospect.contacts.some(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        prospect.state.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        prospect.engagementNotes.toLowerCase().includes(searchQuery.toLowerCase());
+      
+      const matchesType = typeFilter.length === 0 || typeFilter.includes(prospect.type);
+      
+      const matchesStage = stageFilter.length === 0 || 
+        stageFilter.some(s => prospect.stage.toLowerCase().includes(s.toLowerCase()));
+
+      return matchesSearch && matchesType && matchesStage;
+    });
+
+    if (sortField && sortDirection) {
+      result = [...result].sort((a, b) => {
+        let aVal: string | number = '';
+        let bVal: string | number = '';
+
+        switch (sortField) {
+          case 'companyName':
+            aVal = a.companyName.toLowerCase();
+            bVal = b.companyName.toLowerCase();
+            break;
+          case 'contacts':
+            aVal = a.contacts.length > 0 ? a.contacts[0].name.toLowerCase() : '';
+            bVal = b.contacts.length > 0 ? b.contacts[0].name.toLowerCase() : '';
+            break;
+          case 'state':
+            aVal = (a.state || '').toLowerCase();
+            bVal = (b.state || '').toLowerCase();
+            break;
+          case 'type':
+            aVal = (a.type || '').toLowerCase();
+            bVal = (b.type || '').toLowerCase();
+            break;
+          case 'stage':
+            aVal = (a.stage || '').toLowerCase();
+            bVal = (b.stage || '').toLowerCase();
+            break;
+          case 'lastContact':
+            aVal = a.lastContact || '';
+            bVal = b.lastContact || '';
+            break;
+        }
+
+        if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+        if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    return result;
+  }, [prospects, searchQuery, typeFilter, stageFilter, sortField, sortDirection]);
 
   const handleRowClick = (prospect: Prospect) => {
     navigate(`/company/${prospect.id}`);
@@ -136,17 +200,47 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         <table className="w-full">
           <thead>
             <tr className="bg-muted/30">
-              <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Company</th>
-              <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contacts</th>
-              <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Location</th>
-              <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Type</th>
-              <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stage</th>
-              <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Last Contact</th>
+              <th 
+                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                onClick={() => handleSort('companyName')}
+              >
+                <span className="flex items-center">Company{getSortIcon('companyName')}</span>
+              </th>
+              <th 
+                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                onClick={() => handleSort('contacts')}
+              >
+                <span className="flex items-center">Contacts{getSortIcon('contacts')}</span>
+              </th>
+              <th 
+                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                onClick={() => handleSort('state')}
+              >
+                <span className="flex items-center">Location{getSortIcon('state')}</span>
+              </th>
+              <th 
+                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                onClick={() => handleSort('type')}
+              >
+                <span className="flex items-center">Type{getSortIcon('type')}</span>
+              </th>
+              <th 
+                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                onClick={() => handleSort('stage')}
+              >
+                <span className="flex items-center">Stage{getSortIcon('stage')}</span>
+              </th>
+              <th 
+                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                onClick={() => handleSort('lastContact')}
+              >
+                <span className="flex items-center">Last Contact{getSortIcon('lastContact')}</span>
+              </th>
               <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">LinkedIn</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
-            {filteredProspects.map((prospect) => (
+            {filteredAndSortedProspects.map((prospect) => (
               <tr 
                 key={prospect.id} 
                 className="table-row-hover cursor-pointer"
@@ -195,7 +289,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
 
       {/* Footer */}
       <div className="p-4 border-t border-border text-sm text-muted-foreground">
-        Showing {filteredProspects.length} of {prospects.length} prospects
+        Showing {filteredAndSortedProspects.length} of {prospects.length} prospects
       </div>
     </div>
   );
