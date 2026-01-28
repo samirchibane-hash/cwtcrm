@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { productModels as initialModels, ProductModel } from '@/data/productModels';
 
 interface ProductModelsContextType {
@@ -11,8 +11,37 @@ interface ProductModelsContextType {
 
 const ProductModelsContext = createContext<ProductModelsContextType | undefined>(undefined);
 
+const STORAGE_KEY = 'product-models';
+
+// Load from localStorage or use initial models
+const loadModels = (): ProductModel[] => {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (e) {
+    console.error('Failed to load product models from storage:', e);
+  }
+  return initialModels;
+};
+
+// Save to localStorage
+const saveModels = (models: ProductModel[]) => {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(models));
+  } catch (e) {
+    console.error('Failed to save product models to storage:', e);
+  }
+};
+
 export const ProductModelsProvider = ({ children }: { children: ReactNode }) => {
-  const [models, setModels] = useState<ProductModel[]>(initialModels);
+  const [models, setModels] = useState<ProductModel[]>(loadModels);
+
+  // Persist changes to localStorage
+  useEffect(() => {
+    saveModels(models);
+  }, [models]);
 
   const addModel = (model: ProductModel) => {
     setModels(prev => [...prev, model]);
