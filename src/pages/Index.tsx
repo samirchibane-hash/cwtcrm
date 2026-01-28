@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import Sidebar from '@/components/crm/Sidebar';
 import Dashboard from '@/components/crm/Dashboard';
 import ProspectsTable from '@/components/crm/ProspectsTable';
@@ -9,7 +9,16 @@ import { Prospect } from '@/data/prospects';
 
 const Index = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [activeView, setActiveView] = useState('dashboard');
+
+  // Handle view query parameter (e.g., /?view=orders)
+  useEffect(() => {
+    const viewParam = searchParams.get('view');
+    if (viewParam && ['dashboard', 'prospects', 'pipeline', 'orders'].includes(viewParam)) {
+      setActiveView(viewParam);
+    }
+  }, [searchParams]);
 
   const handleSelectProspect = (prospect: Prospect) => {
     navigate(`/company/${prospect.id}`);

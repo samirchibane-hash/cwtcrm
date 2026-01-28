@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Package, Building2, Truck, FileText, Save, Calendar, Hash, Tag, DollarSign, Plus, Trash2 } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Package, Building2, Truck, FileText, Save, Calendar, Hash, Tag, DollarSign, Plus, Trash2 } from 'lucide-react';
 import { Order, OrderModelItem, getStatusColor, formatCurrency } from '@/data/orders';
 import { defaultTierNames } from '@/data/productModels';
 import { useProductModels } from '@/context/ProductModelsContext';
@@ -37,7 +37,7 @@ const OrderPage = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { models: productModels, getModelByName } = useProductModels();
-  const { getOrderById, updateOrder } = useOrders();
+  const { orders, getOrderById, updateOrder } = useOrders();
 
   // Calculate item value based on model, tier, and quantity
   const calculateItemValue = (modelName: string, quantity: number, tierOverride?: number): number => {
@@ -50,6 +50,11 @@ const OrderPage = () => {
   };
 
   const order = getOrderById(id || '');
+  
+  // Get previous and next order IDs for navigation
+  const currentIndex = orders.findIndex(o => o.id === id);
+  const prevOrderId = currentIndex > 0 ? orders[currentIndex - 1].id : null;
+  const nextOrderId = currentIndex < orders.length - 1 ? orders[currentIndex + 1].id : null;
 
   const [formData, setFormData] = useState<Order | null>(null);
   const [modelItems, setModelItems] = useState<EditableModelItem[]>([]);
@@ -144,13 +149,36 @@ const OrderPage = () => {
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border">
         <div className="max-w-4xl mx-auto px-6 py-4">
-          <button 
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm font-medium">Back to Orders</span>
-          </button>
+          <div className="flex items-center justify-between mb-4">
+            <button 
+              onClick={() => navigate('/?view=orders')}
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-sm font-medium">Back to Orders</span>
+            </button>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => prevOrderId && navigate(`/order/${prevOrderId}`)}
+                disabled={!prevOrderId}
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => nextOrderId && navigate(`/order/${nextOrderId}`)}
+                disabled={!nextOrderId}
+              >
+                Next
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
+          </div>
           
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
