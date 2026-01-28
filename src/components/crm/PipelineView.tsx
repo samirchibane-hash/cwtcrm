@@ -1,5 +1,7 @@
 import { useNavigate } from 'react-router-dom';
-import { prospects, Prospect, getStageColor } from '@/data/prospects';
+import { Loader2 } from 'lucide-react';
+import { useProspects } from '@/context/ProspectsContext';
+import { Prospect } from '@/data/prospects';
 import TypeBadge from './TypeBadge';
 
 interface PipelineViewProps {
@@ -8,6 +10,7 @@ interface PipelineViewProps {
 
 const PipelineView = ({ onSelectProspect }: PipelineViewProps) => {
   const navigate = useNavigate();
+  const { prospects, isLoading } = useProspects();
   
   const stages = [
     { id: 'new', label: 'New Leads', filter: (p: Prospect) => !p.stage },
@@ -19,6 +22,14 @@ const PipelineView = ({ onSelectProspect }: PipelineViewProps) => {
   const handleCardClick = (prospect: Prospect) => {
     navigate(`/company/${prospect.id}`);
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">

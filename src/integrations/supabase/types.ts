@@ -107,6 +107,54 @@ export type Database = {
         }
         Relationships: []
       }
+      prospects: {
+        Row: {
+          company_name: string
+          contacts: Json
+          created_at: string
+          engagement_notes: string | null
+          engagements: Json
+          id: string
+          last_contact: string | null
+          linkedin: string | null
+          market_type: string | null
+          stage: string | null
+          state: string | null
+          type: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_name: string
+          contacts?: Json
+          created_at?: string
+          engagement_notes?: string | null
+          engagements?: Json
+          id?: string
+          last_contact?: string | null
+          linkedin?: string | null
+          market_type?: string | null
+          stage?: string | null
+          state?: string | null
+          type?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_name?: string
+          contacts?: Json
+          created_at?: string
+          engagement_notes?: string | null
+          engagements?: Json
+          id?: string
+          last_contact?: string | null
+          linkedin?: string | null
+          market_type?: string | null
+          stage?: string | null
+          state?: string | null
+          type?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

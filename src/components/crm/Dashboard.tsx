@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom';
-import { Building2, Users, FileCheck, MessageSquare, TrendingUp, AlertCircle } from 'lucide-react';
-import { getStats, prospects, Prospect } from '@/data/prospects';
+import { Building2, Users, FileCheck, MessageSquare, TrendingUp, AlertCircle, Loader2 } from 'lucide-react';
+import { useProspects } from '@/context/ProspectsContext';
+import { Prospect } from '@/data/prospects';
 import MetricCard from './MetricCard';
 import TypeBadge from './TypeBadge';
 import StageBadge from './StageBadge';
@@ -11,7 +12,19 @@ interface DashboardProps {
 
 const Dashboard = ({ onSelectProspect }: DashboardProps) => {
   const navigate = useNavigate();
-  const stats = getStats();
+  const { prospects, isLoading } = useProspects();
+
+  // Calculate stats from prospects
+  const stats = {
+    total: prospects.length,
+    withQuotes: prospects.filter(p => p.stage.toLowerCase().includes('quotes')).length,
+    contactMade: prospects.filter(p => p.stage.toLowerCase().includes('contact made')).length,
+    byType: {
+      OEM: prospects.filter(p => p.type === 'OEM').length,
+      Distributor: prospects.filter(p => p.type === 'Distributor').length,
+      eCommerce: prospects.filter(p => p.type === 'eCommerce').length,
+    },
+  };
   
   // Get recent activities (sorted by last contact)
   const recentProspects = [...prospects]
@@ -32,6 +45,14 @@ const Dashboard = ({ onSelectProspect }: DashboardProps) => {
     navigate(`/company/${prospect.id}`);
   };
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Metrics Grid */}
@@ -45,7 +66,7 @@ const Dashboard = ({ onSelectProspect }: DashboardProps) => {
         <MetricCard
           title="Quotes Sent"
           value={stats.withQuotes}
-          subtitle={`${((stats.withQuotes / stats.total) * 100).toFixed(0)}% of pipeline`}
+          subtitle={`${stats.total > 0 ? ((stats.withQuotes / stats.total) * 100).toFixed(0) : 0}% of pipeline`}
           icon={FileCheck}
         />
         <MetricCard
@@ -93,6 +114,9 @@ const Dashboard = ({ onSelectProspect }: DashboardProps) => {
                 </div>
               </div>
             ))}
+            {recentProspects.length === 0 && (
+              <p className="text-center text-muted-foreground py-8">No recent activity</p>
+            )}
           </div>
         </div>
 

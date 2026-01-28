@@ -1,7 +1,8 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink } from 'lucide-react';
-import { getProspectById, Contact, Engagement, CompanyType, MarketType } from '@/data/prospects';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2 } from 'lucide-react';
+import { Contact, Engagement, CompanyType, MarketType } from '@/data/prospects';
 import { getOrdersByCustomer, Order, getStatusColor } from '@/data/orders';
+import { useProspects } from '@/context/ProspectsContext';
 import StageBadge from '@/components/crm/StageBadge';
 import TypeBadge from '@/components/crm/TypeBadge';
 import MarketTypeBadge from '@/components/crm/MarketTypeBadge';
@@ -18,6 +19,7 @@ const CompanyPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { getProspectById, updateProspect, isLoading } = useProspects();
   const [newNote, setNewNote] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [engagements, setEngagements] = useState<Engagement[]>([]);
@@ -27,6 +29,8 @@ const CompanyPage = () => {
   const [state, setState] = useState('');
   const [stage, setStage] = useState('');
   const [linkedIn, setLinkedIn] = useState('');
+  const [lastContact, setLastContact] = useState('');
+  const [engagementNotes, setEngagementNotes] = useState('');
   
   const prospect = id ? getProspectById(id) : null;
 
@@ -41,8 +45,18 @@ const CompanyPage = () => {
       setState(prospect.state);
       setStage(prospect.stage);
       setLinkedIn(prospect.linkedIn);
+      setLastContact(prospect.lastContact);
+      setEngagementNotes(prospect.engagementNotes);
     }
   }, [prospect]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   if (!prospect) {
     return (
@@ -58,8 +72,35 @@ const CompanyPage = () => {
     );
   }
 
+  const saveProspect = (updates: Partial<{
+    contacts: Contact[];
+    engagements: Engagement[];
+    companyName: string;
+    companyType: CompanyType;
+    marketType: MarketType;
+    state: string;
+    stage: string;
+    linkedIn: string;
+  }>) => {
+    updateProspect({
+      id: prospect.id,
+      companyName: updates.companyName ?? companyName,
+      contacts: updates.contacts ?? contacts,
+      engagements: updates.engagements ?? engagements,
+      type: updates.companyType ?? companyType,
+      marketType: updates.marketType ?? marketType,
+      state: updates.state ?? state,
+      stage: updates.stage ?? stage,
+      linkedIn: updates.linkedIn ?? linkedIn,
+      lastContact: lastContact,
+      engagementNotes: engagementNotes,
+    });
+  };
+
   const handleAddContact = (newContact: Contact) => {
-    setContacts(prev => [...prev, newContact]);
+    const updatedContacts = [...contacts, newContact];
+    setContacts(updatedContacts);
+    saveProspect({ contacts: updatedContacts });
   };
 
   const handleAddNote = () => {
@@ -73,7 +114,9 @@ const CompanyPage = () => {
       details: newNote,
     };
     
-    setEngagements(prev => [newEngagement, ...prev]);
+    const updatedEngagements = [newEngagement, ...engagements];
+    setEngagements(updatedEngagements);
+    saveProspect({ engagements: updatedEngagements });
     toast({
       title: 'Note saved',
       description: 'Your note has been added to engagements.',
@@ -82,7 +125,7 @@ const CompanyPage = () => {
   };
 
   const handleEditNote = (engagementId: string, newDetails: string) => {
-    setEngagements(prev => prev.map(eng => 
+    const updatedEngagements = engagements.map(eng => 
       eng.id === engagementId 
         ? { 
             ...eng, 
@@ -90,11 +133,15 @@ const CompanyPage = () => {
             summary: newDetails.length > 60 ? newDetails.slice(0, 60) + '...' : newDetails,
           }
         : eng
-    ));
+    );
+    setEngagements(updatedEngagements);
+    saveProspect({ engagements: updatedEngagements });
   };
 
   const handleDeleteNote = (engagementId: string) => {
-    setEngagements(prev => prev.filter(eng => eng.id !== engagementId));
+    const updatedEngagements = engagements.filter(eng => eng.id !== engagementId);
+    setEngagements(updatedEngagements);
+    saveProspect({ engagements: updatedEngagements });
   };
 
   const handleUpdateCompanyDetails = (details: {
@@ -111,6 +158,7 @@ const CompanyPage = () => {
     setState(details.state);
     setStage(details.stage);
     setLinkedIn(details.linkedIn);
+    saveProspect(details);
   };
 
   return (
