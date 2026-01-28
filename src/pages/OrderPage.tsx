@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { ArrowLeft, ChevronLeft, ChevronRight, Package, Building2, Truck, FileText, Save, Calendar, Hash, Tag, DollarSign, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { Order, OrderModelItem, OrderType, getStatusColor, formatCurrency } from '@/data/orders';
@@ -46,6 +46,7 @@ interface EditableModelItem extends OrderModelItem {
 const OrderPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { models: productModels, getModelByName } = useProductModels();
   const { orders, getOrderById, updateOrder, deleteOrder } = useOrders();
@@ -180,7 +181,10 @@ const OrderPage = () => {
         <div className="max-w-4xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <button 
-              onClick={() => navigate('/?view=orders')}
+              onClick={() => {
+                const from = (location.state as { from?: string } | null)?.from;
+                navigate(from || '/?view=orders');
+              }}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -191,7 +195,7 @@ const OrderPage = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => prevOrderId && navigate(`/order/${prevOrderId}`)}
+                onClick={() => prevOrderId && navigate(`/order/${prevOrderId}`, { state: location.state })}
                 disabled={!prevOrderId}
               >
                 <ChevronLeft className="w-4 h-4 mr-1" />
@@ -200,7 +204,7 @@ const OrderPage = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => nextOrderId && navigate(`/order/${nextOrderId}`)}
+                onClick={() => nextOrderId && navigate(`/order/${nextOrderId}`, { state: location.state })}
                 disabled={!nextOrderId}
               >
                 Next

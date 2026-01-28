@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +33,7 @@ const NONE_VALUE = '__none__';
 
 const OrdersTable = () => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(NONE_VALUE);
   const { orders } = useOrders();
@@ -61,8 +62,10 @@ const OrdersTable = () => {
       newParams.delete('sortField');
       newParams.delete('sortDir');
     }
-    setSearchParams(newParams, { replace: true });
-  }, [sortField, sortDirection]);
+    if (newParams.toString() !== searchParams.toString()) {
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [sortField, sortDirection, searchParams, setSearchParams]);
 
   const stats = useMemo(() => {
     const totalOrders = orders.length;
@@ -267,6 +270,7 @@ const OrdersTable = () => {
                 <TableCell>
                   <Link
                     to={`/order/${order.id}`}
+                    state={{ from: `${location.pathname}${location.search}` }}
                     className="font-medium text-accent hover:underline flex items-center gap-1.5"
                   >
                     #{order.id}
@@ -277,6 +281,7 @@ const OrdersTable = () => {
                   {order.companyId ? (
                     <Link 
                       to={`/company/${order.companyId}`}
+                      state={{ from: `${location.pathname}${location.search}` }}
                       className="flex items-center gap-1.5 text-foreground hover:text-accent transition-colors"
                     >
                       <Building2 className="w-3.5 h-3.5 text-muted-foreground" />

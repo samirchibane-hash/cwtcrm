@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2, Star, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Contact, Engagement, CompanyType, MarketType } from '@/data/prospects';
 import { getOrdersByCustomer, Order, getStatusColor } from '@/data/orders';
@@ -19,6 +19,7 @@ import { useToast } from '@/hooks/use-toast';
 const CompanyPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { getProspectById, updateProspect, isLoading } = useProspects();
   const [newNote, setNewNote] = useState('');
@@ -211,7 +212,10 @@ const CompanyPage = () => {
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <button 
-              onClick={() => navigate('/?view=prospects')}
+              onClick={() => {
+                const from = (location.state as { from?: string } | null)?.from;
+                navigate(from || '/?view=prospects');
+              }}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -222,7 +226,10 @@ const CompanyPage = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => previousProspect && navigate(`/company/${previousProspect.id}`)}
+                onClick={() =>
+                  previousProspect &&
+                  navigate(`/company/${previousProspect.id}`, { state: location.state })
+                }
                 disabled={!previousProspect}
                 className="gap-1"
               >
@@ -232,7 +239,10 @@ const CompanyPage = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => nextProspect && navigate(`/company/${nextProspect.id}`)}
+                onClick={() =>
+                  nextProspect &&
+                  navigate(`/company/${nextProspect.id}`, { state: location.state })
+                }
                 disabled={!nextProspect}
                 className="gap-1"
               >
