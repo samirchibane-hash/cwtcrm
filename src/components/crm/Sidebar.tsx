@@ -1,4 +1,7 @@
-import { LayoutDashboard, Users, FileText, Settings, Droplets, ShoppingCart } from 'lucide-react';
+import { LayoutDashboard, Users, FileText, Droplets, ShoppingCart, LogOut } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
 
 interface SidebarProps {
   activeView: string;
@@ -6,6 +9,14 @@ interface SidebarProps {
 }
 
 const Sidebar = ({ activeView, onViewChange }: SidebarProps) => {
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate('/auth');
+  };
+
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'prospects', label: 'Prospects', icon: Users },
@@ -43,11 +54,20 @@ const Sidebar = ({ activeView, onViewChange }: SidebarProps) => {
       </nav>
 
       {/* Footer */}
-      <div className="p-3 border-t border-sidebar-border">
-        <button className="sidebar-item w-full">
-          <Settings className="w-5 h-5" />
-          <span>Settings</span>
-        </button>
+      <div className="p-3 border-t border-sidebar-border space-y-2">
+        {user && (
+          <div className="px-3 py-2 text-xs text-muted-foreground truncate">
+            {user.email}
+          </div>
+        )}
+        <Button
+          variant="ghost"
+          className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground"
+          onClick={handleSignOut}
+        >
+          <LogOut className="w-4 h-4" />
+          <span>Sign Out</span>
+        </Button>
       </div>
     </aside>
   );
