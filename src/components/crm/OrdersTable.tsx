@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -32,11 +32,37 @@ type SortDirection = 'asc' | 'desc' | null;
 const NONE_VALUE = '__none__';
 
 const OrdersTable = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(NONE_VALUE);
-  const [sortField, setSortField] = useState<OrderSortField | null>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
   const { orders } = useOrders();
+
+  // Initialize sort state from URL params
+  const [sortField, setSortField] = useState<OrderSortField | null>(() => {
+    const field = searchParams.get('sortField');
+    if (field && ['id', 'customer', 'placed', 'units', 'modelType', 'totalValue', 'status'].includes(field)) {
+      return field as OrderSortField;
+    }
+    return null;
+  });
+  const [sortDirection, setSortDirection] = useState<SortDirection>(() => {
+    const dir = searchParams.get('sortDir');
+    if (dir === 'asc' || dir === 'desc') return dir;
+    return null;
+  });
+
+  // Sync sort state to URL
+  useEffect(() => {
+    const newParams = new URLSearchParams(searchParams);
+    if (sortField && sortDirection) {
+      newParams.set('sortField', sortField);
+      newParams.set('sortDir', sortDirection);
+    } else {
+      newParams.delete('sortField');
+      newParams.delete('sortDir');
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [sortField, sortDirection]);
 
   const stats = useMemo(() => {
     const totalOrders = orders.length;
