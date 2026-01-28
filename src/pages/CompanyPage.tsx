@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2, Star } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2, Star, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Contact, Engagement, CompanyType, MarketType } from '@/data/prospects';
 import { getOrdersByCustomer, Order, getStatusColor } from '@/data/orders';
 import { useProspects } from '@/context/ProspectsContext';
@@ -34,7 +34,12 @@ const CompanyPage = () => {
   const [engagementNotes, setEngagementNotes] = useState('');
   
   const prospect = id ? getProspectById(id) : null;
-
+  const { prospects } = useProspects();
+  
+  // Get previous and next prospect for navigation
+  const currentIndex = prospects.findIndex(p => p.id === id);
+  const previousProspect = currentIndex > 0 ? prospects[currentIndex - 1] : null;
+  const nextProspect = currentIndex < prospects.length - 1 ? prospects[currentIndex + 1] : null;
   // Initialize state from prospect data
   useEffect(() => {
     if (prospect) {
@@ -204,13 +209,38 @@ const CompanyPage = () => {
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border">
         <div className="max-w-6xl mx-auto px-6 py-4">
-          <button 
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-4"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm font-medium">Back</span>
-          </button>
+          <div className="flex items-center justify-between mb-4">
+            <button 
+              onClick={() => navigate('/?view=prospects')}
+              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="text-sm font-medium">Back to Prospects</span>
+            </button>
+            
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => previousProspect && navigate(`/company/${previousProspect.id}`)}
+                disabled={!previousProspect}
+                className="gap-1"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => nextProspect && navigate(`/company/${nextProspect.id}`)}
+                disabled={!nextProspect}
+                className="gap-1"
+              >
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
+          </div>
           
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-4">
