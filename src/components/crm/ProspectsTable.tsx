@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown } from 'lucide-react';
 import { useProspects } from '@/context/ProspectsContext';
 import { Prospect } from '@/data/prospects';
@@ -24,12 +24,38 @@ type SortDirection = 'asc' | 'desc' | null;
 
 const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { prospects, isLoading } = useProspects();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [stageFilter, setStageFilter] = useState<string[]>([]);
-  const [sortField, setSortField] = useState<SortField | null>(null);
-  const [sortDirection, setSortDirection] = useState<SortDirection>(null);
+  
+  // Initialize sort state from URL params
+  const [sortField, setSortField] = useState<SortField | null>(() => {
+    const field = searchParams.get('sortField');
+    if (field && ['companyName', 'contacts', 'state', 'type', 'stage', 'lastContact'].includes(field)) {
+      return field as SortField;
+    }
+    return null;
+  });
+  const [sortDirection, setSortDirection] = useState<SortDirection>(() => {
+    const dir = searchParams.get('sortDir');
+    if (dir === 'asc' || dir === 'desc') return dir;
+    return null;
+  });
+
+  // Sync sort state to URL
+  useEffect(() => {
+    const newParams = new URLSearchParams(searchParams);
+    if (sortField && sortDirection) {
+      newParams.set('sortField', sortField);
+      newParams.set('sortDir', sortDirection);
+    } else {
+      newParams.delete('sortField');
+      newParams.delete('sortDir');
+    }
+    setSearchParams(newParams, { replace: true });
+  }, [sortField, sortDirection]);
 
   const types = ['OEM', 'Distributor', 'eCommerce'];
   const stages = ['Quotes', 'Contact Made', 'No Current Interest'];
