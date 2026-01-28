@@ -96,12 +96,20 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
       return matchesSearch && matchesType && matchesStage;
     });
 
-    // Helper to parse mm/dd/yyyy date strings
+    // Helper to parse date strings (supports m/d, mm/dd, m/d/yy, mm/dd/yyyy)
     const parseDateString = (dateStr: string): number => {
       if (!dateStr) return 0;
       const parts = dateStr.split('/');
-      if (parts.length === 3) {
-        const [month, day, year] = parts.map(p => parseInt(p, 10));
+      if (parts.length >= 2) {
+        const month = parseInt(parts[0], 10);
+        const day = parseInt(parts[1], 10);
+        // Default to current year if no year provided
+        let year = new Date().getFullYear();
+        if (parts.length === 3) {
+          year = parseInt(parts[2], 10);
+          // Handle 2-digit years
+          if (year < 100) year += 2000;
+        }
         // Create date as YYYYMMDD number for proper sorting
         return year * 10000 + month * 100 + day;
       }
