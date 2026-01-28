@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import { prospects, Prospect, getStageColor } from '@/data/prospects';
 import TypeBadge from './TypeBadge';
 
@@ -6,6 +7,8 @@ interface PipelineViewProps {
 }
 
 const PipelineView = ({ onSelectProspect }: PipelineViewProps) => {
+  const navigate = useNavigate();
+  
   const stages = [
     { id: 'new', label: 'New Leads', filter: (p: Prospect) => !p.stage },
     { id: 'contact', label: 'Contact Made', filter: (p: Prospect) => p.stage.toLowerCase().includes('contact made') },
@@ -13,18 +16,21 @@ const PipelineView = ({ onSelectProspect }: PipelineViewProps) => {
     { id: 'lost', label: 'No Interest', filter: (p: Prospect) => p.stage.toLowerCase().includes('no current interest') },
   ];
 
+  const handleCardClick = (prospect: Prospect) => {
+    navigate(`/company/${prospect.id}`);
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-fade-in">
       {stages.map((stage) => {
         const stageProspects = prospects.filter(stage.filter);
-        const colors = getStageColor(stage.label);
         
         return (
           <div key={stage.id} className="space-y-4">
             {/* Stage Header */}
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-foreground">{stage.label}</h3>
-              <span className="text-sm font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+              <h3 className="font-semibold text-sm">{stage.label}</h3>
+              <span className="text-sm font-mono text-muted-foreground bg-muted px-2.5 py-1 rounded-full">
                 {stageProspects.length}
               </span>
             </div>
@@ -34,16 +40,18 @@ const PipelineView = ({ onSelectProspect }: PipelineViewProps) => {
               {stageProspects.map((prospect, index) => (
                 <div
                   key={prospect.id}
-                  className="glass-card rounded-lg p-4 cursor-pointer hover:shadow-md transition-all duration-200 hover:-translate-y-0.5"
+                  className="content-card p-4 cursor-pointer hover:shadow-lg transition-all duration-300 hover:-translate-y-0.5"
                   style={{ animationDelay: `${index * 50}ms` }}
-                  onClick={() => onSelectProspect(prospect)}
+                  onClick={() => handleCardClick(prospect)}
                 >
-                  <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="flex items-start justify-between gap-2 mb-3">
                     <h4 className="font-medium text-sm leading-tight">{prospect.companyName}</h4>
                     <TypeBadge type={prospect.type} />
                   </div>
-                  {prospect.contacts && (
-                    <p className="text-xs text-muted-foreground mb-2">{prospect.contacts}</p>
+                  {prospect.contacts.length > 0 && (
+                    <p className="text-xs text-muted-foreground mb-2">
+                      {prospect.contacts.map(c => c.name).join(', ')}
+                    </p>
                   )}
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span className="font-mono">{prospect.state || '—'}</span>
@@ -53,7 +61,7 @@ const PipelineView = ({ onSelectProspect }: PipelineViewProps) => {
               ))}
 
               {stageProspects.length === 0 && (
-                <div className="glass-card rounded-lg p-6 text-center text-muted-foreground text-sm">
+                <div className="content-card p-8 text-center text-muted-foreground text-sm">
                   No prospects in this stage
                 </div>
               )}

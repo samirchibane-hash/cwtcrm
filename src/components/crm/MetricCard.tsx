@@ -6,18 +6,17 @@ interface MetricCardProps {
   subtitle?: string;
   icon: LucideIcon;
   trend?: { value: number; positive: boolean };
-  accentColor?: string;
 }
 
-const MetricCard = ({ title, value, subtitle, icon: Icon, trend, accentColor }: MetricCardProps) => {
+const MetricCard = ({ title, value, subtitle, icon: Icon, trend }: MetricCardProps) => {
   return (
     <div className="metric-card animate-fade-in">
       <div className="flex items-start justify-between">
-        <div>
+        <div className="flex-1">
           <p className="text-sm text-muted-foreground font-medium">{title}</p>
-          <p className="text-3xl font-semibold mt-2 font-mono tracking-tight">{value}</p>
+          <p className="text-4xl font-semibold mt-3 tracking-tight">{value}</p>
           {subtitle && (
-            <p className="text-sm text-muted-foreground mt-1">{subtitle}</p>
+            <p className="text-sm text-muted-foreground mt-2">{subtitle}</p>
           )}
           {trend && (
             <div className={`flex items-center gap-1 mt-2 text-sm ${trend.positive ? 'text-stage-closed' : 'text-destructive'}`}>
@@ -26,10 +25,8 @@ const MetricCard = ({ title, value, subtitle, icon: Icon, trend, accentColor }: 
             </div>
           )}
         </div>
-        <div 
-          className={`w-12 h-12 rounded-xl flex items-center justify-center ${accentColor || 'bg-primary/10'}`}
-        >
-          <Icon className={`w-6 h-6 ${accentColor ? 'text-white' : 'text-primary'}`} />
+        <div className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center">
+          <Icon className="w-6 h-6 text-muted-foreground" />
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, ExternalLink, Filter, ChevronDown } from 'lucide-react';
 import { prospects, Prospect } from '@/data/prospects';
 import StageBadge from './StageBadge';
@@ -17,6 +18,7 @@ interface ProspectsTableProps {
 }
 
 const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [stageFilter, setStageFilter] = useState<string[]>([]);
@@ -27,7 +29,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const filteredProspects = prospects.filter((prospect) => {
     const matchesSearch = 
       prospect.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      prospect.contacts.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      prospect.contacts.some(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
       prospect.state.toLowerCase().includes(searchQuery.toLowerCase()) ||
       prospect.engagementNotes.toLowerCase().includes(searchQuery.toLowerCase());
     
@@ -39,34 +41,38 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     return matchesSearch && matchesType && matchesStage;
   });
 
+  const handleRowClick = (prospect: Prospect) => {
+    navigate(`/company/${prospect.id}`);
+  };
+
   return (
-    <div className="glass-card rounded-xl overflow-hidden animate-fade-in">
+    <div className="content-card overflow-hidden animate-fade-in">
       {/* Header */}
       <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search companies, contacts, notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="pl-11 h-11 border-0 bg-muted/50 rounded-xl"
           />
         </div>
         <div className="flex gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
                 <Filter className="w-4 h-4" />
                 Type
                 {typeFilter.length > 0 && (
-                  <span className="bg-primary text-primary-foreground text-xs px-1.5 rounded-full">
+                  <span className="bg-accent text-accent-foreground text-xs px-1.5 rounded-full">
                     {typeFilter.length}
                   </span>
                 )}
                 <ChevronDown className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="rounded-xl">
               {types.map((type) => (
                 <DropdownMenuCheckboxItem
                   key={type}
@@ -85,18 +91,18 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2">
+              <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
                 <Filter className="w-4 h-4" />
                 Stage
                 {stageFilter.length > 0 && (
-                  <span className="bg-primary text-primary-foreground text-xs px-1.5 rounded-full">
+                  <span className="bg-accent text-accent-foreground text-xs px-1.5 rounded-full">
                     {stageFilter.length}
                   </span>
                 )}
                 <ChevronDown className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
+            <DropdownMenuContent align="end" className="rounded-xl">
               {stages.map((stage) => (
                 <DropdownMenuCheckboxItem
                   key={stage}
@@ -119,14 +125,14 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
-            <tr className="bg-muted/50">
-              <th className="text-left p-4 text-sm font-medium text-muted-foreground">Company</th>
-              <th className="text-left p-4 text-sm font-medium text-muted-foreground">Contacts</th>
-              <th className="text-left p-4 text-sm font-medium text-muted-foreground">Location</th>
-              <th className="text-left p-4 text-sm font-medium text-muted-foreground">Type</th>
-              <th className="text-left p-4 text-sm font-medium text-muted-foreground">Stage</th>
-              <th className="text-left p-4 text-sm font-medium text-muted-foreground">Last Contact</th>
-              <th className="text-left p-4 text-sm font-medium text-muted-foreground">LinkedIn</th>
+            <tr className="bg-muted/30">
+              <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Company</th>
+              <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Contacts</th>
+              <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Location</th>
+              <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Type</th>
+              <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Stage</th>
+              <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Last Contact</th>
+              <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">LinkedIn</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -134,13 +140,15 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
               <tr 
                 key={prospect.id} 
                 className="table-row-hover cursor-pointer"
-                onClick={() => onSelectProspect(prospect)}
+                onClick={() => handleRowClick(prospect)}
               >
                 <td className="p-4">
-                  <span className="font-medium text-foreground">{prospect.companyName}</span>
+                  <span className="font-medium">{prospect.companyName}</span>
                 </td>
                 <td className="p-4 text-sm text-muted-foreground">
-                  {prospect.contacts || '—'}
+                  {prospect.contacts.length > 0 
+                    ? prospect.contacts.map(c => c.name).join(', ') 
+                    : '—'}
                 </td>
                 <td className="p-4 text-sm font-mono text-muted-foreground">
                   {prospect.state || '—'}
@@ -161,7 +169,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                       target="_blank" 
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="text-primary hover:text-accent transition-colors"
+                      className="text-accent hover:text-accent/80 transition-colors"
                     >
                       <ExternalLink className="w-4 h-4" />
                     </a>
