@@ -5,7 +5,7 @@ import StageBadge from '@/components/crm/StageBadge';
 import TypeBadge from '@/components/crm/TypeBadge';
 import MarketTypeBadge from '@/components/crm/MarketTypeBadge';
 import AddContactDialog from '@/components/crm/AddContactDialog';
-import EditCompanyTypeDialog from '@/components/crm/EditCompanyTypeDialog';
+import EditCompanyDetailsDialog from '@/components/crm/EditCompanyDetailsDialog';
 import EditNoteDialog from '@/components/crm/EditNoteDialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -19,18 +19,26 @@ const CompanyPage = () => {
   const [newNote, setNewNote] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [engagements, setEngagements] = useState<Engagement[]>([]);
+  const [companyName, setCompanyName] = useState('');
   const [companyType, setCompanyType] = useState<CompanyType>('');
   const [marketType, setMarketType] = useState<MarketType>('');
+  const [state, setState] = useState('');
+  const [stage, setStage] = useState('');
+  const [linkedIn, setLinkedIn] = useState('');
   
   const prospect = id ? getProspectById(id) : null;
 
   // Initialize state from prospect data
   useEffect(() => {
     if (prospect) {
+      setCompanyName(prospect.companyName);
       setContacts(prospect.contacts);
       setEngagements(prospect.engagements);
       setCompanyType(prospect.type);
       setMarketType(prospect.marketType);
+      setState(prospect.state);
+      setStage(prospect.stage);
+      setLinkedIn(prospect.linkedIn);
     }
   }, [prospect]);
 
@@ -87,9 +95,20 @@ const CompanyPage = () => {
     setEngagements(prev => prev.filter(eng => eng.id !== engagementId));
   };
 
-  const handleUpdateCompanyType = (newType: CompanyType, newMarketType: MarketType) => {
-    setCompanyType(newType);
-    setMarketType(newMarketType);
+  const handleUpdateCompanyDetails = (details: {
+    companyName: string;
+    companyType: CompanyType;
+    marketType: MarketType;
+    state: string;
+    stage: string;
+    linkedIn: string;
+  }) => {
+    setCompanyName(details.companyName);
+    setCompanyType(details.companyType);
+    setMarketType(details.marketType);
+    setState(details.state);
+    setStage(details.stage);
+    setLinkedIn(details.linkedIn);
   };
 
   return (
@@ -111,15 +130,15 @@ const CompanyPage = () => {
                 <Building2 className="w-8 h-8 text-muted-foreground" />
               </div>
               <div>
-                <h1 className="text-2xl font-semibold tracking-tight">{prospect.companyName}</h1>
+                <h1 className="text-2xl font-semibold tracking-tight">{companyName}</h1>
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <TypeBadge type={companyType} />
                   <MarketTypeBadge marketType={marketType} />
-                  <StageBadge stage={prospect.stage} />
-                  {prospect.state && (
+                  <StageBadge stage={stage} />
+                  {state && (
                     <span className="flex items-center gap-1 text-sm text-muted-foreground">
                       <MapPin className="w-3.5 h-3.5" />
-                      {prospect.state}
+                      {state}
                     </span>
                   )}
                 </div>
@@ -127,9 +146,20 @@ const CompanyPage = () => {
             </div>
             
             <div className="flex items-center gap-2">
-              {prospect.linkedIn && (
+              <EditCompanyDetailsDialog
+                currentDetails={{
+                  companyName,
+                  companyType,
+                  marketType,
+                  state,
+                  stage,
+                  linkedIn,
+                }}
+                onSave={handleUpdateCompanyDetails}
+              />
+              {linkedIn && (
                 <Button variant="outline" size="sm" asChild>
-                  <a href={prospect.linkedIn} target="_blank" rel="noopener noreferrer">
+                  <a href={linkedIn} target="_blank" rel="noopener noreferrer">
                     <Linkedin className="w-4 h-4 mr-2" />
                     LinkedIn
                   </a>
@@ -151,23 +181,33 @@ const CompanyPage = () => {
           <div className="lg:col-span-1 space-y-6">
             {/* Company Details */}
             <section className="content-card p-6 animate-fade-in">
-              <h2 className="section-header">Company Details</h2>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="section-header mb-0">Company Details</h2>
+                <EditCompanyDetailsDialog
+                  currentDetails={{
+                    companyName,
+                    companyType,
+                    marketType,
+                    state,
+                    stage,
+                    linkedIn,
+                  }}
+                  onSave={handleUpdateCompanyDetails}
+                />
+              </div>
               <div className="space-y-4">
                 <div>
                   <label className="text-xs text-muted-foreground">Company Name</label>
-                  <p className="font-medium">{prospect.companyName}</p>
+                  <p className="font-medium">{companyName}</p>
                 </div>
                 <div>
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs text-muted-foreground">Company Type</label>
-                    <EditCompanyTypeDialog
-                      currentType={companyType}
-                      currentMarketType={marketType}
-                      onSave={handleUpdateCompanyType}
-                    />
-                  </div>
+                  <label className="text-xs text-muted-foreground">Company Type</label>
                   <div className="flex items-center gap-2 mt-1">
-                    <TypeBadge type={companyType} />
+                    {companyType ? (
+                      <TypeBadge type={companyType} />
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Not specified</span>
+                    )}
                   </div>
                 </div>
                 <div>
@@ -182,12 +222,16 @@ const CompanyPage = () => {
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Location</label>
-                  <p className="font-medium">{prospect.state || 'Not specified'}</p>
+                  <p className="font-medium">{state || 'Not specified'}</p>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Pipeline Stage</label>
                   <div className="mt-1">
-                    <StageBadge stage={prospect.stage} />
+                    {stage ? (
+                      <StageBadge stage={stage} />
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Not set</span>
+                    )}
                   </div>
                 </div>
                 <div>
