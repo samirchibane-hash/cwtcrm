@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import AddProspectDialog from './AddProspectDialog';
+import { AIRecommendationsDialog } from './AIRecommendationsDialog';
 
 interface ProspectsTableProps {
   onSelectProspect: (prospect: Prospect) => void;
@@ -230,6 +231,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          <AIRecommendationsDialog />
           <AddProspectDialog />
         </div>
       </div>
