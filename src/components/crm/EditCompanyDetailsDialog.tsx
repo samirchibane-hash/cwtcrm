@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Pencil, X } from 'lucide-react';
+import { Pencil, X, Plus } from 'lucide-react';
 import { CompanyType, MarketType, COMPANY_TYPES, MARKET_TYPES, PIPELINE_STAGES, getStageColor } from '@/data/prospects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +38,7 @@ interface CompanyDetails {
   state: string;
   stage: string;
   linkedIn: string;
+  website?: string;
 }
 
 interface EditCompanyDetailsDialogProps {
@@ -46,15 +47,22 @@ interface EditCompanyDetailsDialogProps {
 }
 
 const NONE_VALUE = '__none__';
+const ADD_NEW_VALUE = '__add_new__';
 
 const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetailsDialogProps) => {
   const [open, setOpen] = useState(false);
   const [details, setDetails] = useState<CompanyDetails>(currentDetails);
   const [stageInput, setStageInput] = useState('');
+  const [customMarketTypes, setCustomMarketTypes] = useState<string[]>([]);
+  const [newMarketType, setNewMarketType] = useState('');
+  const [showNewMarketInput, setShowNewMarketInput] = useState(false);
   const { toast } = useToast();
 
   // Parse stages from comma-separated string
   const selectedStages = details.stage ? details.stage.split(',').map(s => s.trim()).filter(Boolean) : [];
+
+  // Combine built-in and custom market types
+  const allMarketTypes = [...MARKET_TYPES, ...customMarketTypes.filter(mt => !MARKET_TYPES.includes(mt as MarketType))];
 
   const addStage = (stage: string) => {
     if (!selectedStages.includes(stage)) {
@@ -67,6 +75,22 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
   const removeStage = (stage: string) => {
     const newStages = selectedStages.filter(s => s !== stage);
     setDetails(prev => ({ ...prev, stage: newStages.join(', ') }));
+  };
+
+  const handleAddNewMarketType = () => {
+    if (newMarketType.trim()) {
+      const trimmed = newMarketType.trim();
+      if (!customMarketTypes.includes(trimmed) && !MARKET_TYPES.includes(trimmed as MarketType)) {
+        setCustomMarketTypes(prev => [...prev, trimmed]);
+      }
+      setDetails(prev => ({ ...prev, marketType: trimmed as MarketType }));
+      setNewMarketType('');
+      setShowNewMarketInput(false);
+      toast({
+        title: 'Market type added',
+        description: `"${trimmed}" has been added and selected.`,
+      });
+    }
   };
 
   const handleSave = () => {
@@ -90,6 +114,8 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
     setOpen(newOpen);
     if (newOpen) {
       setDetails(currentDetails);
+      setShowNewMarketInput(false);
+      setNewMarketType('');
     }
   };
 
@@ -151,25 +177,69 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
             </Select>
           </div>
           
-          {/* Market Type */}
+          {/* Market Type with Add New option */}
           <div className="space-y-2">
             <Label>Market Type</Label>
-            <Select 
-              value={toSelectValue(details.marketType)} 
-              onValueChange={(value) => updateField('marketType', fromSelectValue(value) as MarketType)}
-            >
-              <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Select market type" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl bg-background">
-                <SelectItem value={NONE_VALUE}>None</SelectItem>
-                {MARKET_TYPES.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
+            {showNewMarketInput ? (
+              <div className="flex gap-2">
+                <Input
+                  value={newMarketType}
+                  onChange={(e) => setNewMarketType(e.target.value)}
+                  placeholder="Enter new market type"
+                  className="rounded-xl flex-1"
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddNewMarketType();
+                    }
+                  }}
+                  autoFocus
+                />
+                <Button size="sm" onClick={handleAddNewMarketType} className="rounded-xl">
+                  Add
+                </Button>
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowNewMarketInput(false);
+                    setNewMarketType('');
+                  }}
+                  className="rounded-xl"
+                >
+                  Cancel
+                </Button>
+              </div>
+            ) : (
+              <Select 
+                value={toSelectValue(details.marketType)} 
+                onValueChange={(value) => {
+                  if (value === ADD_NEW_VALUE) {
+                    setShowNewMarketInput(true);
+                  } else {
+                    updateField('marketType', fromSelectValue(value) as MarketType);
+                  }
+                }}
+              >
+                <SelectTrigger className="rounded-xl">
+                  <SelectValue placeholder="Select market type" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl bg-background">
+                  <SelectItem value={NONE_VALUE}>None</SelectItem>
+                  {allMarketTypes.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={ADD_NEW_VALUE} className="text-accent">
+                    <span className="flex items-center gap-2">
+                      <Plus className="w-3 h-3" />
+                      Add new market type...
+                    </span>
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+                </SelectContent>
+              </Select>
+            )}
           </div>
 
           {/* Location */}
@@ -249,6 +319,18 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
               value={details.linkedIn}
               onChange={(e) => updateField('linkedIn', e.target.value)}
               placeholder="https://linkedin.com/company/..."
+              className="rounded-xl"
+            />
+          </div>
+
+          {/* Website */}
+          <div className="space-y-2">
+            <Label htmlFor="website">Website</Label>
+            <Input
+              id="website"
+              value={details.website || ''}
+              onChange={(e) => updateField('website', e.target.value)}
+              placeholder="https://example.com"
               className="rounded-xl"
             />
           </div>

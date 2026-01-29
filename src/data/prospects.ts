@@ -55,6 +55,7 @@ export interface Prospect {
   lastContact: string;
   engagementNotes: string;
   linkedIn: string;
+  website?: string;
   engagements: Engagement[];
 }
 

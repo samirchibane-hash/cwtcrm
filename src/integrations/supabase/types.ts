@@ -122,6 +122,7 @@ export type Database = {
           state: string | null
           type: string | null
           updated_at: string
+          website: string | null
         }
         Insert: {
           company_name: string
@@ -137,6 +138,7 @@ export type Database = {
           state?: string | null
           type?: string | null
           updated_at?: string
+          website?: string | null
         }
         Update: {
           company_name?: string
@@ -152,6 +154,7 @@ export type Database = {
           state?: string | null
           type?: string | null
           updated_at?: string
+          website?: string | null
         }
         Relationships: []
       }
