@@ -40,7 +40,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
         if (data && data.length > 0) {
           // Map database format to app format
           const mappedProspects: Prospect[] = data.map(row => ({
-            id: row.id,
+          id: row.id,
             companyName: row.company_name,
             state: row.state || '',
             type: (row.type as CompanyType) || '',
@@ -49,6 +49,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
             lastContact: row.last_contact || '',
             engagementNotes: row.engagement_notes || '',
             linkedIn: row.linkedin || '',
+            website: (row as any).website || '',
             contacts: (row.contacts as unknown as Contact[]) || [],
             engagements: (row.engagements as unknown as Engagement[]) || [],
           }));
@@ -86,6 +87,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
         last_contact: prospect.lastContact,
         engagement_notes: prospect.engagementNotes,
         linkedin: prospect.linkedIn,
+        website: prospect.website || '',
         contacts: JSON.parse(JSON.stringify(prospect.contacts)),
         engagements: JSON.parse(JSON.stringify(prospect.engagements)),
       }));
@@ -109,6 +111,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
           lastContact: row.last_contact || '',
           engagementNotes: row.engagement_notes || '',
           linkedIn: row.linkedin || '',
+          website: (row as any).website || '',
           contacts: (row.contacts as unknown as Contact[]) || [],
           engagements: (row.engagements as unknown as Engagement[]) || [],
         }));
@@ -133,6 +136,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
           last_contact: updatedProspect.lastContact,
           engagement_notes: updatedProspect.engagementNotes,
           linkedin: updatedProspect.linkedIn,
+          website: updatedProspect.website || '',
           contacts: JSON.parse(JSON.stringify(updatedProspect.contacts)),
           engagements: JSON.parse(JSON.stringify(updatedProspect.engagements)),
         })
@@ -184,6 +188,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
           last_contact: prospectData.lastContact,
           engagement_notes: prospectData.engagementNotes,
           linkedin: prospectData.linkedIn,
+          website: prospectData.website || '',
           contacts: JSON.parse(JSON.stringify(prospectData.contacts)),
           engagements: JSON.parse(JSON.stringify(prospectData.engagements)),
         })
@@ -202,6 +207,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
         lastContact: data.last_contact || '',
         engagementNotes: data.engagement_notes || '',
         linkedIn: data.linkedin || '',
+        website: (data as any).website || '',
         contacts: (data.contacts as unknown as Contact[]) || [],
         engagements: (data.engagements as unknown as Engagement[]) || [],
       };

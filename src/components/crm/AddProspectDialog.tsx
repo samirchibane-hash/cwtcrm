@@ -31,6 +31,7 @@ const AddProspectDialog = () => {
   const [marketType, setMarketType] = useState<MarketType | ''>('');
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [linkedIn, setLinkedIn] = useState('');
+  const [website, setWebsite] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { addProspect } = useProspects();
@@ -66,6 +67,7 @@ const AddProspectDialog = () => {
       lastContact: new Date().toLocaleDateString('en-US'),
       engagementNotes: '',
       linkedIn: linkedIn.trim(),
+      website: website.trim(),
       contacts: [],
       engagements: [],
     });
@@ -83,6 +85,7 @@ const AddProspectDialog = () => {
       setMarketType('');
       setSelectedStages([]);
       setLinkedIn('');
+      setWebsite('');
       setOpen(false);
     }
   };
@@ -201,6 +204,15 @@ const AddProspectDialog = () => {
               value={linkedIn}
               onChange={(e) => setLinkedIn(e.target.value)}
               placeholder="https://linkedin.com/company/..."
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="website">Website</Label>
+            <Input
+              id="website"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              placeholder="https://example.com"
             />
           </div>
         </div>

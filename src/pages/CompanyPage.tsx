@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2, Star, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2 } from 'lucide-react';
 import { Contact, Engagement, CompanyType, MarketType } from '@/data/prospects';
 import { getOrdersByCustomer, Order, getStatusColor } from '@/data/orders';
 import { useProspects } from '@/context/ProspectsContext';
@@ -13,6 +13,17 @@ import EditNoteDialog from '@/components/crm/EditNoteDialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { useState, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 
@@ -21,7 +32,7 @@ const CompanyPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { getProspectById, updateProspect, isLoading } = useProspects();
+  const { getProspectById, updateProspect, deleteProspect, isLoading } = useProspects();
   const [newNote, setNewNote] = useState('');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [engagements, setEngagements] = useState<Engagement[]>([]);
@@ -31,6 +42,7 @@ const CompanyPage = () => {
   const [state, setState] = useState('');
   const [stage, setStage] = useState('');
   const [linkedIn, setLinkedIn] = useState('');
+  const [website, setWebsite] = useState('');
   const [lastContact, setLastContact] = useState('');
   const [engagementNotes, setEngagementNotes] = useState('');
   
@@ -61,6 +73,7 @@ const CompanyPage = () => {
       setState(prospect.state);
       setStage(prospect.stage);
       setLinkedIn(prospect.linkedIn);
+      setWebsite(prospect.website || '');
       setLastContact(prospect.lastContact);
       setEngagementNotes(prospect.engagementNotes);
     }
@@ -97,6 +110,7 @@ const CompanyPage = () => {
     state: string;
     stage: string;
     linkedIn: string;
+    website: string;
   }>) => {
     updateProspect({
       id: prospect.id,
@@ -108,9 +122,19 @@ const CompanyPage = () => {
       state: updates.state ?? state,
       stage: updates.stage ?? stage,
       linkedIn: updates.linkedIn ?? linkedIn,
+      website: updates.website ?? website,
       lastContact: lastContact,
       engagementNotes: engagementNotes,
     });
+  };
+
+  const handleDeleteCompany = async () => {
+    await deleteProspect(prospect.id);
+    toast({
+      title: 'Company deleted',
+      description: `${companyName} has been removed.`,
+    });
+    navigate('/?view=prospects');
   };
 
   const handleAddContact = (newContact: Contact) => {
@@ -199,6 +223,7 @@ const CompanyPage = () => {
     state: string;
     stage: string;
     linkedIn: string;
+    website?: string;
   }) => {
     setCompanyName(details.companyName);
     setCompanyType(details.companyType);
@@ -206,6 +231,7 @@ const CompanyPage = () => {
     setState(details.state);
     setStage(details.stage);
     setLinkedIn(details.linkedIn);
+    setWebsite(details.website || '');
     saveProspect(details);
   };
 
@@ -286,6 +312,7 @@ const CompanyPage = () => {
                   state,
                   stage,
                   linkedIn,
+                  website,
                 }}
                 onSave={handleUpdateCompanyDetails}
               />
@@ -297,10 +324,39 @@ const CompanyPage = () => {
                   </a>
                 </Button>
               )}
+              {website && (
+                <Button variant="outline" size="sm" asChild>
+                  <a href={website.startsWith('http') ? website : `https://${website}`} target="_blank" rel="noopener noreferrer">
+                    <Globe className="w-4 h-4 mr-2" />
+                    Website
+                  </a>
+                </Button>
+              )}
               <Button size="sm">
                 <Plus className="w-4 h-4 mr-2" />
                 Log Activity
               </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="rounded-2xl">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Company</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete <strong>{companyName}</strong>? This action cannot be undone and will remove all contacts and engagement history.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteCompany} className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Delete Company
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         </div>
@@ -323,6 +379,7 @@ const CompanyPage = () => {
                     state,
                     stage,
                     linkedIn,
+                    website,
                   }}
                   onSave={handleUpdateCompanyDetails}
                 />
@@ -369,6 +426,22 @@ const CompanyPage = () => {
                 <div>
                   <label className="text-xs text-muted-foreground">Last Contact</label>
                   <p className="font-medium font-mono">{prospect.lastContact || 'Never'}</p>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Website</label>
+                  {website ? (
+                    <a 
+                      href={website.startsWith('http') ? website : `https://${website}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-accent hover:underline flex items-center gap-1"
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                      {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                    </a>
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Not specified</span>
+                  )}
                 </div>
               </div>
             </section>
