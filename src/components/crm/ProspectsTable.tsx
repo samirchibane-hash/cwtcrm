@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown } from 'lucide-react';
 import { useProspects } from '@/context/ProspectsContext';
 import { Prospect } from '@/data/prospects';
+import { getProspectLastContactLabel, getProspectLastContactSortValue } from '@/lib/prospect-last-contact';
 import StageBadge from './StageBadge';
 import TypeBadge from './TypeBadge';
 import { Input } from '@/components/ui/input';
@@ -96,26 +97,6 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
       return matchesSearch && matchesType && matchesStage;
     });
 
-    // Helper to parse date strings (supports m/d, mm/dd, m/d/yy, mm/dd/yyyy)
-    const parseDateString = (dateStr: string): number => {
-      if (!dateStr) return 0;
-      const parts = dateStr.split('/');
-      if (parts.length >= 2) {
-        const month = parseInt(parts[0], 10);
-        const day = parseInt(parts[1], 10);
-        // Default to current year if no year provided
-        let year = new Date().getFullYear();
-        if (parts.length === 3) {
-          year = parseInt(parts[2], 10);
-          // Handle 2-digit years
-          if (year < 100) year += 2000;
-        }
-        // Create date as YYYYMMDD number for proper sorting
-        return year * 10000 + month * 100 + day;
-      }
-      return 0;
-    };
-
     if (sortField && sortDirection) {
       result = [...result].sort((a, b) => {
         let aVal: string | number = '';
@@ -143,8 +124,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
             bVal = (b.stage || '').toLowerCase();
             break;
           case 'lastContact':
-            aVal = parseDateString(a.lastContact || '');
-            bVal = parseDateString(b.lastContact || '');
+            aVal = getProspectLastContactSortValue(a);
+            bVal = getProspectLastContactSortValue(b);
             break;
         }
 
@@ -333,7 +314,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   <StageBadge stage={prospect.stage} />
                 </td>
                 <td className="p-4 text-sm font-mono text-muted-foreground">
-                  {prospect.lastContact || '—'}
+                  {getProspectLastContactLabel(prospect) || '—'}
                 </td>
                 <td className="p-4">
                   {prospect.linkedIn ? (
