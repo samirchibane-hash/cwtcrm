@@ -25,13 +25,16 @@ function generateEmailVariations(firstName: string, lastName: string, domain: st
   const li = ln.charAt(0);
   
   return [
-    `${fn}@${domain}`,           // jane@proaqua.com
-    `${ln}@${domain}`,           // doe@proaqua.com
+    // Put the most common B2B patterns first to reduce API calls (helps avoid rate limits)
+    `${fi}${ln}@${domain}`,      // jdoe@proaqua.com
     `${fn}.${ln}@${domain}`,     // jane.doe@proaqua.com
     `${fi}.${ln}@${domain}`,     // j.doe@proaqua.com
-    `${fn}.${li}@${domain}`,     // jane.d@proaqua.com
     `${fn}${ln}@${domain}`,      // janedoe@proaqua.com
-    `${fi}${ln}@${domain}`,      // jdoe@proaqua.com
+
+    // Then try simpler/less common variants
+    `${fn}@${domain}`,           // jane@proaqua.com
+    `${ln}@${domain}`,           // doe@proaqua.com
+    `${fn}.${li}@${domain}`,     // jane.d@proaqua.com
     `${fn}${li}@${domain}`,      // janed@proaqua.com
     `${fi}${li}@${domain}`,      // jd@proaqua.com
     `${ln}.${fn}@${domain}`,     // doe.jane@proaqua.com
@@ -56,7 +59,24 @@ async function verifySingleEmail(email: string, apiKey: string, retryCount = 0):
 
     if (response.status === 429) {
       const errorText = await response.text();
-      console.warn(`Rate limited for ${email}, attempt ${retryCount + 1}/${MAX_RETRIES}`);
+
+      // Best-effort parse "try calling after ..." timestamp from Clearout response
+      let retryAfterIso: string | null = null;
+      try {
+        const parsed = JSON.parse(errorText);
+        const msg: string | undefined = parsed?.error?.message;
+        if (msg) {
+          const match = msg.match(/try calling after (.+?)\s+or\s+to increase limit/i);
+          if (match?.[1]) {
+            const ms = Date.parse(match[1]);
+            if (!Number.isNaN(ms)) retryAfterIso = new Date(ms).toISOString();
+          }
+        }
+      } catch {
+        // ignore parsing failures
+      }
+
+      console.warn(`Rate limited for ${email}, attempt ${Math.min(retryCount + 1, MAX_RETRIES)}/${MAX_RETRIES}`);
       
       if (retryCount < MAX_RETRIES) {
         // Exponential backoff: 2s, 4s, 8s
@@ -67,7 +87,7 @@ async function verifySingleEmail(email: string, apiKey: string, retryCount = 0):
       }
       
       console.error(`Rate limit exceeded after ${MAX_RETRIES} retries for ${email}`);
-      return { status: 'rate_limited', result: { error: errorText, statusCode: 429 } };
+      return { status: 'rate_limited', result: { error: errorText, statusCode: 429, retryAfter: retryAfterIso } };
     }
 
     if (!response.ok) {

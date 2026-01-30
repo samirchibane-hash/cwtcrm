@@ -88,6 +88,18 @@ export function EmailVerificationDialog({ companyWebsite, onEmailVerified }: Ema
         setResults(data.results);
         setValidEmail(data.validEmail);
 
+        const rateLimited = (data.results || []).find((r: EmailVariation) => r.status === 'rate_limited');
+        if (rateLimited) {
+          const retryAfter = rateLimited.result?.retryAfter;
+          toast({
+            title: 'Rate limited by Clearout',
+            description: retryAfter
+              ? `Try again after ${new Date(retryAfter).toLocaleTimeString()}.`
+              : 'Try again in a minute (or upgrade your Clearout plan limit).',
+            variant: 'destructive',
+          });
+        }
+
         if (data.validEmail) {
           toast({
             title: 'Valid Email Found!',
