@@ -10,6 +10,7 @@ import AddContactDialog from '@/components/crm/AddContactDialog';
 import EditContactDialog from '@/components/crm/EditContactDialog';
 import EditCompanyDetailsDialog from '@/components/crm/EditCompanyDetailsDialog';
 import EditNoteDialog from '@/components/crm/EditNoteDialog';
+import { EmailVerificationDialog } from '@/components/crm/EmailVerificationDialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -452,7 +453,18 @@ const CompanyPage = () => {
             <section className="content-card animate-fade-in h-full" style={{ animationDelay: '100ms' }}>
               <div className="flex items-center justify-between p-6 border-b border-border">
                 <h2 className="section-header mb-0">Contacts</h2>
-                <AddContactDialog onAddContact={handleAddContact} />
+                <div className="flex items-center gap-2">
+                  <EmailVerificationDialog 
+                    companyWebsite={website}
+                    onEmailVerified={(email) => {
+                      toast({
+                        title: 'Email Verified',
+                        description: `Add a contact with email: ${email}`,
+                      });
+                    }}
+                  />
+                  <AddContactDialog onAddContact={handleAddContact} />
+                </div>
               </div>
               
               {contacts.length > 0 ? (
