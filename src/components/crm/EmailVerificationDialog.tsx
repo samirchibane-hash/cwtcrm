@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Mail, CheckCircle2, XCircle, Loader2, HelpCircle, Search, AlertTriangle, ShieldQuestion } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -26,15 +27,47 @@ interface EmailVerificationDialogProps {
   onEmailVerified?: (email: string) => void;
 }
 
+// Generate all possible email variations
+function generateEmailVariations(firstName: string, lastName: string, domain: string): string[] {
+  const fn = firstName.toLowerCase().trim();
+  const ln = lastName.toLowerCase().trim();
+  const fi = fn.charAt(0);
+  const li = ln.charAt(0);
+
+  if (!fn || !ln || !domain) return [];
+
+  return [
+    `${fi}${ln}@${domain}`,        // jdoe@domain.com
+    `${fn}.${ln}@${domain}`,       // jane.doe@domain.com
+    `${fi}.${ln}@${domain}`,       // j.doe@domain.com
+    `${fn}${ln}@${domain}`,        // janedoe@domain.com
+    `${fn}@${domain}`,             // jane@domain.com
+    `${ln}@${domain}`,             // doe@domain.com
+    `${fn}.${li}@${domain}`,       // jane.d@domain.com
+    `${fn}${li}@${domain}`,        // janed@domain.com
+    `${fi}${li}@${domain}`,        // jd@domain.com
+    `${ln}.${fn}@${domain}`,       // doe.jane@domain.com
+    `${ln}${fn}@${domain}`,        // doejane@domain.com
+    `${fi}_${ln}@${domain}`,       // j_doe@domain.com
+    `${fn}_${ln}@${domain}`,       // jane_doe@domain.com
+  ];
+}
+
 export function EmailVerificationDialog({ companyWebsite, onEmailVerified }: EmailVerificationDialogProps) {
   const [open, setOpen] = useState(false);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [domain, setDomain] = useState('');
+  const [selectedVariations, setSelectedVariations] = useState<Set<string>>(new Set());
   const [isVerifying, setIsVerifying] = useState(false);
   const [results, setResults] = useState<EmailVariation[]>([]);
   const [validEmail, setValidEmail] = useState<string | null>(null);
   const { toast } = useToast();
+
+  // Generate variations based on current inputs
+  const allVariations = useMemo(() => {
+    return generateEmailVariations(firstName, lastName, domain.replace('@', ''));
+  }, [firstName, lastName, domain]);
 
   // Extract domain from company website if available
   const extractDomainFromWebsite = (website: string): string => {
@@ -56,14 +89,33 @@ export function EmailVerificationDialog({ companyWebsite, onEmailVerified }: Ema
       // Reset state
       setResults([]);
       setValidEmail(null);
+      setSelectedVariations(new Set());
     }
   };
 
+  const toggleVariation = (email: string) => {
+    const newSet = new Set(selectedVariations);
+    if (newSet.has(email)) {
+      newSet.delete(email);
+    } else {
+      newSet.add(email);
+    }
+    setSelectedVariations(newSet);
+  };
+
+  const selectAll = () => {
+    setSelectedVariations(new Set(allVariations));
+  };
+
+  const deselectAll = () => {
+    setSelectedVariations(new Set());
+  };
+
   const handleVerify = async () => {
-    if (!firstName.trim() || !lastName.trim() || !domain.trim()) {
+    if (selectedVariations.size === 0) {
       toast({
-        title: 'Missing Information',
-        description: 'Please enter first name, last name, and email domain.',
+        title: 'No Emails Selected',
+        description: 'Please select at least one email variation to verify.',
         variant: 'destructive',
       });
       return;
@@ -76,9 +128,7 @@ export function EmailVerificationDialog({ companyWebsite, onEmailVerified }: Ema
     try {
       const { data, error } = await supabase.functions.invoke('verify-email', {
         body: {
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          domain: domain.trim(),
+          emails: Array.from(selectedVariations),
         },
       });
 
@@ -105,7 +155,7 @@ export function EmailVerificationDialog({ companyWebsite, onEmailVerified }: Ema
             title: 'Valid Email Found!',
             description: `Verified: ${data.validEmail}`,
           });
-        } else {
+        } else if (!rateLimited) {
           toast({
             title: 'No Valid Email Found',
             description: `Checked ${data.totalChecked} variations, none were valid.`,
@@ -182,6 +232,8 @@ export function EmailVerificationDialog({ companyWebsite, onEmailVerified }: Ema
     }
   };
 
+  const hasInputs = firstName.trim() && lastName.trim() && domain.trim();
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
@@ -190,18 +242,19 @@ export function EmailVerificationDialog({ companyWebsite, onEmailVerified }: Ema
           Find Email
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-[550px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Mail className="h-5 w-5" />
             Email Verification
           </DialogTitle>
           <DialogDescription>
-            Enter a contact's name and email domain to find and verify their email address using Clearout.io
+            Enter a contact's name and domain, then select which email variations to verify.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Name & Domain inputs */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="firstName">First Name</Label>
@@ -239,62 +292,110 @@ export function EmailVerificationDialog({ companyWebsite, onEmailVerified }: Ema
             </div>
           </div>
 
+          {/* Variation selection */}
+          {hasInputs && allVariations.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">
+                  Select variations to verify ({selectedVariations.size}/{allVariations.length})
+                </Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={selectAll}
+                    disabled={isVerifying}
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={deselectAll}
+                    disabled={isVerifying}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 max-h-[200px] overflow-y-auto border rounded-md p-3">
+                {allVariations.map((email) => {
+                  const result = results.find((r) => r.email === email);
+                  return (
+                    <div
+                      key={email}
+                      className={cn(
+                        'flex items-center gap-3 p-2 rounded-md transition-colors',
+                        result ? getStatusColor(result.status) : 'hover:bg-muted/50'
+                      )}
+                    >
+                      <Checkbox
+                        id={email}
+                        checked={selectedVariations.has(email)}
+                        onCheckedChange={() => toggleVariation(email)}
+                        disabled={isVerifying}
+                      />
+                      <label
+                        htmlFor={email}
+                        className="flex-1 font-mono text-sm cursor-pointer"
+                      >
+                        {email}
+                      </label>
+                      {result && (
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon(result.status)}
+                          <span className="text-xs text-muted-foreground">
+                            {getStatusLabel(result.status)}
+                          </span>
+                          {result.status === 'valid' && onEmailVerified && (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 px-2"
+                              onClick={() => handleUseEmail(result.email)}
+                            >
+                              Use
+                            </Button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <Button
             onClick={handleVerify}
-            disabled={isVerifying || !firstName || !lastName || !domain}
+            disabled={isVerifying || selectedVariations.size === 0}
             className="w-full"
           >
             {isVerifying ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Verifying Emails...
+                Verifying {selectedVariations.size} Email(s)...
               </>
             ) : (
               <>
                 <Search className="h-4 w-4 mr-2" />
-                Verify Email Variations
+                Verify Selected ({selectedVariations.size})
               </>
             )}
           </Button>
 
+          {/* Summary of results */}
           {results.length > 0 && (
-            <div className="space-y-3 mt-4">
-              <h4 className="font-medium text-sm">
-                Results ({results.length} checked)
-                {validEmail && (
-                  <span className="text-green-600 ml-2">✓ Valid email found</span>
-                )}
-              </h4>
-              <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                {results.map((result, index) => (
-                  <div
-                    key={index}
-                    className={cn(
-                      'flex items-center justify-between p-3 rounded-lg border',
-                      getStatusColor(result.status)
-                    )}
-                  >
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(result.status)}
-                      <span className="font-mono text-sm">{result.email}</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-muted-foreground">
-                        {getStatusLabel(result.status)}
-                      </span>
-                      {result.status === 'valid' && onEmailVerified && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleUseEmail(result.email)}
-                        >
-                          Use
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+            <div className="text-sm text-muted-foreground text-center pt-2">
+              Checked {results.length} variation(s)
+              {validEmail && (
+                <span className="text-green-600 font-medium ml-2">
+                  ✓ Found valid: {validEmail}
+                </span>
+              )}
             </div>
           )}
         </div>
