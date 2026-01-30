@@ -27,7 +27,7 @@ interface EmailVerificationDialogProps {
   onEmailVerified?: (email: string) => void;
 }
 
-// Generate all possible email variations
+// Generate email variations (9 common patterns)
 function generateEmailVariations(firstName: string, lastName: string, domain: string): string[] {
   const fn = firstName.toLowerCase().trim();
   const ln = lastName.toLowerCase().trim();
@@ -37,19 +37,15 @@ function generateEmailVariations(firstName: string, lastName: string, domain: st
   if (!fn || !ln || !domain) return [];
 
   return [
-    `${fi}${ln}@${domain}`,        // jdoe@domain.com
-    `${fn}.${ln}@${domain}`,       // jane.doe@domain.com
-    `${fi}.${ln}@${domain}`,       // j.doe@domain.com
-    `${fn}${ln}@${domain}`,        // janedoe@domain.com
     `${fn}@${domain}`,             // jane@domain.com
     `${ln}@${domain}`,             // doe@domain.com
+    `${fn}.${ln}@${domain}`,       // jane.doe@domain.com
+    `${fi}.${ln}@${domain}`,       // j.doe@domain.com
     `${fn}.${li}@${domain}`,       // jane.d@domain.com
+    `${fn}${ln}@${domain}`,        // janedoe@domain.com
+    `${fi}${ln}@${domain}`,        // jdoe@domain.com
     `${fn}${li}@${domain}`,        // janed@domain.com
     `${fi}${li}@${domain}`,        // jd@domain.com
-    `${ln}.${fn}@${domain}`,       // doe.jane@domain.com
-    `${ln}${fn}@${domain}`,        // doejane@domain.com
-    `${fi}_${ln}@${domain}`,       // j_doe@domain.com
-    `${fn}_${ln}@${domain}`,       // jane_doe@domain.com
   ];
 }
 
