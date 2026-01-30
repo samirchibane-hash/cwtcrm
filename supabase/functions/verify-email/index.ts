@@ -7,9 +7,7 @@ const corsHeaders = {
 };
 
 interface VerifyEmailRequest {
-  firstName: string;
-  lastName: string;
-  domain: string;
+  emails: string[]; // Now receives a list of specific emails to verify
 }
 
 interface EmailVariation {
@@ -18,34 +16,8 @@ interface EmailVariation {
   result?: any;
 }
 
-function generateEmailVariations(firstName: string, lastName: string, domain: string): string[] {
-  const fn = firstName.toLowerCase().trim();
-  const ln = lastName.toLowerCase().trim();
-  const fi = fn.charAt(0);
-  const li = ln.charAt(0);
-  
-  return [
-    // Put the most common B2B patterns first to reduce API calls (helps avoid rate limits)
-    `${fi}${ln}@${domain}`,      // jdoe@proaqua.com
-    `${fn}.${ln}@${domain}`,     // jane.doe@proaqua.com
-    `${fi}.${ln}@${domain}`,     // j.doe@proaqua.com
-    `${fn}${ln}@${domain}`,      // janedoe@proaqua.com
-
-    // Then try simpler/less common variants
-    `${fn}@${domain}`,           // jane@proaqua.com
-    `${ln}@${domain}`,           // doe@proaqua.com
-    `${fn}.${li}@${domain}`,     // jane.d@proaqua.com
-    `${fn}${li}@${domain}`,      // janed@proaqua.com
-    `${fi}${li}@${domain}`,      // jd@proaqua.com
-    `${ln}.${fn}@${domain}`,     // doe.jane@proaqua.com
-    `${ln}${fn}@${domain}`,      // doejane@proaqua.com
-    `${fi}_${ln}@${domain}`,     // j_doe@proaqua.com
-    `${fn}_${ln}@${domain}`,     // jane_doe@proaqua.com
-  ];
-}
-
 async function verifySingleEmail(email: string, apiKey: string, retryCount = 0): Promise<{ status: string; result: any }> {
-  const MAX_RETRIES = 3;
+  const MAX_RETRIES = 2;
   
   try {
     const response = await fetch(`https://api.clearout.io/v2/email_verify/instant`, {
@@ -79,7 +51,7 @@ async function verifySingleEmail(email: string, apiKey: string, retryCount = 0):
       console.warn(`Rate limited for ${email}, attempt ${Math.min(retryCount + 1, MAX_RETRIES)}/${MAX_RETRIES}`);
       
       if (retryCount < MAX_RETRIES) {
-        // Exponential backoff: 2s, 4s, 8s
+        // Exponential backoff: 2s, 4s
         const waitTime = Math.pow(2, retryCount + 1) * 1000;
         console.log(`Waiting ${waitTime}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -121,25 +93,19 @@ serve(async (req: Request): Promise<Response> => {
       throw new Error("CLEAROUT_API_KEY is not configured");
     }
 
-    const { firstName, lastName, domain }: VerifyEmailRequest = await req.json();
+    const { emails }: VerifyEmailRequest = await req.json();
 
-    if (!firstName || !lastName || !domain) {
-      throw new Error("Missing required fields: firstName, lastName, domain");
+    if (!emails || !Array.isArray(emails) || emails.length === 0) {
+      throw new Error("Missing required field: emails (array of email addresses)");
     }
 
-    // Clean the domain (remove @ if present)
-    const cleanDomain = domain.replace('@', '').trim();
-    
-    // Generate all email variations
-    const variations = generateEmailVariations(firstName, lastName, cleanDomain);
-    
-    console.log(`Checking ${variations.length} email variations for ${firstName} ${lastName} @${cleanDomain}`);
+    console.log(`Checking ${emails.length} selected email(s)`);
     
     const results: EmailVariation[] = [];
     let validEmail: string | null = null;
 
-    // Check each variation until we find a valid one
-    for (const email of variations) {
+    // Check each selected email until we find a valid one
+    for (const email of emails) {
       console.log(`Verifying: ${email}`);
       const { status, result } = await verifySingleEmail(email, CLEAROUT_API_KEY);
       
@@ -178,8 +144,8 @@ serve(async (req: Request): Promise<Response> => {
         break;
       }
       
-      // Add delay between requests to avoid rate limiting (1 second)
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Add delay between requests to avoid rate limiting (1.5 seconds)
+      await new Promise(resolve => setTimeout(resolve, 1500));
     }
 
     return new Response(
@@ -188,7 +154,7 @@ serve(async (req: Request): Promise<Response> => {
         validEmail,
         results,
         totalChecked: results.length,
-        totalVariations: variations.length,
+        totalRequested: emails.length,
       }),
       {
         status: 200,
