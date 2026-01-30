@@ -10,14 +10,14 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Mail, CheckCircle2, XCircle, Loader2, HelpCircle, Search } from 'lucide-react';
+import { Mail, CheckCircle2, XCircle, Loader2, HelpCircle, Search, AlertTriangle, ShieldQuestion } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 interface EmailVariation {
   email: string;
-  status: 'pending' | 'checking' | 'valid' | 'invalid' | 'unknown';
+  status: 'pending' | 'checking' | 'valid' | 'invalid' | 'unknown' | 'rate_limited' | 'catch_all';
   result?: any;
 }
 
@@ -131,6 +131,10 @@ export function EmailVerificationDialog({ companyWebsite, onEmailVerified }: Ema
         return <XCircle className="h-4 w-4 text-red-500" />;
       case 'checking':
         return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
+      case 'catch_all':
+        return <ShieldQuestion className="h-4 w-4 text-orange-500" />;
+      case 'rate_limited':
+        return <AlertTriangle className="h-4 w-4 text-red-400" />;
       default:
         return <HelpCircle className="h-4 w-4 text-yellow-500" />;
     }
@@ -142,8 +146,27 @@ export function EmailVerificationDialog({ companyWebsite, onEmailVerified }: Ema
         return 'bg-green-50 border-green-200 dark:bg-green-950/20 dark:border-green-800';
       case 'invalid':
         return 'bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800';
+      case 'catch_all':
+        return 'bg-orange-50 border-orange-200 dark:bg-orange-950/20 dark:border-orange-800';
+      case 'rate_limited':
+        return 'bg-red-50 border-red-300 dark:bg-red-950/30 dark:border-red-700';
       default:
         return 'bg-yellow-50 border-yellow-200 dark:bg-yellow-950/20 dark:border-yellow-800';
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'valid':
+        return 'Valid';
+      case 'invalid':
+        return 'Invalid';
+      case 'catch_all':
+        return 'Catch-All';
+      case 'rate_limited':
+        return 'Rate Limited';
+      default:
+        return 'Unknown';
     }
   };
 
@@ -244,8 +267,8 @@ export function EmailVerificationDialog({ companyWebsite, onEmailVerified }: Ema
                       <span className="font-mono text-sm">{result.email}</span>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs capitalize text-muted-foreground">
-                        {result.status}
+                      <span className="text-xs text-muted-foreground">
+                        {getStatusLabel(result.status)}
                       </span>
                       {result.status === 'valid' && onEmailVerified && (
                         <Button
