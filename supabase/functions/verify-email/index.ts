@@ -14,7 +14,7 @@ interface VerifyEmailRequest {
 
 interface EmailVariation {
   email: string;
-  status: 'pending' | 'checking' | 'valid' | 'invalid' | 'unknown';
+  status: 'pending' | 'checking' | 'valid' | 'invalid' | 'unknown' | 'rate_limited' | 'catch_all';
   result?: any;
 }
 
@@ -41,7 +41,9 @@ function generateEmailVariations(firstName: string, lastName: string, domain: st
   ];
 }
 
-async function verifySingleEmail(email: string, apiKey: string): Promise<{ status: string; result: any }> {
+async function verifySingleEmail(email: string, apiKey: string, retryCount = 0): Promise<{ status: string; result: any }> {
+  const MAX_RETRIES = 3;
+  
   try {
     const response = await fetch(`https://api.clearout.io/v2/email_verify/instant`, {
       method: 'POST',
@@ -52,6 +54,22 @@ async function verifySingleEmail(email: string, apiKey: string): Promise<{ statu
       body: JSON.stringify({ email }),
     });
 
+    if (response.status === 429) {
+      const errorText = await response.text();
+      console.warn(`Rate limited for ${email}, attempt ${retryCount + 1}/${MAX_RETRIES}`);
+      
+      if (retryCount < MAX_RETRIES) {
+        // Exponential backoff: 2s, 4s, 8s
+        const waitTime = Math.pow(2, retryCount + 1) * 1000;
+        console.log(`Waiting ${waitTime}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+        return verifySingleEmail(email, apiKey, retryCount + 1);
+      }
+      
+      console.error(`Rate limit exceeded after ${MAX_RETRIES} retries for ${email}`);
+      return { status: 'rate_limited', result: { error: errorText, statusCode: 429 } };
+    }
+
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Clearout API error for ${email}:`, response.status, errorText);
@@ -61,7 +79,7 @@ async function verifySingleEmail(email: string, apiKey: string): Promise<{ statu
     const result = await response.json();
     console.log(`Clearout result for ${email}:`, result);
     
-    // Clearout returns status like 'valid', 'invalid', 'unknown', etc.
+    // Clearout returns status like 'valid', 'invalid', 'unknown', 'catch_all', etc.
     const status = result.data?.status || result.status || 'unknown';
     
     return { status, result };
@@ -105,23 +123,43 @@ serve(async (req: Request): Promise<Response> => {
       console.log(`Verifying: ${email}`);
       const { status, result } = await verifySingleEmail(email, CLEAROUT_API_KEY);
       
+      // Map Clearout status to our status types
+      let mappedStatus: EmailVariation['status'];
+      if (status === 'valid') {
+        mappedStatus = 'valid';
+      } else if (status === 'invalid') {
+        mappedStatus = 'invalid';
+      } else if (status === 'catch_all') {
+        mappedStatus = 'catch_all';
+      } else if (status === 'rate_limited') {
+        mappedStatus = 'rate_limited';
+      } else {
+        mappedStatus = 'unknown';
+      }
+      
       const variation: EmailVariation = {
         email,
-        status: status === 'valid' ? 'valid' : status === 'invalid' ? 'invalid' : 'unknown',
+        status: mappedStatus,
         result,
       };
       
       results.push(variation);
       
-      // If we found a valid email, we can stop (but we'll return all checked results)
+      // If we found a valid email, we can stop
       if (status === 'valid') {
         validEmail = email;
         console.log(`Found valid email: ${email}`);
         break;
       }
       
-      // Add a small delay to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // If we hit rate limits even after retries, stop checking more variations
+      if (status === 'rate_limited') {
+        console.warn('Stopping due to rate limits');
+        break;
+      }
+      
+      // Add delay between requests to avoid rate limiting (1 second)
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     return new Response(
