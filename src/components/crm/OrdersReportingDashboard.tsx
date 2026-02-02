@@ -237,7 +237,7 @@ const OrdersReportingDashboard = () => {
           <CardContent>
             <div className="h-[300px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={revenueByMonth} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                <BarChart data={revenueByMonth} margin={{ top: 10, right: 30, left: 20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis 
                     dataKey="name" 
@@ -249,6 +249,7 @@ const OrdersReportingDashboard = () => {
                     tick={{ fontSize: 12 }}
                     tickLine={false}
                     axisLine={false}
+                    width={80}
                     tickFormatter={(value) => formatCurrency(value)}
                   />
                   <Tooltip content={<CustomTooltip />} />
@@ -321,7 +322,7 @@ const OrdersReportingDashboard = () => {
                     tick={{ fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(value) => formatCurrency(value)}
+                    tickFormatter={(value) => `$${value >= 1000 ? `${(value / 1000).toFixed(0)}k` : value}`}
                   />
                   <YAxis 
                     type="category"
