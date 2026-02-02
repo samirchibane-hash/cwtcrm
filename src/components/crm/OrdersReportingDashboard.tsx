@@ -1,0 +1,328 @@
+import { useMemo } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useOrders } from '@/context/OrdersContext';
+import { formatCurrency } from '@/data/orders';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  Legend,
+} from 'recharts';
+import { TrendingUp, Package, Users } from 'lucide-react';
+
+// Parse date string (M/D/YYYY) to Date object
+const parseDate = (dateStr: string): Date | null => {
+  if (!dateStr) return null;
+  const parts = dateStr.split('/');
+  if (parts.length !== 3) return null;
+  const [month, day, year] = parts.map(Number);
+  if (isNaN(month) || isNaN(day) || isNaN(year)) return null;
+  return new Date(year, month - 1, day);
+};
+
+// Format month for display
+const formatMonth = (year: number, month: number): string => {
+  const date = new Date(year, month);
+  return date.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+};
+
+// Colors for charts
+const COLORS = [
+  'hsl(var(--chart-1))',
+  'hsl(var(--chart-2))',
+  'hsl(var(--chart-3))',
+  'hsl(var(--chart-4))',
+  'hsl(var(--chart-5))',
+  '#8884d8',
+  '#82ca9d',
+  '#ffc658',
+  '#ff7300',
+  '#00C49F',
+];
+
+const OrdersReportingDashboard = () => {
+  const { orders } = useOrders();
+
+  // Revenue by month
+  const revenueByMonth = useMemo(() => {
+    const monthMap = new Map<string, { year: number; month: number; revenue: number; units: number }>();
+    
+    orders.forEach(order => {
+      const date = parseDate(order.placed);
+      if (!date) return;
+      
+      const key = `${date.getFullYear()}-${date.getMonth()}`;
+      const existing = monthMap.get(key) || { year: date.getFullYear(), month: date.getMonth(), revenue: 0, units: 0 };
+      existing.revenue += order.totalValue;
+      existing.units += order.units;
+      monthMap.set(key, existing);
+    });
+
+    return Array.from(monthMap.values())
+      .sort((a, b) => {
+        if (a.year !== b.year) return a.year - b.year;
+        return a.month - b.month;
+      })
+      .map(item => ({
+        name: formatMonth(item.year, item.month),
+        revenue: item.revenue,
+        units: item.units,
+      }));
+  }, [orders]);
+
+  // Revenue by product model
+  const revenueByProduct = useMemo(() => {
+    const productMap = new Map<string, { revenue: number; units: number }>();
+    
+    orders.forEach(order => {
+      order.modelItems.forEach(item => {
+        const key = item.modelName;
+        const existing = productMap.get(key) || { revenue: 0, units: 0 };
+        // Estimate revenue per item (total / units * item quantity)
+        const itemRevenue = order.units > 0 ? (order.totalValue / order.units) * item.quantity : 0;
+        existing.revenue += itemRevenue;
+        existing.units += item.quantity;
+        productMap.set(key, existing);
+      });
+    });
+
+    return Array.from(productMap.entries())
+      .map(([name, data]) => ({
+        name,
+        revenue: Math.round(data.revenue),
+        units: data.units,
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+  }, [orders]);
+
+  // Revenue by customer
+  const revenueByCustomer = useMemo(() => {
+    const customerMap = new Map<string, { revenue: number; orders: number; units: number }>();
+    
+    orders.forEach(order => {
+      const key = order.customer;
+      const existing = customerMap.get(key) || { revenue: 0, orders: 0, units: 0 };
+      existing.revenue += order.totalValue;
+      existing.orders += 1;
+      existing.units += order.units;
+      customerMap.set(key, existing);
+    });
+
+    return Array.from(customerMap.entries())
+      .map(([name, data]) => ({
+        name,
+        revenue: data.revenue,
+        orders: data.orders,
+        units: data.units,
+      }))
+      .sort((a, b) => b.revenue - a.revenue)
+      .slice(0, 10); // Top 10 customers
+  }, [orders]);
+
+  // Summary stats
+  const summaryStats = useMemo(() => {
+    const totalRevenue = orders.reduce((sum, o) => sum + o.totalValue, 0);
+    const currentDate = new Date();
+    const currentMonth = orders.filter(o => {
+      const date = parseDate(o.placed);
+      return date && date.getMonth() === currentDate.getMonth() && date.getFullYear() === currentDate.getFullYear();
+    }).reduce((sum, o) => sum + o.totalValue, 0);
+    
+    const lastMonth = orders.filter(o => {
+      const date = parseDate(o.placed);
+      if (!date) return false;
+      const lastMonthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1);
+      return date.getMonth() === lastMonthDate.getMonth() && date.getFullYear() === lastMonthDate.getFullYear();
+    }).reduce((sum, o) => sum + o.totalValue, 0);
+
+    return { totalRevenue, currentMonth, lastMonth };
+  }, [orders]);
+
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      return (
+        <div className="bg-popover border rounded-lg shadow-lg p-3">
+          <p className="font-medium">{label}</p>
+          {payload.map((entry: any, index: number) => (
+            <p key={index} className="text-sm" style={{ color: entry.color }}>
+              {entry.name}: {entry.name === 'revenue' ? formatCurrency(entry.value) : entry.value}
+            </p>
+          ))}
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-accent">{formatCurrency(summaryStats.totalRevenue)}</div>
+            <p className="text-xs text-muted-foreground mt-1">All time</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">This Month</CardTitle>
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{formatCurrency(summaryStats.currentMonth)}</div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {summaryStats.lastMonth > 0 
+                ? `vs ${formatCurrency(summaryStats.lastMonth)} last month`
+                : 'No data last month'}
+            </p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Unique Customers</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{revenueByCustomer.length}</div>
+            <p className="text-xs text-muted-foreground mt-1">With revenue</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Revenue by Month */}
+        <Card className="col-span-1 lg:col-span-2">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <TrendingUp className="h-5 w-5" />
+              Revenue by Month
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={revenueByMonth} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis 
+                    dataKey="name" 
+                    tick={{ fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 12 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar 
+                    dataKey="revenue" 
+                    fill="hsl(var(--chart-1))" 
+                    radius={[4, 4, 0, 0]}
+                    name="Revenue"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Revenue by Product Model */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5" />
+              Revenue by Product
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={revenueByProduct}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    outerRadius={100}
+                    fill="#8884d8"
+                    dataKey="revenue"
+                  >
+                    {revenueByProduct.map((_, index) => (
+                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value: number) => formatCurrency(value)}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Top Customers */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Top Customers by Revenue
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart 
+                  data={revenueByCustomer} 
+                  layout="vertical"
+                  margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" horizontal={false} />
+                  <XAxis 
+                    type="number"
+                    tick={{ fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                  />
+                  <YAxis 
+                    type="category"
+                    dataKey="name" 
+                    tick={{ fontSize: 11 }}
+                    tickLine={false}
+                    axisLine={false}
+                    width={75}
+                  />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Bar 
+                    dataKey="revenue" 
+                    fill="hsl(var(--chart-2))" 
+                    radius={[0, 4, 4, 0]}
+                    name="Revenue"
+                  />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default OrdersReportingDashboard;
