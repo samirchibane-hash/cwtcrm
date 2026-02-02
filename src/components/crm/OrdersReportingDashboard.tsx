@@ -169,7 +169,13 @@ const OrdersReportingDashboard = () => {
           <p className="font-medium">{label}</p>
           {payload.map((entry: any, index: number) => (
             <p key={index} className="text-sm" style={{ color: entry.color }}>
-              {entry.name}: {entry.name === 'revenue' ? formatCurrency(entry.value) : entry.value}
+              {entry.name}: {(() => {
+                const isRevenue =
+                  entry?.dataKey === 'revenue' ||
+                  (typeof entry?.name === 'string' && entry.name.toLowerCase().includes('revenue'));
+
+                return isRevenue ? formatCurrency(Number(entry.value) || 0) : entry.value;
+              })()}
             </p>
           ))}
         </div>
