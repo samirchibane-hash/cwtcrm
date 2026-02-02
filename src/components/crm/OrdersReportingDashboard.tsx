@@ -50,13 +50,20 @@ const COLORS = [
 const OrdersReportingDashboard = () => {
   const { orders } = useOrders();
 
-  // Revenue by month
+  // Revenue by month - show all months between first and last order
   const revenueByMonth = useMemo(() => {
     const monthMap = new Map<string, { year: number; month: number; revenue: number; units: number }>();
+    
+    // Find date range from orders
+    let minDate: Date | null = null;
+    let maxDate: Date | null = null;
     
     orders.forEach(order => {
       const date = parseDate(order.placed);
       if (!date) return;
+      
+      if (!minDate || date < minDate) minDate = date;
+      if (!maxDate || date > maxDate) maxDate = date;
       
       const key = `${date.getFullYear()}-${date.getMonth()}`;
       const existing = monthMap.get(key) || { year: date.getFullYear(), month: date.getMonth(), revenue: 0, units: 0 };
@@ -65,16 +72,26 @@ const OrdersReportingDashboard = () => {
       monthMap.set(key, existing);
     });
 
-    return Array.from(monthMap.values())
-      .sort((a, b) => {
-        if (a.year !== b.year) return a.year - b.year;
-        return a.month - b.month;
-      })
-      .map(item => ({
-        name: formatMonth(item.year, item.month),
-        revenue: item.revenue,
-        units: item.units,
-      }));
+    // If no orders with dates, return empty
+    if (!minDate || !maxDate) return [];
+
+    // Generate all months between min and max date
+    const result: { name: string; revenue: number; units: number }[] = [];
+    const current = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+    const end = new Date(maxDate.getFullYear(), maxDate.getMonth(), 1);
+    
+    while (current <= end) {
+      const key = `${current.getFullYear()}-${current.getMonth()}`;
+      const data = monthMap.get(key);
+      result.push({
+        name: formatMonth(current.getFullYear(), current.getMonth()),
+        revenue: data?.revenue || 0,
+        units: data?.units || 0,
+      });
+      current.setMonth(current.getMonth() + 1);
+    }
+
+    return result;
   }, [orders]);
 
   // Revenue by product model
@@ -165,23 +182,27 @@ const OrdersReportingDashboard = () => {
     <div className="space-y-6">
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
+        <Card className="bg-gradient-to-br from-stage-closed/10 to-transparent border-stage-closed/20">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <div className="h-8 w-8 rounded-full bg-stage-closed/20 flex items-center justify-center">
+              <TrendingUp className="h-4 w-4 text-stage-closed" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-accent">{formatCurrency(summaryStats.totalRevenue)}</div>
+            <div className="text-2xl font-bold text-stage-closed">{formatCurrency(summaryStats.totalRevenue)}</div>
             <p className="text-xs text-muted-foreground mt-1">All time</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-gradient-to-br from-stage-quotes/10 to-transparent border-stage-quotes/20">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">This Month</CardTitle>
-            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <div className="h-8 w-8 rounded-full bg-stage-quotes/20 flex items-center justify-center">
+              <TrendingUp className="h-4 w-4 text-stage-quotes" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summaryStats.currentMonth)}</div>
+            <div className="text-2xl font-bold text-stage-quotes">{formatCurrency(summaryStats.currentMonth)}</div>
             <p className="text-xs text-muted-foreground mt-1">
               {summaryStats.lastMonth > 0 
                 ? `vs ${formatCurrency(summaryStats.lastMonth)} last month`
@@ -189,13 +210,15 @@ const OrdersReportingDashboard = () => {
             </p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className="bg-gradient-to-br from-stage-contact/10 to-transparent border-stage-contact/20">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Unique Customers</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <div className="h-8 w-8 rounded-full bg-stage-contact/20 flex items-center justify-center">
+              <Users className="h-4 w-4 text-stage-contact" />
+            </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{revenueByCustomer.length}</div>
+            <div className="text-2xl font-bold text-stage-contact">{revenueByCustomer.length}</div>
             <p className="text-xs text-muted-foreground mt-1">With revenue</p>
           </CardContent>
         </Card>
@@ -226,12 +249,12 @@ const OrdersReportingDashboard = () => {
                     tick={{ fontSize: 12 }}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                    tickFormatter={(value) => formatCurrency(value)}
                   />
                   <Tooltip content={<CustomTooltip />} />
                   <Bar 
                     dataKey="revenue" 
-                    fill="hsl(var(--chart-1))" 
+                    fill="hsl(var(--stage-closed))" 
                     radius={[4, 4, 0, 0]}
                     name="Revenue"
                   />
@@ -298,7 +321,7 @@ const OrdersReportingDashboard = () => {
                     tick={{ fontSize: 11 }}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
+                    tickFormatter={(value) => formatCurrency(value)}
                   />
                   <YAxis 
                     type="category"
@@ -311,7 +334,7 @@ const OrdersReportingDashboard = () => {
                   <Tooltip content={<CustomTooltip />} />
                   <Bar 
                     dataKey="revenue" 
-                    fill="hsl(var(--chart-2))" 
+                    fill="hsl(var(--stage-contact))" 
                     radius={[0, 4, 4, 0]}
                     name="Revenue"
                   />
