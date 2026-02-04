@@ -21,13 +21,17 @@ import {
 } from '@/components/ui/select';
 import { useProspects } from '@/context/ProspectsContext';
 import { useToast } from '@/hooks/use-toast';
-import { CompanyType, MarketType, PIPELINE_STAGES, getStageColor } from '@/data/prospects';
+import { CompanyType, MarketType, PIPELINE_STAGES, COMPANY_TYPES, getStageColor } from '@/data/prospects';
 
-const AddProspectDialog = () => {
+interface AddProspectDialogProps {
+  defaultType?: CompanyType;
+}
+
+const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
   const [open, setOpen] = useState(false);
   const [companyName, setCompanyName] = useState('');
   const [state, setState] = useState('');
-  const [type, setType] = useState<CompanyType | ''>('');
+  const [type, setType] = useState<CompanyType | ''>(defaultType || '');
   const [marketType, setMarketType] = useState<MarketType | ''>('');
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [linkedIn, setLinkedIn] = useState('');
@@ -132,9 +136,9 @@ const AddProspectDialog = () => {
                   <SelectValue placeholder="Select type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="OEM">OEM</SelectItem>
-                  <SelectItem value="Distributor">Distributor</SelectItem>
-                  <SelectItem value="eCommerce">eCommerce</SelectItem>
+                  {COMPANY_TYPES.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
