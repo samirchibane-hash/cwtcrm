@@ -1,11 +1,10 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Star, ChevronUp, ChevronDown, Building2 } from 'lucide-react';
+import { Search, Star, ChevronUp, ChevronDown, Building2, User } from 'lucide-react';
 import { Prospect } from '@/data/prospects';
 import { useProspects } from '@/context/ProspectsContext';
 import { useOrders } from '@/context/OrdersContext';
 import AddProspectDialog from './AddProspectDialog';
-import StageBadge from './StageBadge';
 import { Input } from '@/components/ui/input';
 import { Toggle } from '@/components/ui/toggle';
 import { Badge } from '@/components/ui/badge';
@@ -22,7 +21,7 @@ interface CustomersTableProps {
   onSelectProspect?: (prospect: Prospect) => void;
 }
 
-type SortField = 'companyName' | 'state' | 'stage' | 'lastContact' | 'orderCount';
+type SortField = 'companyName' | 'state' | 'lastContact' | 'orderCount' | 'ltv';
 type SortDirection = 'asc' | 'desc';
 
 const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
@@ -44,11 +43,17 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
     return orders.filter(o => o.customer === companyName).length;
   };
 
+  // Get total lifetime value for each customer
+  const getCustomerLTV = (companyName: string) => {
+    return orders
+      .filter(o => o.customer === companyName)
+      .reduce((sum, o) => sum + (o.totalValue || 0), 0);
+  };
+
   const filteredAndSortedCustomers = useMemo(() => {
     let result = customers.filter(customer => {
       const matchesSearch = customer.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        customer.state.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        customer.stage.toLowerCase().includes(searchQuery.toLowerCase());
+        customer.state.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesStarred = !starredOnly || customer.starred;
       return matchesSearch && matchesStarred;
     });
@@ -60,6 +65,9 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
       if (sortField === 'orderCount') {
         aValue = getOrderCount(a.companyName);
         bValue = getOrderCount(b.companyName);
+      } else if (sortField === 'ltv') {
+        aValue = getCustomerLTV(a.companyName);
+        bValue = getCustomerLTV(b.companyName);
       } else {
         aValue = a[sortField] || '';
         bValue = b[sortField] || '';
@@ -168,6 +176,7 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
               >
                 Company <SortIcon field="companyName" />
               </TableHead>
+              <TableHead>Contacts</TableHead>
               <TableHead 
                 className="cursor-pointer hover:text-foreground transition-colors"
                 onClick={() => handleSort('state')}
@@ -176,15 +185,15 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
               </TableHead>
               <TableHead 
                 className="cursor-pointer hover:text-foreground transition-colors"
-                onClick={() => handleSort('stage')}
-              >
-                Stage <SortIcon field="stage" />
-              </TableHead>
-              <TableHead 
-                className="cursor-pointer hover:text-foreground transition-colors"
                 onClick={() => handleSort('orderCount')}
               >
                 Orders <SortIcon field="orderCount" />
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:text-foreground transition-colors"
+                onClick={() => handleSort('ltv')}
+              >
+                Customer LTV <SortIcon field="ltv" />
               </TableHead>
               <TableHead 
                 className="cursor-pointer hover:text-foreground transition-colors"
@@ -197,7 +206,7 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
           <TableBody>
             {filteredAndSortedCustomers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Building2 className="w-8 h-8 opacity-50" />
                     <span>No customers found</span>
@@ -207,6 +216,10 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
             ) : (
               filteredAndSortedCustomers.map((customer) => {
                 const orderCount = getOrderCount(customer.companyName);
+                const ltv = getCustomerLTV(customer.companyName);
+                const contactCount = customer.contacts?.length || 0;
+                const primaryContact = customer.contacts?.[0];
+                
                 return (
                   <TableRow
                     key={customer.id}
@@ -224,13 +237,36 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
                       </button>
                     </TableCell>
                     <TableCell className="font-medium">{customer.companyName}</TableCell>
-                    <TableCell className="text-muted-foreground">{customer.state || '—'}</TableCell>
                     <TableCell>
-                      <StageBadge stage={customer.stage} />
+                      {contactCount > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center justify-center w-6 h-6 rounded-full bg-muted">
+                            <User className="w-3.5 h-3.5 text-muted-foreground" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span className="text-sm font-medium">{primaryContact?.name || 'Unknown'}</span>
+                            {contactCount > 1 && (
+                              <span className="text-xs text-muted-foreground">+{contactCount - 1} more</span>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground text-sm">—</span>
+                      )}
                     </TableCell>
+                    <TableCell className="text-muted-foreground">{customer.state || '—'}</TableCell>
                     <TableCell>
                       {orderCount > 0 ? (
                         <Badge variant="secondary">{orderCount}</Badge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      {ltv > 0 ? (
+                        <span className="text-accent">
+                          ${ltv.toLocaleString()}
+                        </span>
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
