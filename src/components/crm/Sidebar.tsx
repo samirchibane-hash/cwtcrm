@@ -21,8 +21,8 @@ const Sidebar = ({ activeView, onViewChange }: SidebarProps) => {
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'prospects', label: 'Prospects', icon: Users },
     { id: 'customers', label: 'Customers', icon: Building2 },
-    { id: 'pipeline', label: 'Pipeline', icon: FileText },
     { id: 'orders', label: 'Orders', icon: ShoppingCart },
+    { id: 'reports', label: 'Reports', icon: FileText },
   ];
 
   return (

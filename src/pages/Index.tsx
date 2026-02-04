@@ -4,7 +4,7 @@ import Sidebar from '@/components/crm/Sidebar';
 import Dashboard from '@/components/crm/Dashboard';
 import ProspectsTable from '@/components/crm/ProspectsTable';
 import CustomersTable from '@/components/crm/CustomersTable';
-import PipelineView from '@/components/crm/PipelineView';
+import OrdersReportingDashboard from '@/components/crm/OrdersReportingDashboard';
 import OrdersTable from '@/components/crm/OrdersTable';
 import { Prospect } from '@/data/prospects';
 
@@ -16,7 +16,7 @@ const Index = () => {
   // Handle view query parameter (e.g., /?view=orders)
   useEffect(() => {
     const viewParam = searchParams.get('view');
-    if (viewParam && ['dashboard', 'prospects', 'customers', 'pipeline', 'orders'].includes(viewParam)) {
+    if (viewParam && ['dashboard', 'prospects', 'customers', 'orders', 'reports'].includes(viewParam)) {
       setActiveView(viewParam);
     }
   }, [searchParams]);
@@ -33,10 +33,10 @@ const Index = () => {
         return <ProspectsTable onSelectProspect={handleSelectProspect} />;
       case 'customers':
         return <CustomersTable onSelectProspect={handleSelectProspect} />;
-      case 'pipeline':
-        return <PipelineView onSelectProspect={handleSelectProspect} />;
       case 'orders':
         return <OrdersTable />;
+      case 'reports':
+        return <OrdersReportingDashboard />;
       default:
         return <Dashboard onSelectProspect={handleSelectProspect} />;
     }
@@ -50,10 +50,10 @@ const Index = () => {
         return 'All Prospects';
       case 'customers':
         return 'Customers';
-      case 'pipeline':
-        return 'Sales Pipeline';
       case 'orders':
         return 'Orders';
+      case 'reports':
+        return 'Reports';
       default:
         return 'Dashboard';
     }
@@ -67,10 +67,10 @@ const Index = () => {
         return 'Manage and track all your prospects';
       case 'customers':
         return 'Manage your VIP customer relationships';
-      case 'pipeline':
-        return 'Visual view of your sales stages';
       case 'orders':
         return 'Track all customer orders and shipments';
+      case 'reports':
+        return 'Revenue analytics and business insights';
       default:
         return 'Overview of your sales pipeline';
     }
