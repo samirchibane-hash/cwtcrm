@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Sidebar from '@/components/crm/Sidebar';
 import Dashboard from '@/components/crm/Dashboard';
 import ProspectsTable from '@/components/crm/ProspectsTable';
+import CustomersTable from '@/components/crm/CustomersTable';
 import PipelineView from '@/components/crm/PipelineView';
 import OrdersTable from '@/components/crm/OrdersTable';
 import { Prospect } from '@/data/prospects';
@@ -15,7 +16,7 @@ const Index = () => {
   // Handle view query parameter (e.g., /?view=orders)
   useEffect(() => {
     const viewParam = searchParams.get('view');
-    if (viewParam && ['dashboard', 'prospects', 'pipeline', 'orders'].includes(viewParam)) {
+    if (viewParam && ['dashboard', 'prospects', 'customers', 'pipeline', 'orders'].includes(viewParam)) {
       setActiveView(viewParam);
     }
   }, [searchParams]);
@@ -30,6 +31,8 @@ const Index = () => {
         return <Dashboard onSelectProspect={handleSelectProspect} />;
       case 'prospects':
         return <ProspectsTable onSelectProspect={handleSelectProspect} />;
+      case 'customers':
+        return <CustomersTable onSelectProspect={handleSelectProspect} />;
       case 'pipeline':
         return <PipelineView onSelectProspect={handleSelectProspect} />;
       case 'orders':
@@ -45,6 +48,8 @@ const Index = () => {
         return 'Dashboard';
       case 'prospects':
         return 'All Prospects';
+      case 'customers':
+        return 'Customers';
       case 'pipeline':
         return 'Sales Pipeline';
       case 'orders':
@@ -60,6 +65,8 @@ const Index = () => {
         return 'Overview of your sales pipeline';
       case 'prospects':
         return 'Manage and track all your prospects';
+      case 'customers':
+        return 'Manage your VIP customer relationships';
       case 'pipeline':
         return 'Visual view of your sales stages';
       case 'orders':

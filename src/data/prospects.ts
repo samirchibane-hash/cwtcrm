@@ -16,7 +16,7 @@ export interface Engagement {
   details?: string;
 }
 
-export type CompanyType = 'OEM' | 'Distributor' | 'eCommerce' | '';
+export type CompanyType = 'OEM' | 'Distributor' | 'eCommerce' | 'Customer' | 'Sample' | '';
 
 export type MarketType = 
   | 'Water Coolers'
@@ -30,7 +30,7 @@ export type MarketType =
   | 'Commercial'
   | '';
 
-export const COMPANY_TYPES: CompanyType[] = ['OEM', 'Distributor', 'eCommerce'];
+export const COMPANY_TYPES: CompanyType[] = ['OEM', 'Distributor', 'eCommerce', 'Customer', 'Sample'];
 
 export const MARKET_TYPES: MarketType[] = [
   'Water Coolers',
