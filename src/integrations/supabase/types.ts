@@ -119,6 +119,7 @@ export type Database = {
           linkedin: string | null
           market_type: string | null
           stage: string | null
+          starred: boolean
           state: string | null
           type: string | null
           updated_at: string
@@ -135,6 +136,7 @@ export type Database = {
           linkedin?: string | null
           market_type?: string | null
           stage?: string | null
+          starred?: boolean
           state?: string | null
           type?: string | null
           updated_at?: string
@@ -151,6 +153,7 @@ export type Database = {
           linkedin?: string | null
           market_type?: string | null
           stage?: string | null
+          starred?: boolean
           state?: string | null
           type?: string | null
           updated_at?: string
