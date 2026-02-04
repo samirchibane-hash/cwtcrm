@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink, ChevronUp, ChevronDown, ArrowUpDown, BarChart3 } from 'lucide-react';
+import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,12 +25,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { DollarSign } from 'lucide-react';
 import ProductModelsDialog from './ProductModelsDialog';
 import AddOrderDialog from './AddOrderDialog';
-import OrdersReportingDashboard from './OrdersReportingDashboard';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 
 type OrderSortField = 'id' | 'customer' | 'placed' | 'units' | 'modelType' | 'totalValue' | 'status';
 type SortDirection = 'asc' | 'desc' | null;
@@ -43,7 +37,6 @@ const OrdersTable = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>(NONE_VALUE);
   const { orders } = useOrders();
-  const [showReporting, setShowReporting] = useState(true);
 
   // Initialize sort state from URL params
   const [sortField, setSortField] = useState<OrderSortField | null>(() => {
@@ -165,22 +158,6 @@ const OrdersTable = () => {
 
   return (
     <div className="space-y-6">
-      {/* Reporting Dashboard */}
-      <Collapsible open={showReporting} onOpenChange={setShowReporting}>
-        <div className="flex items-center justify-between">
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" className="flex items-center gap-2 p-0 h-auto hover:bg-transparent">
-              <BarChart3 className="h-5 w-5" />
-              <span className="text-lg font-semibold">Revenue Reports</span>
-              <ChevronDown className={`h-4 w-4 transition-transform ${showReporting ? 'rotate-180' : ''}`} />
-            </Button>
-          </CollapsibleTrigger>
-        </div>
-        <CollapsibleContent className="mt-4">
-          <OrdersReportingDashboard />
-        </CollapsibleContent>
-      </Collapsible>
-
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
