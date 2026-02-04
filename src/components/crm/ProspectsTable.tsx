@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown } from 'lucide-react';
+import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown, Star } from 'lucide-react';
 import { useProspects } from '@/context/ProspectsContext';
 import { Prospect } from '@/data/prospects';
 import { getProspectLastContactLabel, getProspectLastContactSortValue } from '@/lib/prospect-last-contact';
@@ -14,6 +14,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import { Toggle } from '@/components/ui/toggle';
 import AddProspectDialog from './AddProspectDialog';
 import { AIRecommendationsDialog } from './AIRecommendationsDialog';
 
@@ -28,11 +29,11 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { prospects, isLoading } = useProspects();
+  const { prospects, isLoading, updateProspect } = useProspects();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [stageFilter, setStageFilter] = useState<string[]>([]);
-  
+  const [starredOnly, setStarredOnly] = useState(false);
   // Initialize sort state from URL params
   const [sortField, setSortField] = useState<SortField | null>(() => {
     const field = searchParams.get('sortField');
@@ -95,7 +96,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
       const matchesStage = stageFilter.length === 0 || 
         stageFilter.some(s => prospect.stage.toLowerCase().includes(s.toLowerCase()));
 
-      return matchesSearch && matchesType && matchesStage;
+      const matchesStarred = !starredOnly || prospect.starred === true;
+
+      return matchesSearch && matchesType && matchesStage && matchesStarred;
     });
 
     if (sortField && sortDirection) {
@@ -137,7 +140,12 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     }
 
     return result;
-  }, [prospects, searchQuery, typeFilter, stageFilter, sortField, sortDirection]);
+  }, [prospects, searchQuery, typeFilter, stageFilter, sortField, sortDirection, starredOnly]);
+
+  const handleToggleStar = async (e: React.MouseEvent, prospect: Prospect) => {
+    e.stopPropagation();
+    await updateProspect({ ...prospect, starred: !prospect.starred });
+  };
 
   const handleRowClick = (prospect: Prospect) => {
     // Pass the sorted/filtered prospect IDs for Previous/Next navigation
@@ -231,6 +239,15 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
+          <Toggle
+            pressed={starredOnly}
+            onPressedChange={setStarredOnly}
+            aria-label="Show starred only"
+            className="gap-2 rounded-xl h-11 px-4 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
+          >
+            <Star className={`w-4 h-4 ${starredOnly ? 'fill-current' : ''}`} />
+            Starred
+          </Toggle>
           <AIRecommendationsDialog />
           <AddProspectDialog />
         </div>
@@ -241,6 +258,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         <table className="w-full">
           <thead>
             <tr className="bg-muted/30">
+              <th className="w-12 p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <Star className="w-4 h-4" />
+              </th>
               <th 
                 className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
                 onClick={() => handleSort('companyName')}
@@ -287,6 +307,21 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                 className="table-row-hover cursor-pointer"
                 onClick={() => handleRowClick(prospect)}
               >
+                <td className="p-4">
+                  <button
+                    onClick={(e) => handleToggleStar(e, prospect)}
+                    className="hover:scale-110 transition-transform"
+                    aria-label={prospect.starred ? 'Unstar company' : 'Star company'}
+                  >
+                    <Star 
+                      className={`w-5 h-5 transition-colors ${
+                        prospect.starred 
+                          ? 'fill-amber-400 text-amber-400' 
+                          : 'text-muted-foreground hover:text-amber-400'
+                      }`} 
+                    />
+                  </button>
+                </td>
                 <td className="p-4">
                   <span className="font-medium">{prospect.companyName}</span>
                 </td>

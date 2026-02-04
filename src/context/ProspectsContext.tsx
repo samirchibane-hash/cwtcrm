@@ -40,7 +40,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
         if (data && data.length > 0) {
           // Map database format to app format
           const mappedProspects: Prospect[] = data.map(row => ({
-          id: row.id,
+            id: row.id,
             companyName: row.company_name,
             state: row.state || '',
             type: (row.type as CompanyType) || '',
@@ -52,6 +52,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
             website: (row as any).website || '',
             contacts: (row.contacts as unknown as Contact[]) || [],
             engagements: (row.engagements as unknown as Engagement[]) || [],
+            starred: (row as any).starred || false,
           }));
           setProspects(mappedProspects);
         } else {
@@ -114,6 +115,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
           website: (row as any).website || '',
           contacts: (row.contacts as unknown as Contact[]) || [],
           engagements: (row.engagements as unknown as Engagement[]) || [],
+          starred: (row as any).starred || false,
         }));
         setProspects(mappedProspects);
       }
@@ -139,6 +141,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
           website: updatedProspect.website || '',
           contacts: JSON.parse(JSON.stringify(updatedProspect.contacts)),
           engagements: JSON.parse(JSON.stringify(updatedProspect.engagements)),
+          starred: updatedProspect.starred || false,
         })
         .eq('id', updatedProspect.id);
 
@@ -210,6 +213,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
         website: (data as any).website || '',
         contacts: (data.contacts as unknown as Contact[]) || [],
         engagements: (data.engagements as unknown as Engagement[]) || [],
+        starred: (data as any).starred || false,
       };
 
       setProspects(prev => [newProspect, ...prev]);
