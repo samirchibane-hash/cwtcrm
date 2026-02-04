@@ -48,8 +48,14 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     return null;
   });
 
-  // Sync sort state to URL
+  // Sync sort state to URL - only when on prospects view (not customers or other views)
   useEffect(() => {
+    const currentView = searchParams.get('view');
+    // Only sync URL if we're on the prospects view (view=prospects or no view param which defaults to dashboard)
+    if (currentView && currentView !== 'prospects') {
+      return; // Don't modify URL params when not on prospects view
+    }
+    
     const newParams = new URLSearchParams(searchParams);
     if (sortField && sortDirection) {
       newParams.set('sortField', sortField);
