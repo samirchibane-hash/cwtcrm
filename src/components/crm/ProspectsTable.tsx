@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown, Star } from 'lucide-react';
 import { useProspects } from '@/context/ProspectsContext';
+import { useOrders } from '@/context/OrdersContext';
 import { Prospect } from '@/data/prospects';
 import { getProspectLastContactLabel, getProspectLastContactSortValue } from '@/lib/prospect-last-contact';
 import StageBadge from './StageBadge';
@@ -30,6 +31,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { prospects, isLoading, updateProspect } = useProspects();
+  const { orders } = useOrders();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [stageFilter, setStageFilter] = useState<string[]>([]);
@@ -89,8 +91,17 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     return <ChevronDown className="w-3 h-3 ml-1" />;
   };
 
+  // Get set of company names that have orders (these should only show in Customers)
+  const companiesWithOrders = useMemo(() => {
+    return new Set(orders.map(o => o.customer));
+  }, [orders]);
+
   const filteredAndSortedProspects = useMemo(() => {
-    let result = prospects.filter((prospect) => {
+    // First, exclude any prospects that have orders (they belong in Customers view)
+    let result = prospects.filter((prospect) => !companiesWithOrders.has(prospect.companyName));
+
+    // Then apply other filters
+    result = result.filter((prospect) => {
       const matchesSearch = 
         prospect.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         prospect.contacts.some(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
@@ -146,7 +157,12 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     }
 
     return result;
-  }, [prospects, searchQuery, typeFilter, stageFilter, sortField, sortDirection, starredOnly]);
+  }, [prospects, searchQuery, typeFilter, stageFilter, sortField, sortDirection, starredOnly, companiesWithOrders]);
+
+  // Count prospects excluding those with orders
+  const prospectsWithoutOrders = useMemo(() => {
+    return prospects.filter(p => !companiesWithOrders.has(p.companyName));
+  }, [prospects, companiesWithOrders]);
 
   const handleToggleStar = async (e: React.MouseEvent, prospect: Prospect) => {
     e.stopPropagation();
@@ -382,7 +398,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
 
       {/* Footer */}
       <div className="p-4 border-t border-border text-sm text-muted-foreground">
-        Showing {filteredAndSortedProspects.length} of {prospects.length} prospects
+        Showing {filteredAndSortedProspects.length} of {prospectsWithoutOrders.length} prospects
       </div>
     </div>
   );
