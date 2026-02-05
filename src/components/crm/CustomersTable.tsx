@@ -4,6 +4,7 @@ import { Search, Star, ChevronUp, ChevronDown, Building2, User } from 'lucide-re
 import { Prospect } from '@/data/prospects';
 import { useProspects } from '@/context/ProspectsContext';
 import { useOrders } from '@/context/OrdersContext';
+import { getProspectLastContactSortValue, getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import AddProspectDialog from './AddProspectDialog';
 import { Input } from '@/components/ui/input';
 import { Toggle } from '@/components/ui/toggle';
@@ -68,6 +69,9 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
       } else if (sortField === 'ltv') {
         aValue = getCustomerLTV(a.companyName);
         bValue = getCustomerLTV(b.companyName);
+      } else if (sortField === 'lastContact') {
+        aValue = getProspectLastContactSortValue(a);
+        bValue = getProspectLastContactSortValue(b);
       } else {
         aValue = a[sortField] || '';
         bValue = b[sortField] || '';
@@ -272,7 +276,7 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground font-mono text-sm">
-                      {customer.lastContact || '—'}
+                      {getProspectLastContactLabel(customer) || '—'}
                     </TableCell>
                   </TableRow>
                 );
