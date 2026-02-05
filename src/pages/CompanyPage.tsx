@@ -11,6 +11,8 @@ import EditContactDialog from '@/components/crm/EditContactDialog';
 import EditCompanyDetailsDialog from '@/components/crm/EditCompanyDetailsDialog';
 import EditNoteDialog from '@/components/crm/EditNoteDialog';
 import { EmailVerificationDialog } from '@/components/crm/EmailVerificationDialog';
+import AddOrderDialog from '@/components/crm/AddOrderDialog';
+import { useOrders } from '@/context/OrdersContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -633,27 +635,43 @@ const CompanyPage = () => {
         </div>
 
         {/* Order History Section */}
-        <OrderHistorySection companyName={companyName} />
+        <OrderHistorySection companyName={companyName} companyId={prospect.id} />
       </main>
     </div>
   );
 };
 
-const OrderHistorySection = ({ companyName }: { companyName: string }) => {
-  const companyOrders = getOrdersByCustomer(companyName);
+const OrderHistorySection = ({ companyName, companyId }: { companyName: string; companyId: string }) => {
+  const { orders } = useOrders();
+  const companyOrders = orders.filter(o => o.customer === companyName);
+
+  const addOrderButton = (
+    <AddOrderDialog 
+      defaultCompanyName={companyName}
+      defaultCompanyId={companyId}
+      trigger={
+        <Button size="sm" className="gap-2">
+          <Plus className="w-4 h-4" />
+          New Order
+        </Button>
+      }
+    />
+  );
 
   if (companyOrders.length === 0) {
     return (
       <section className="content-card animate-fade-in" style={{ animationDelay: '250ms' }}>
-        <div className="p-6 border-b border-border">
+        <div className="p-6 border-b border-border flex items-center justify-between">
           <h2 className="section-header mb-0 flex items-center gap-2">
             <Package className="w-5 h-5" />
             Order History
           </h2>
+          {addOrderButton}
         </div>
         <div className="p-12 text-center text-muted-foreground">
           <Package className="w-12 h-12 mx-auto mb-4 opacity-30" />
           <p className="text-sm">No orders found for this company</p>
+          <p className="text-xs mt-1">Create your first order above</p>
         </div>
       </section>
     );
@@ -676,6 +694,7 @@ const OrderHistorySection = ({ companyName }: { companyName: string }) => {
           <span className="text-muted-foreground">
             <strong className="text-foreground">{totalUnits}</strong> total units
           </span>
+          {addOrderButton}
         </div>
       </div>
       
