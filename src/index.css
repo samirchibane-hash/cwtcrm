@@ -207,4 +207,17 @@
       transform: translateY(0);
     }
   }
+
+  /* iOS Safe Area Utilities */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 8px);
+  }
+
+  .safe-top {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  .mb-safe-nav {
+    margin-bottom: calc(76px + env(safe-area-inset-bottom, 8px));
+  }
 }

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Sidebar from '@/components/crm/Sidebar';
+import MobileNav from '@/components/crm/MobileNav';
+import MobileHeader from '@/components/crm/MobileHeader';
 import Dashboard from '@/components/crm/Dashboard';
 import ProspectsTable from '@/components/crm/ProspectsTable';
 import CustomersTable from '@/components/crm/CustomersTable';
@@ -47,7 +49,7 @@ const Index = () => {
       case 'dashboard':
         return 'Dashboard';
       case 'prospects':
-        return 'All Prospects';
+        return 'Prospects';
       case 'customers':
         return 'Customers';
       case 'orders':
@@ -78,16 +80,27 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Sidebar activeView={activeView} onViewChange={setActiveView} />
+      {/* Desktop Sidebar - Hidden on mobile */}
+      <div className="hidden md:block">
+        <Sidebar activeView={activeView} onViewChange={setActiveView} />
+      </div>
       
-      <main className="ml-64 p-8">
-        <header className="mb-8">
+      {/* Mobile Header - Hidden on desktop */}
+      <MobileHeader title={getViewTitle()} />
+      
+      {/* Main Content */}
+      <main className="md:ml-64 px-4 py-4 md:p-8 mb-safe-nav md:mb-0">
+        {/* Desktop Header - Hidden on mobile */}
+        <header className="mb-6 md:mb-8 hidden md:block">
           <h1 className="text-3xl font-semibold tracking-tight">{getViewTitle()}</h1>
           <p className="text-muted-foreground mt-1">{getViewSubtitle()}</p>
         </header>
 
         {renderView()}
       </main>
+
+      {/* Mobile Bottom Nav - Hidden on desktop */}
+      <MobileNav activeView={activeView} onViewChange={setActiveView} />
     </div>
   );
 };
