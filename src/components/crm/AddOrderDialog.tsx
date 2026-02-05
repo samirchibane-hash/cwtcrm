@@ -25,10 +25,22 @@ import { useProspects } from '@/context/ProspectsContext';
 import { useToast } from '@/hooks/use-toast';
 import { Order, OrderModelItem, OrderType } from '@/data/orders';
 
-const AddOrderDialog = () => {
+interface AddOrderDialogProps {
+  defaultCompanyName?: string;
+  defaultCompanyId?: string;
+  trigger?: React.ReactNode;
+  onOrderCreated?: () => void;
+}
+
+const AddOrderDialog = ({ 
+  defaultCompanyName, 
+  defaultCompanyId,
+  trigger,
+  onOrderCreated 
+}: AddOrderDialogProps = {}) => {
   const [open, setOpen] = useState(false);
-  const [customer, setCustomer] = useState('');
-  const [companyId, setCompanyId] = useState('');
+  const [customer, setCustomer] = useState(defaultCompanyName || '');
+  const [companyId, setCompanyId] = useState(defaultCompanyId || '');
   const [placed, setPlaced] = useState(new Date().toLocaleDateString('en-US'));
   const [status, setStatus] = useState<Order['status']>('PO/Invoice');
   const [orderType, setOrderType] = useState<OrderType>('Standard');
@@ -42,6 +54,20 @@ const AddOrderDialog = () => {
   const { models: productModels } = useProductModels();
   const { prospects } = useProspects();
   const { toast } = useToast();
+
+  // Reset form when dialog opens (with defaults)
+  const handleOpenChange = (isOpen: boolean) => {
+    if (isOpen) {
+      setCustomer(defaultCompanyName || '');
+      setCompanyId(defaultCompanyId || '');
+      setPlaced(new Date().toLocaleDateString('en-US'));
+      setStatus('PO/Invoice');
+      setOrderType('Standard');
+      setInvoice('');
+      setModelItems([{ modelName: '', quantity: 1 }]);
+    }
+    setOpen(isOpen);
+  };
 
   const addModelItem = () => {
     setModelItems([...modelItems, { modelName: '', quantity: 1 }]);
@@ -132,16 +158,21 @@ const AddOrderDialog = () => {
       setInvoice('');
       setModelItems([{ modelName: '', quantity: 1 }]);
       setOpen(false);
+      onOrderCreated?.();
     }
   };
 
+  const hasDefaultCompany = Boolean(defaultCompanyName);
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" />
-          New Order
-        </Button>
+        {trigger || (
+          <Button className="gap-2">
+            <Plus className="h-4 w-4" />
+            New Order
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -151,22 +182,24 @@ const AddOrderDialog = () => {
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="grid gap-2">
-            <Label htmlFor="company">Link to Company (Optional)</Label>
-            <Select value={companyId} onValueChange={handleCompanySelect}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select a company or enter manually" />
-              </SelectTrigger>
-              <SelectContent>
-                {prospects.map((prospect) => (
-                  <SelectItem key={prospect.id} value={prospect.id}>
-                    {prospect.companyName}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
+          {!hasDefaultCompany && (
+            <div className="grid gap-2">
+              <Label htmlFor="company">Link to Company (Optional)</Label>
+              <Select value={companyId} onValueChange={handleCompanySelect}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a company or enter manually" />
+                </SelectTrigger>
+                <SelectContent>
+                  {prospects.map((prospect) => (
+                    <SelectItem key={prospect.id} value={prospect.id}>
+                      {prospect.companyName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
           <div className="grid gap-2">
             <Label htmlFor="customer">Customer Name *</Label>
             <Input
@@ -174,6 +207,7 @@ const AddOrderDialog = () => {
               value={customer}
               onChange={(e) => setCustomer(e.target.value)}
               placeholder="Enter customer name"
+              disabled={hasDefaultCompany}
             />
           </div>
 
