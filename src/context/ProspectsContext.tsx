@@ -5,7 +5,8 @@ import {
   Contact, 
   Engagement, 
   CompanyType, 
-  MarketType 
+  MarketType,
+  LeadTier 
 } from '@/data/prospects';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -20,6 +21,23 @@ interface ProspectsContextType {
 }
 
 const ProspectsContext = createContext<ProspectsContextType | undefined>(undefined);
+
+const mapRowToProspect = (row: any): Prospect => ({
+  id: row.id,
+  companyName: row.company_name,
+  state: row.state || '',
+  type: (row.type as CompanyType) || '',
+  marketType: (row.market_type as MarketType) || '',
+  leadTier: (row.lead_tier as LeadTier) || '',
+  stage: row.stage || '',
+  lastContact: row.last_contact || '',
+  engagementNotes: row.engagement_notes || '',
+  linkedIn: row.linkedin || '',
+  website: row.website || '',
+  contacts: (row.contacts as unknown as Contact[]) || [],
+  engagements: (row.engagements as unknown as Engagement[]) || [],
+  starred: row.starred || false,
+});
 
 export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
   const [prospects, setProspects] = useState<Prospect[]>([]);
@@ -38,25 +56,8 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
         if (error) throw error;
 
         if (data && data.length > 0) {
-          // Map database format to app format
-          const mappedProspects: Prospect[] = data.map(row => ({
-            id: row.id,
-            companyName: row.company_name,
-            state: row.state || '',
-            type: (row.type as CompanyType) || '',
-            marketType: (row.market_type as MarketType) || '',
-            stage: row.stage || '',
-            lastContact: row.last_contact || '',
-            engagementNotes: row.engagement_notes || '',
-            linkedIn: row.linkedin || '',
-            website: (row as any).website || '',
-            contacts: (row.contacts as unknown as Contact[]) || [],
-            engagements: (row.engagements as unknown as Engagement[]) || [],
-            starred: (row as any).starred || false,
-          }));
-          setProspects(mappedProspects);
+          setProspects(data.map(mapRowToProspect));
         } else {
-          // Seed initial prospects if database is empty
           await seedInitialProspects();
         }
       } catch (error) {
@@ -66,7 +67,6 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
           description: 'Failed to load prospects from database.',
           variant: 'destructive',
         });
-        // Fallback to initial prospects
         setProspects(initialProspects);
       } finally {
         setIsLoading(false);
@@ -79,11 +79,12 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
   const seedInitialProspects = async () => {
     try {
       const prospectsToInsert = initialProspects.map(prospect => ({
-        id: prospect.id.length > 10 ? prospect.id : undefined, // Only use UUID-like IDs
+        id: prospect.id.length > 10 ? prospect.id : undefined,
         company_name: prospect.companyName,
         state: prospect.state,
         type: prospect.type,
         market_type: prospect.marketType,
+        lead_tier: prospect.leadTier || '',
         stage: prospect.stage,
         last_contact: prospect.lastContact,
         engagement_notes: prospect.engagementNotes,
@@ -101,23 +102,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
 
       if (data) {
-        // Map the inserted data back to app format
-        const mappedProspects: Prospect[] = data.map(row => ({
-          id: row.id,
-          companyName: row.company_name,
-          state: row.state || '',
-          type: (row.type as CompanyType) || '',
-          marketType: (row.market_type as MarketType) || '',
-          stage: row.stage || '',
-          lastContact: row.last_contact || '',
-          engagementNotes: row.engagement_notes || '',
-          linkedIn: row.linkedin || '',
-          website: (row as any).website || '',
-          contacts: (row.contacts as unknown as Contact[]) || [],
-          engagements: (row.engagements as unknown as Engagement[]) || [],
-          starred: (row as any).starred || false,
-        }));
-        setProspects(mappedProspects);
+        setProspects(data.map(mapRowToProspect));
       }
     } catch (error) {
       console.error('Failed to seed initial prospects:', error);
@@ -134,6 +119,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
           state: updatedProspect.state,
           type: updatedProspect.type,
           market_type: updatedProspect.marketType,
+          lead_tier: updatedProspect.leadTier || '',
           stage: updatedProspect.stage,
           last_contact: updatedProspect.lastContact,
           engagement_notes: updatedProspect.engagementNotes,
@@ -187,6 +173,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
           state: prospectData.state,
           type: prospectData.type,
           market_type: prospectData.marketType,
+          lead_tier: prospectData.leadTier || '',
           stage: prospectData.stage,
           last_contact: prospectData.lastContact,
           engagement_notes: prospectData.engagementNotes,
@@ -200,22 +187,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) throw error;
 
-      const newProspect: Prospect = {
-        id: data.id,
-        companyName: data.company_name,
-        state: data.state || '',
-        type: (data.type as CompanyType) || '',
-        marketType: (data.market_type as MarketType) || '',
-        stage: data.stage || '',
-        lastContact: data.last_contact || '',
-        engagementNotes: data.engagement_notes || '',
-        linkedIn: data.linkedin || '',
-        website: (data as any).website || '',
-        contacts: (data.contacts as unknown as Contact[]) || [],
-        engagements: (data.engagements as unknown as Engagement[]) || [],
-        starred: (data as any).starred || false,
-      };
-
+      const newProspect = mapRowToProspect(data);
       setProspects(prev => [newProspect, ...prev]);
       return newProspect;
     } catch (error) {

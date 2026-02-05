@@ -38,8 +38,8 @@ const EditCompanyTypeDialog = ({ currentType, currentMarketType, onSave }: EditC
   const handleSave = () => {
     onSave(type, marketType);
     toast({
-      title: 'Company type updated',
-      description: 'The company type and market type have been updated.',
+      title: 'Classification updated',
+      description: 'The business model and product vertical have been updated.',
     });
     setOpen(false);
   };
@@ -52,7 +52,6 @@ const EditCompanyTypeDialog = ({ currentType, currentMarketType, onSave }: EditC
     }
   };
 
-  // Convert empty string to NONE_VALUE for Select, and back
   const toSelectValue = (val: string) => val === '' ? NONE_VALUE : val;
   const fromSelectValue = (val: string) => val === NONE_VALUE ? '' : val;
 
@@ -67,19 +66,19 @@ const EditCompanyTypeDialog = ({ currentType, currentMarketType, onSave }: EditC
         <DialogHeader>
           <DialogTitle>Edit Company Classification</DialogTitle>
           <DialogDescription>
-            Update the company type and market segment for this prospect.
+            Update the business model and product vertical for this prospect.
           </DialogDescription>
         </DialogHeader>
         
         <div className="space-y-4 py-4">
           <div className="space-y-2">
-            <Label>Company Type</Label>
+            <Label>Business Model</Label>
             <Select 
               value={toSelectValue(type)} 
               onValueChange={(value) => setType(fromSelectValue(value) as CompanyType)}
             >
               <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Select company type" />
+                <SelectValue placeholder="Select business model" />
               </SelectTrigger>
               <SelectContent className="rounded-xl bg-background">
                 <SelectItem value={NONE_VALUE}>None</SelectItem>
@@ -93,13 +92,13 @@ const EditCompanyTypeDialog = ({ currentType, currentMarketType, onSave }: EditC
           </div>
           
           <div className="space-y-2">
-            <Label>Market Type</Label>
+            <Label>Product Vertical</Label>
             <Select 
               value={toSelectValue(marketType)} 
               onValueChange={(value) => setMarketType(fromSelectValue(value) as MarketType)}
             >
               <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Select market type" />
+                <SelectValue placeholder="Select product vertical" />
               </SelectTrigger>
               <SelectContent className="rounded-xl bg-background">
                 <SelectItem value={NONE_VALUE}>None</SelectItem>

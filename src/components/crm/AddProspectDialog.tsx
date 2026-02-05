@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/select';
 import { useProspects } from '@/context/ProspectsContext';
 import { useToast } from '@/hooks/use-toast';
-import { CompanyType, MarketType, PIPELINE_STAGES, COMPANY_TYPES, getStageColor } from '@/data/prospects';
+import { CompanyType, MarketType, LeadTier, PIPELINE_STAGES, COMPANY_TYPES, LEAD_TIERS, getStageColor } from '@/data/prospects';
 
 interface AddProspectDialogProps {
   defaultType?: CompanyType;
@@ -33,6 +33,7 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
   const [state, setState] = useState('');
   const [type, setType] = useState<CompanyType | ''>(defaultType || '');
   const [marketType, setMarketType] = useState<MarketType | ''>('');
+  const [leadTier, setLeadTier] = useState<LeadTier | ''>('');
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [linkedIn, setLinkedIn] = useState('');
   const [website, setWebsite] = useState('');
@@ -67,6 +68,7 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
       state: state.trim(),
       type: type || '',
       marketType: marketType || '',
+      leadTier: leadTier || '',
       stage: selectedStages.length > 0 ? selectedStages.join(', ') : 'Contact Made',
       lastContact: new Date().toLocaleDateString('en-US'),
       engagementNotes: '',
@@ -82,11 +84,11 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
         title: 'Success',
         description: `${companyName} has been added.`,
       });
-      // Reset form
       setCompanyName('');
       setState('');
       setType('');
       setMarketType('');
+      setLeadTier('');
       setSelectedStages([]);
       setLinkedIn('');
       setWebsite('');
@@ -130,10 +132,10 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="type">Company Type</Label>
+              <Label htmlFor="type">Business Model</Label>
               <Select value={type} onValueChange={(value) => setType(value as CompanyType)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select type" />
+                  <SelectValue placeholder="Select model" />
                 </SelectTrigger>
                 <SelectContent>
                   {COMPANY_TYPES.map((t) => (
@@ -145,10 +147,10 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="marketType">Market Type</Label>
+              <Label htmlFor="marketType">Product Vertical</Label>
               <Select value={marketType} onValueChange={(value) => setMarketType(value as MarketType)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select market" />
+                  <SelectValue placeholder="Select vertical" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Residential">Residential</SelectItem>
@@ -158,48 +160,60 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label>Stages</Label>
-              {/* Selected stages */}
-              {selectedStages.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-1">
-                  {selectedStages.map((stg) => {
-                    const colors = getStageColor(stg);
-                    return (
-                      <span
-                        key={stg}
-                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}
-                      >
-                        {stg}
-                        <button
-                          type="button"
-                          onClick={() => removeStage(stg)}
-                          className="hover:opacity-70 transition-opacity"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-              <Select
-                value=""
-                onValueChange={(value) => {
-                  if (value) addStage(value);
-                }}
-              >
+              <Label>Lead Tier</Label>
+              <Select value={leadTier} onValueChange={(value) => setLeadTier(value as LeadTier)}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Add a stage..." />
+                  <SelectValue placeholder="Select tier" />
                 </SelectTrigger>
                 <SelectContent>
-                  {PIPELINE_STAGES.filter(s => !selectedStages.includes(s)).map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
+                  {LEAD_TIERS.map((t) => (
+                    <SelectItem key={t} value={t}>{t}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+          </div>
+          <div className="grid gap-2">
+            <Label>Stages</Label>
+            {selectedStages.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-1">
+                {selectedStages.map((stg) => {
+                  const colors = getStageColor(stg);
+                  return (
+                    <span
+                      key={stg}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}
+                    >
+                      {stg}
+                      <button
+                        type="button"
+                        onClick={() => removeStage(stg)}
+                        className="hover:opacity-70 transition-opacity"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+            <Select
+              value=""
+              onValueChange={(value) => {
+                if (value) addStage(value);
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Add a stage..." />
+              </SelectTrigger>
+              <SelectContent>
+                {PIPELINE_STAGES.filter(s => !selectedStages.includes(s)).map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="linkedIn">LinkedIn URL</Label>

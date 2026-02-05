@@ -32,8 +32,8 @@ serve(async (req) => {
 Analyze the provided list of existing prospects and recommend NEW companies that would be good potential customers based on the patterns you observe.
 
 Consider:
-- Industry verticals (water coolers, ice machines, beverage dispensers, water filtration, spas/hot tubs, fountains, industrial, commercial, residential)
-- Company types (OEM manufacturers, Distributors, eCommerce)
+- Product verticals (water coolers, ice machines, beverage dispensers, water filtration, spas/hot tubs, fountains, industrial, commercial, residential)
+- Business models (OEM manufacturers, Distributors, eCommerce)
 - Geographic patterns
 - The types of products these companies likely need (UV systems, filtration, etc.)
 
@@ -47,8 +47,8 @@ Based on this prospect list, recommend 5-8 NEW companies or types of companies w
 1. Company name (real companies if you know them, or descriptive type)
 2. Why they're a good fit
 3. Suggested approach for initial contact
-4. Estimated market type (Water Coolers, Ice Machines, Beverage Dispensers, Water Filtration, Spas & Hot Tubs, Fountains, Industrial, Residential, Commercial)
-5. Company type (OEM, Distributor, or eCommerce)`;
+4. Estimated product vertical (Water Coolers, Ice Machines, Beverage Dispensers, Water Filtration, Spas & Hot Tubs, Fountains, Industrial, Residential, Commercial)
+5. Business model (OEM, Distributor, or eCommerce)`;
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",

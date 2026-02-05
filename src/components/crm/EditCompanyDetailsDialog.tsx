@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pencil, X, Plus } from 'lucide-react';
-import { CompanyType, MarketType, COMPANY_TYPES, MARKET_TYPES, PIPELINE_STAGES, getStageColor } from '@/data/prospects';
+import { CompanyType, MarketType, LeadTier, COMPANY_TYPES, MARKET_TYPES, LEAD_TIERS, PIPELINE_STAGES, getStageColor } from '@/data/prospects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,6 +35,7 @@ interface CompanyDetails {
   companyName: string;
   companyType: CompanyType;
   marketType: MarketType;
+  leadTier: LeadTier;
   state: string;
   stage: string;
   linkedIn: string;
@@ -58,10 +59,7 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
   const [showNewMarketInput, setShowNewMarketInput] = useState(false);
   const { toast } = useToast();
 
-  // Parse stages from comma-separated string
   const selectedStages = details.stage ? details.stage.split(',').map(s => s.trim()).filter(Boolean) : [];
-
-  // Combine built-in and custom market types
   const allMarketTypes = [...MARKET_TYPES, ...customMarketTypes.filter(mt => !MARKET_TYPES.includes(mt as MarketType))];
 
   const addStage = (stage: string) => {
@@ -87,7 +85,7 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
       setNewMarketType('');
       setShowNewMarketInput(false);
       toast({
-        title: 'Market type added',
+        title: 'Product vertical added',
         description: `"${trimmed}" has been added and selected.`,
       });
     }
@@ -123,7 +121,6 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
     setDetails(prev => ({ ...prev, [field]: value }));
   };
 
-  // Convert empty string to NONE_VALUE for Select, and back
   const toSelectValue = (val: string) => val === '' ? NONE_VALUE : val;
   const fromSelectValue = (val: string) => val === NONE_VALUE ? '' : val;
 
@@ -156,15 +153,15 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
             />
           </div>
 
-          {/* Company Type */}
+          {/* Business Model (was Company Type) */}
           <div className="space-y-2">
-            <Label>Company Type</Label>
+            <Label>Business Model</Label>
             <Select 
               value={toSelectValue(details.companyType)} 
               onValueChange={(value) => updateField('companyType', fromSelectValue(value) as CompanyType)}
             >
               <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Select company type" />
+                <SelectValue placeholder="Select business model" />
               </SelectTrigger>
               <SelectContent className="rounded-xl bg-background">
                 <SelectItem value={NONE_VALUE}>None</SelectItem>
@@ -177,15 +174,15 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
             </Select>
           </div>
           
-          {/* Market Type with Add New option */}
+          {/* Product Vertical (was Market Type) with Add New option */}
           <div className="space-y-2">
-            <Label>Market Type</Label>
+            <Label>Product Vertical</Label>
             {showNewMarketInput ? (
               <div className="flex gap-2">
                 <Input
                   value={newMarketType}
                   onChange={(e) => setNewMarketType(e.target.value)}
-                  placeholder="Enter new market type"
+                  placeholder="Enter new product vertical"
                   className="rounded-xl flex-1"
                   onKeyDown={(e) => {
                     if (e.key === 'Enter') {
@@ -222,7 +219,7 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
                 }}
               >
                 <SelectTrigger className="rounded-xl">
-                  <SelectValue placeholder="Select market type" />
+                  <SelectValue placeholder="Select product vertical" />
                 </SelectTrigger>
                 <SelectContent className="rounded-xl bg-background">
                   <SelectItem value={NONE_VALUE}>None</SelectItem>
@@ -234,12 +231,33 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
                   <SelectItem value={ADD_NEW_VALUE} className="text-accent">
                     <span className="flex items-center gap-2">
                       <Plus className="w-3 h-3" />
-                      Add new market type...
+                      Add new product vertical...
                     </span>
                   </SelectItem>
                 </SelectContent>
               </Select>
             )}
+          </div>
+
+          {/* Lead Tier */}
+          <div className="space-y-2">
+            <Label>Lead Tier</Label>
+            <Select 
+              value={toSelectValue(details.leadTier)} 
+              onValueChange={(value) => updateField('leadTier', fromSelectValue(value) as LeadTier)}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="Select lead tier" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl bg-background">
+                <SelectItem value={NONE_VALUE}>None</SelectItem>
+                {LEAD_TIERS.map((t) => (
+                  <SelectItem key={t} value={t}>
+                    {t}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Location */}
@@ -266,7 +284,6 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
           {/* Pipeline Stages (Multi-select) */}
           <div className="space-y-2">
             <Label>Pipeline Stages</Label>
-            {/* Selected stages */}
             {selectedStages.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {selectedStages.map((stage) => {
@@ -289,7 +306,6 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
                 })}
               </div>
             )}
-            {/* Add stage dropdown */}
             <Select
               value={stageInput}
               onValueChange={(value) => {
