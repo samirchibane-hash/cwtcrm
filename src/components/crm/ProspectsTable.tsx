@@ -206,7 +206,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
                 <Filter className="w-4 h-4" />
-                Type
+                Business Model
                 {typeFilter.length > 0 && (
                   <span className="bg-accent text-accent-foreground text-xs px-1.5 rounded-full">
                     {typeFilter.length}
@@ -305,7 +305,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                 className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
                 onClick={() => handleSort('type')}
               >
-                <span className="flex items-center">Type{getSortIcon('type')}</span>
+                <span className="flex items-center">Business Model{getSortIcon('type')}</span>
               </th>
               <th 
                 className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"

@@ -116,6 +116,7 @@ export type Database = {
           engagements: Json
           id: string
           last_contact: string | null
+          lead_tier: string
           linkedin: string | null
           market_type: string | null
           stage: string | null
@@ -133,6 +134,7 @@ export type Database = {
           engagements?: Json
           id?: string
           last_contact?: string | null
+          lead_tier?: string
           linkedin?: string | null
           market_type?: string | null
           stage?: string | null
@@ -150,6 +152,7 @@ export type Database = {
           engagements?: Json
           id?: string
           last_contact?: string | null
+          lead_tier?: string
           linkedin?: string | null
           market_type?: string | null
           stage?: string | null

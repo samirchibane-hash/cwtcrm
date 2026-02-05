@@ -69,6 +69,7 @@ export function AIRecommendationsDialog() {
         companyName: rec.companyName,
         type: rec.companyType,
         marketType: rec.marketType,
+        leadTier: '',
         state: "",
         stage: "New Lead",
         engagementNotes: `AI Recommended: ${rec.reason}\n\nSuggested approach: ${rec.approach}`,

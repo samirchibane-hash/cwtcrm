@@ -1,11 +1,12 @@
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2 } from 'lucide-react';
-import { Contact, Engagement, CompanyType, MarketType } from '@/data/prospects';
+import { Contact, Engagement, CompanyType, MarketType, LeadTier } from '@/data/prospects';
 import { getOrdersByCustomer, Order, getStatusColor } from '@/data/orders';
 import { useProspects } from '@/context/ProspectsContext';
 import StageBadge from '@/components/crm/StageBadge';
 import TypeBadge from '@/components/crm/TypeBadge';
 import MarketTypeBadge from '@/components/crm/MarketTypeBadge';
+import LeadTierBadge from '@/components/crm/LeadTierBadge';
 import AddContactDialog from '@/components/crm/AddContactDialog';
 import EditContactDialog from '@/components/crm/EditContactDialog';
 import EditCompanyDetailsDialog from '@/components/crm/EditCompanyDetailsDialog';
@@ -42,6 +43,7 @@ const CompanyPage = () => {
   const [companyName, setCompanyName] = useState('');
   const [companyType, setCompanyType] = useState<CompanyType>('');
   const [marketType, setMarketType] = useState<MarketType>('');
+  const [leadTier, setLeadTier] = useState<LeadTier>('');
   const [state, setState] = useState('');
   const [stage, setStage] = useState('');
   const [linkedIn, setLinkedIn] = useState('');
@@ -73,6 +75,7 @@ const CompanyPage = () => {
       setEngagements(prospect.engagements);
       setCompanyType(prospect.type);
       setMarketType(prospect.marketType);
+      setLeadTier(prospect.leadTier);
       setState(prospect.state);
       setStage(prospect.stage);
       setLinkedIn(prospect.linkedIn);
@@ -110,6 +113,7 @@ const CompanyPage = () => {
     companyName: string;
     companyType: CompanyType;
     marketType: MarketType;
+    leadTier: LeadTier;
     state: string;
     stage: string;
     linkedIn: string;
@@ -122,6 +126,7 @@ const CompanyPage = () => {
       engagements: updates.engagements ?? engagements,
       type: updates.companyType ?? companyType,
       marketType: updates.marketType ?? marketType,
+      leadTier: updates.leadTier ?? leadTier,
       state: updates.state ?? state,
       stage: updates.stage ?? stage,
       linkedIn: updates.linkedIn ?? linkedIn,
@@ -223,6 +228,7 @@ const CompanyPage = () => {
     companyName: string;
     companyType: CompanyType;
     marketType: MarketType;
+    leadTier: LeadTier;
     state: string;
     stage: string;
     linkedIn: string;
@@ -231,6 +237,7 @@ const CompanyPage = () => {
     setCompanyName(details.companyName);
     setCompanyType(details.companyType);
     setMarketType(details.marketType);
+    setLeadTier(details.leadTier);
     setState(details.state);
     setStage(details.stage);
     setLinkedIn(details.linkedIn);
@@ -295,6 +302,7 @@ const CompanyPage = () => {
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <TypeBadge type={companyType} />
                   <MarketTypeBadge marketType={marketType} />
+                  <LeadTierBadge leadTier={leadTier} />
                   <StageBadge stage={stage} />
                   {state && (
                     <span className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -312,6 +320,7 @@ const CompanyPage = () => {
                   companyName,
                   companyType,
                   marketType,
+                  leadTier,
                   state,
                   stage,
                   linkedIn,
@@ -379,6 +388,7 @@ const CompanyPage = () => {
                     companyName,
                     companyType,
                     marketType,
+                    leadTier,
                     state,
                     stage,
                     linkedIn,
@@ -393,7 +403,7 @@ const CompanyPage = () => {
                   <p className="font-medium">{companyName}</p>
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">Company Type</label>
+                  <label className="text-xs text-muted-foreground">Business Model</label>
                   <div className="flex items-center gap-2 mt-1">
                     {companyType ? (
                       <TypeBadge type={companyType} />
@@ -403,10 +413,20 @@ const CompanyPage = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">Market Type</label>
+                  <label className="text-xs text-muted-foreground">Product Vertical</label>
                   <div className="mt-1">
                     {marketType ? (
                       <MarketTypeBadge marketType={marketType} />
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Not specified</span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Lead Tier</label>
+                  <div className="mt-1">
+                    {leadTier ? (
+                      <LeadTierBadge leadTier={leadTier} />
                     ) : (
                       <span className="text-sm text-muted-foreground">Not specified</span>
                     )}
