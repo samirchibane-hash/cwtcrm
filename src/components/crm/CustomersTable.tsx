@@ -1,14 +1,21 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Star, ChevronUp, ChevronDown, Building2, User } from 'lucide-react';
-import { Prospect } from '@/data/prospects';
+import { Search, ChevronUp, ChevronDown, Building2, User, Filter } from 'lucide-react';
+import { Prospect, LEAD_TIERS } from '@/data/prospects';
 import { useProspects } from '@/context/ProspectsContext';
 import { useOrders } from '@/context/OrdersContext';
 import { getProspectLastContactSortValue, getProspectLastContactLabel } from '@/lib/prospect-last-contact';
+import LeadTierBadge from './LeadTierBadge';
 import AddProspectDialog from './AddProspectDialog';
 import { Input } from '@/components/ui/input';
-import { Toggle } from '@/components/ui/toggle';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuCheckboxItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Table,
   TableBody,
@@ -22,29 +29,26 @@ interface CustomersTableProps {
   onSelectProspect?: (prospect: Prospect) => void;
 }
 
-type SortField = 'companyName' | 'state' | 'lastContact' | 'orderCount' | 'ltv';
+type SortField = 'companyName' | 'state' | 'lastContact' | 'orderCount' | 'ltv' | 'leadTier';
 type SortDirection = 'asc' | 'desc';
 
 const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
   const navigate = useNavigate();
-  const { prospects, updateProspect, isLoading } = useProspects();
+  const { prospects, isLoading } = useProspects();
   const { orders } = useOrders();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('companyName');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [starredOnly, setStarredOnly] = useState(false);
+  const [leadTierFilter, setLeadTierFilter] = useState<string[]>([]);
 
-  // Filter only customers (type === 'Customer')
   const customers = useMemo(() => {
     return prospects.filter(p => p.type === 'Customer');
   }, [prospects]);
 
-  // Get order count for each customer
   const getOrderCount = (companyName: string) => {
     return orders.filter(o => o.customer === companyName).length;
   };
 
-  // Get total lifetime value for each customer
   const getCustomerLTV = (companyName: string) => {
     return orders
       .filter(o => o.customer === companyName)
@@ -55,8 +59,8 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
     let result = customers.filter(customer => {
       const matchesSearch = customer.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         customer.state.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesStarred = !starredOnly || customer.starred;
-      return matchesSearch && matchesStarred;
+      const matchesLeadTier = leadTierFilter.length === 0 || leadTierFilter.includes(customer.leadTier);
+      return matchesSearch && matchesLeadTier;
     });
 
     result.sort((a, b) => {
@@ -72,6 +76,9 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
       } else if (sortField === 'lastContact') {
         aValue = getProspectLastContactSortValue(a);
         bValue = getProspectLastContactSortValue(b);
+      } else if (sortField === 'leadTier') {
+        aValue = a.leadTier || '';
+        bValue = b.leadTier || '';
       } else {
         aValue = a[sortField] || '';
         bValue = b[sortField] || '';
@@ -91,7 +98,7 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
     });
 
     return result;
-  }, [customers, searchQuery, sortField, sortDirection, starredOnly, orders]);
+  }, [customers, searchQuery, sortField, sortDirection, leadTierFilter, orders]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -109,22 +116,12 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
     });
   };
 
-  const handleToggleStar = async (e: React.MouseEvent, customer: Prospect) => {
-    e.stopPropagation();
-    updateProspect({
-      ...customer,
-      starred: !customer.starred,
-    });
-  };
-
   const SortIcon = ({ field }: { field: SortField }) => {
     if (sortField !== field) return null;
     return sortDirection === 'asc' 
       ? <ChevronUp className="w-4 h-4 inline ml-1" />
       : <ChevronDown className="w-4 h-4 inline ml-1" />;
   };
-
-  const starredCount = customers.filter(c => c.starred).length;
 
   if (isLoading) {
     return (
@@ -148,15 +145,34 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
           />
         </div>
         <div className="flex items-center gap-2">
-          <Toggle
-            pressed={starredOnly}
-            onPressedChange={setStarredOnly}
-            aria-label="Show starred only"
-            className="gap-2"
-          >
-            <Star className={`w-4 h-4 ${starredOnly ? 'fill-yellow-500 text-yellow-500' : ''}`} />
-            Starred {starredCount > 0 && `(${starredCount})`}
-          </Toggle>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2">
+                <Filter className="w-4 h-4" />
+                Lead Tier
+                {leadTierFilter.length > 0 && (
+                  <span className="bg-accent text-accent-foreground text-xs px-1.5 rounded-full">
+                    {leadTierFilter.length}
+                  </span>
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {LEAD_TIERS.map((tier) => (
+                <DropdownMenuCheckboxItem
+                  key={tier}
+                  checked={leadTierFilter.includes(tier)}
+                  onCheckedChange={(checked) => {
+                    setLeadTierFilter(prev => 
+                      checked ? [...prev, tier] : prev.filter(t => t !== tier)
+                    );
+                  }}
+                >
+                  {tier}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <AddProspectDialog defaultType="Customer" />
         </div>
       </div>
@@ -173,7 +189,6 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12"></TableHead>
               <TableHead 
                 className="cursor-pointer hover:text-foreground transition-colors"
                 onClick={() => handleSort('companyName')}
@@ -186,6 +201,12 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
                 onClick={() => handleSort('state')}
               >
                 Location <SortIcon field="state" />
+              </TableHead>
+              <TableHead 
+                className="cursor-pointer hover:text-foreground transition-colors"
+                onClick={() => handleSort('leadTier')}
+              >
+                Lead Tier <SortIcon field="leadTier" />
               </TableHead>
               <TableHead 
                 className="cursor-pointer hover:text-foreground transition-colors"
@@ -230,16 +251,6 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
                     className="cursor-pointer hover:bg-muted/50 transition-colors"
                     onClick={() => handleSelectCustomer(customer)}
                   >
-                    <TableCell>
-                      <button
-                        onClick={(e) => handleToggleStar(e, customer)}
-                        className="p-1 hover:bg-muted rounded transition-colors"
-                      >
-                        <Star 
-                          className={`w-4 h-4 ${customer.starred ? 'fill-yellow-500 text-yellow-500' : 'text-muted-foreground'}`} 
-                        />
-                      </button>
-                    </TableCell>
                     <TableCell className="font-medium">{customer.companyName}</TableCell>
                     <TableCell>
                       {contactCount > 0 ? (
@@ -259,6 +270,9 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
                       )}
                     </TableCell>
                     <TableCell className="text-muted-foreground">{customer.state || '—'}</TableCell>
+                    <TableCell>
+                      <LeadTierBadge leadTier={customer.leadTier} />
+                    </TableCell>
                     <TableCell>
                       {orderCount > 0 ? (
                         <Badge variant="secondary">{orderCount}</Badge>

@@ -62,7 +62,6 @@ export interface Prospect {
   linkedIn: string;
   website?: string;
   engagements: Engagement[];
-  starred?: boolean;
 }
 
 // Parse contacts string into Contact objects

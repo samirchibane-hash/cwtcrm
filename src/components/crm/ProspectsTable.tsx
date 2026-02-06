@@ -1,12 +1,13 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown, Star } from 'lucide-react';
+import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown } from 'lucide-react';
 import { useProspects } from '@/context/ProspectsContext';
 import { useOrders } from '@/context/OrdersContext';
-import { Prospect } from '@/data/prospects';
+import { Prospect, COMPANY_TYPES, PIPELINE_STAGES, LEAD_TIERS } from '@/data/prospects';
 import { getProspectLastContactLabel, getProspectLastContactSortValue } from '@/lib/prospect-last-contact';
 import StageBadge from './StageBadge';
 import TypeBadge from './TypeBadge';
+import LeadTierBadge from './LeadTierBadge';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -15,7 +16,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Toggle } from '@/components/ui/toggle';
 import AddProspectDialog from './AddProspectDialog';
 import { AIRecommendationsDialog } from './AIRecommendationsDialog';
 
@@ -23,23 +23,22 @@ interface ProspectsTableProps {
   onSelectProspect: (prospect: Prospect) => void;
 }
 
-type SortField = 'companyName' | 'contacts' | 'state' | 'type' | 'stage' | 'lastContact';
+type SortField = 'companyName' | 'contacts' | 'state' | 'type' | 'leadTier' | 'stage' | 'lastContact';
 type SortDirection = 'asc' | 'desc' | null;
 
 const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { prospects, isLoading, updateProspect } = useProspects();
+  const { prospects, isLoading } = useProspects();
   const { orders } = useOrders();
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [stageFilter, setStageFilter] = useState<string[]>([]);
-  const [starredOnly, setStarredOnly] = useState(false);
-  // Initialize sort state from URL params
+  const [leadTierFilter, setLeadTierFilter] = useState<string[]>([]);
   const [sortField, setSortField] = useState<SortField | null>(() => {
     const field = searchParams.get('sortField');
-    if (field && ['companyName', 'contacts', 'state', 'type', 'stage', 'lastContact'].includes(field)) {
+    if (field && ['companyName', 'contacts', 'state', 'type', 'leadTier', 'stage', 'lastContact'].includes(field)) {
       return field as SortField;
     }
     return null;
@@ -50,13 +49,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     return null;
   });
 
-  // Sync sort state to URL - only when on prospects view (not customers or other views)
   useEffect(() => {
     const currentView = searchParams.get('view');
-    // Only sync URL if we're on the prospects view (view=prospects or no view param which defaults to dashboard)
-    if (currentView && currentView !== 'prospects') {
-      return; // Don't modify URL params when not on prospects view
-    }
+    if (currentView && currentView !== 'prospects') return;
     
     const newParams = new URLSearchParams(searchParams);
     if (sortField && sortDirection) {
@@ -71,8 +66,10 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     }
   }, [sortField, sortDirection, searchParams, setSearchParams]);
 
-  const types = ['OEM', 'Distributor', 'eCommerce'];
-  const stages = ['Contact Made', 'Disco Call', 'Sample Req', 'Quotes', 'Negotiation', 'Closed Won', 'No Current Interest'];
+  // Filter options from constants — exclude Customer/Sample from business model filter on prospects page
+  const types = COMPANY_TYPES.filter(t => t !== 'Customer' && t !== 'Sample' && t !== '');
+  const stages = PIPELINE_STAGES;
+  const leadTiers = LEAD_TIERS;
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -91,16 +88,13 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     return <ChevronDown className="w-3 h-3 ml-1" />;
   };
 
-  // Get set of company names that have orders (these should only show in Customers)
   const companiesWithOrders = useMemo(() => {
     return new Set(orders.map(o => o.customer));
   }, [orders]);
 
   const filteredAndSortedProspects = useMemo(() => {
-    // First, exclude any prospects that have orders (they belong in Customers view)
     let result = prospects.filter((prospect) => !companiesWithOrders.has(prospect.companyName));
 
-    // Then apply other filters
     result = result.filter((prospect) => {
       const matchesSearch = 
         prospect.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -113,9 +107,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
       const matchesStage = stageFilter.length === 0 || 
         stageFilter.some(s => prospect.stage.toLowerCase().includes(s.toLowerCase()));
 
-      const matchesStarred = !starredOnly || prospect.starred === true;
+      const matchesLeadTier = leadTierFilter.length === 0 || leadTierFilter.includes(prospect.leadTier);
 
-      return matchesSearch && matchesType && matchesStage && matchesStarred;
+      return matchesSearch && matchesType && matchesStage && matchesLeadTier;
     });
 
     if (sortField && sortDirection) {
@@ -140,6 +134,10 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
             aVal = (a.type || '').toLowerCase();
             bVal = (b.type || '').toLowerCase();
             break;
+          case 'leadTier':
+            aVal = (a.leadTier || '').toLowerCase();
+            bVal = (b.leadTier || '').toLowerCase();
+            break;
           case 'stage':
             aVal = (a.stage || '').toLowerCase();
             bVal = (b.stage || '').toLowerCase();
@@ -157,20 +155,13 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     }
 
     return result;
-  }, [prospects, searchQuery, typeFilter, stageFilter, sortField, sortDirection, starredOnly, companiesWithOrders]);
+  }, [prospects, searchQuery, typeFilter, stageFilter, leadTierFilter, sortField, sortDirection, companiesWithOrders]);
 
-  // Count prospects excluding those with orders
   const prospectsWithoutOrders = useMemo(() => {
     return prospects.filter(p => !companiesWithOrders.has(p.companyName));
   }, [prospects, companiesWithOrders]);
 
-  const handleToggleStar = async (e: React.MouseEvent, prospect: Prospect) => {
-    e.stopPropagation();
-    await updateProspect({ ...prospect, starred: !prospect.starred });
-  };
-
   const handleRowClick = (prospect: Prospect) => {
-    // Pass the sorted/filtered prospect IDs for Previous/Next navigation
     const prospectIds = filteredAndSortedProspects.map(p => p.id);
     navigate(`/company/${prospect.id}`, {
       state: { 
@@ -261,15 +252,37 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <Toggle
-            pressed={starredOnly}
-            onPressedChange={setStarredOnly}
-            aria-label="Show starred only"
-            className="gap-2 rounded-xl h-11 px-4 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground"
-          >
-            <Star className={`w-4 h-4 ${starredOnly ? 'fill-current' : ''}`} />
-            Starred
-          </Toggle>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
+                <Filter className="w-4 h-4" />
+                Lead Tier
+                {leadTierFilter.length > 0 && (
+                  <span className="bg-accent text-accent-foreground text-xs px-1.5 rounded-full">
+                    {leadTierFilter.length}
+                  </span>
+                )}
+                <ChevronDown className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="rounded-xl">
+              {leadTiers.map((tier) => (
+                <DropdownMenuCheckboxItem
+                  key={tier}
+                  checked={leadTierFilter.includes(tier)}
+                  onCheckedChange={(checked) => {
+                    setLeadTierFilter(prev => 
+                      checked ? [...prev, tier] : prev.filter(t => t !== tier)
+                    );
+                  }}
+                >
+                  {tier}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <AIRecommendationsDialog />
           <AddProspectDialog />
         </div>
@@ -280,9 +293,6 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         <table className="w-full">
           <thead>
             <tr className="bg-muted/30">
-              <th className="w-12 p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                <Star className="w-4 h-4" />
-              </th>
               <th 
                 className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
                 onClick={() => handleSort('companyName')}
@@ -309,6 +319,12 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
               </th>
               <th 
                 className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                onClick={() => handleSort('leadTier')}
+              >
+                <span className="flex items-center">Lead Tier{getSortIcon('leadTier')}</span>
+              </th>
+              <th 
+                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
                 onClick={() => handleSort('stage')}
               >
                 <span className="flex items-center">Stage{getSortIcon('stage')}</span>
@@ -329,21 +345,6 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                 className="table-row-hover cursor-pointer"
                 onClick={() => handleRowClick(prospect)}
               >
-                <td className="p-4">
-                  <button
-                    onClick={(e) => handleToggleStar(e, prospect)}
-                    className="hover:scale-110 transition-transform"
-                    aria-label={prospect.starred ? 'Unstar company' : 'Star company'}
-                  >
-                    <Star 
-                      className={`w-5 h-5 transition-colors ${
-                        prospect.starred 
-                          ? 'fill-amber-400 text-amber-400' 
-                          : 'text-muted-foreground hover:text-amber-400'
-                      }`} 
-                    />
-                  </button>
-                </td>
                 <td className="p-4">
                   <span className="font-medium">{prospect.companyName}</span>
                 </td>
@@ -368,6 +369,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                 </td>
                 <td className="p-4">
                   <TypeBadge type={prospect.type} />
+                </td>
+                <td className="p-4">
+                  <LeadTierBadge leadTier={prospect.leadTier} />
                 </td>
                 <td className="p-4">
                   <StageBadge stage={prospect.stage} />

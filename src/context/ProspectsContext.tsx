@@ -36,7 +36,6 @@ const mapRowToProspect = (row: any): Prospect => ({
   website: row.website || '',
   contacts: (row.contacts as unknown as Contact[]) || [],
   engagements: (row.engagements as unknown as Engagement[]) || [],
-  starred: row.starred || false,
 });
 
 export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
@@ -127,7 +126,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
           website: updatedProspect.website || '',
           contacts: JSON.parse(JSON.stringify(updatedProspect.contacts)),
           engagements: JSON.parse(JSON.stringify(updatedProspect.engagements)),
-          starred: updatedProspect.starred || false,
+          starred: false,
         })
         .eq('id', updatedProspect.id);
 
