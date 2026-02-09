@@ -42,7 +42,7 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
   const [leadTierFilter, setLeadTierFilter] = useState<string[]>([]);
 
   const customers = useMemo(() => {
-    return prospects.filter(p => p.type === 'Customer');
+    return prospects.filter(p => (p.type as string) === 'Customer');
   }, [prospects]);
 
   const getOrderCount = (companyName: string) => {
@@ -173,7 +173,7 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <AddProspectDialog defaultType="Customer" />
+          <AddProspectDialog defaultType={"Customer" as any} />
         </div>
       </div>
 
