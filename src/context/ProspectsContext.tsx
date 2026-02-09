@@ -25,7 +25,10 @@ const ProspectsContext = createContext<ProspectsContextType | undefined>(undefin
 const mapRowToProspect = (row: any): Prospect => ({
   id: row.id,
   companyName: row.company_name,
+  street: row.street || '',
+  city: row.city || '',
   state: row.state || '',
+  zip: row.zip || '',
   type: (row.type as CompanyType) || '',
   marketType: (row.market_type as MarketType) || '',
   leadTier: (row.lead_tier as LeadTier) || '',
@@ -80,7 +83,10 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
       const prospectsToInsert = initialProspects.map(prospect => ({
         id: prospect.id.length > 10 ? prospect.id : undefined,
         company_name: prospect.companyName,
+        street: prospect.street || '',
+        city: prospect.city || '',
         state: prospect.state,
+        zip: prospect.zip || '',
         type: prospect.type,
         market_type: prospect.marketType,
         lead_tier: prospect.leadTier || '',
@@ -115,7 +121,10 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
         .from('prospects')
         .update({
           company_name: updatedProspect.companyName,
+          street: updatedProspect.street || '',
+          city: updatedProspect.city || '',
           state: updatedProspect.state,
+          zip: updatedProspect.zip || '',
           type: updatedProspect.type,
           market_type: updatedProspect.marketType,
           lead_tier: updatedProspect.leadTier || '',
@@ -169,7 +178,10 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
         .from('prospects')
         .insert({
           company_name: prospectData.companyName,
+          street: prospectData.street || '',
+          city: prospectData.city || '',
           state: prospectData.state,
+          zip: prospectData.zip || '',
           type: prospectData.type,
           market_type: prospectData.marketType,
           lead_tier: prospectData.leadTier || '',

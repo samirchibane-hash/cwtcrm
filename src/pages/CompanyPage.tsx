@@ -44,7 +44,10 @@ const CompanyPage = () => {
   const [companyType, setCompanyType] = useState<CompanyType>('');
   const [marketType, setMarketType] = useState<MarketType>('');
   const [leadTier, setLeadTier] = useState<LeadTier>('');
+  const [street, setStreet] = useState('');
+  const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [zip, setZip] = useState('');
   const [stage, setStage] = useState('');
   const [linkedIn, setLinkedIn] = useState('');
   const [website, setWebsite] = useState('');
@@ -76,7 +79,10 @@ const CompanyPage = () => {
       setCompanyType(prospect.type);
       setMarketType(prospect.marketType);
       setLeadTier(prospect.leadTier);
+      setStreet(prospect.street || '');
+      setCity(prospect.city || '');
       setState(prospect.state);
+      setZip(prospect.zip || '');
       setStage(prospect.stage);
       setLinkedIn(prospect.linkedIn);
       setWebsite(prospect.website || '');
@@ -114,7 +120,10 @@ const CompanyPage = () => {
     companyType: CompanyType;
     marketType: MarketType;
     leadTier: LeadTier;
+    street: string;
+    city: string;
     state: string;
+    zip: string;
     stage: string;
     linkedIn: string;
     website: string;
@@ -127,7 +136,10 @@ const CompanyPage = () => {
       type: updates.companyType ?? companyType,
       marketType: updates.marketType ?? marketType,
       leadTier: updates.leadTier ?? leadTier,
+      street: updates.street ?? street,
+      city: updates.city ?? city,
       state: updates.state ?? state,
+      zip: updates.zip ?? zip,
       stage: updates.stage ?? stage,
       linkedIn: updates.linkedIn ?? linkedIn,
       website: updates.website ?? website,
@@ -229,7 +241,10 @@ const CompanyPage = () => {
     companyType: CompanyType;
     marketType: MarketType;
     leadTier: LeadTier;
+    street: string;
+    city: string;
     state: string;
+    zip: string;
     stage: string;
     linkedIn: string;
     website?: string;
@@ -238,7 +253,10 @@ const CompanyPage = () => {
     setCompanyType(details.companyType);
     setMarketType(details.marketType);
     setLeadTier(details.leadTier);
+    setStreet(details.street);
+    setCity(details.city);
     setState(details.state);
+    setZip(details.zip);
     setStage(details.stage);
     setLinkedIn(details.linkedIn);
     setWebsite(details.website || '');
@@ -308,10 +326,10 @@ const CompanyPage = () => {
                   <MarketTypeBadge marketType={marketType} />
                   <LeadTierBadge leadTier={leadTier} />
                   <StageBadge stage={stage} />
-                  {state && (
+                  {(city || state) && (
                     <span className="flex items-center gap-1 text-sm text-muted-foreground">
                       <MapPin className="w-3.5 h-3.5" />
-                      {state}
+                      {[city, state].filter(Boolean).join(', ')}
                     </span>
                   )}
                 </div>
@@ -325,7 +343,10 @@ const CompanyPage = () => {
                   companyType,
                   marketType,
                   leadTier,
+                  street,
+                  city,
                   state,
+                  zip,
                   stage,
                   linkedIn,
                   website,
@@ -393,7 +414,10 @@ const CompanyPage = () => {
                     companyType,
                     marketType,
                     leadTier,
+                    street,
+                    city,
                     state,
+                    zip,
                     stage,
                     linkedIn,
                     website,
@@ -437,8 +461,20 @@ const CompanyPage = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">Location</label>
-                  <p className="font-medium">{state || 'Not specified'}</p>
+                  <label className="text-xs text-muted-foreground">Address</label>
+                  <div className="font-medium">
+                    {street || city || state || zip ? (
+                      <>
+                        {street && <p>{street}</p>}
+                        <p>
+                          {[city, state].filter(Boolean).join(', ')}
+                          {zip ? ` ${zip}` : ''}
+                        </p>
+                      </>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">Not specified</span>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Pipeline Stage</label>
