@@ -257,7 +257,7 @@ const CompanyPage = () => {
                 if (from) {
                   navigate(from);
                 } else {
-                  navigate(-1);
+                  navigate('/?view=prospects');
                 }
               }}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
@@ -268,7 +268,8 @@ const CompanyPage = () => {
                   const from = (location.state as { from?: string } | null)?.from;
                   if (from?.includes('view=customers')) return 'Back to Customers';
                   if (from?.includes('view=orders')) return 'Back to Orders';
-                  return 'Back';
+                  if (from?.includes('view=reports')) return 'Back to Reports';
+                  return 'Back to Prospects';
                 })()}
               </span>
             </button>
