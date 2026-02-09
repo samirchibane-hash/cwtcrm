@@ -109,6 +109,7 @@ export type Database = {
       }
       prospects: {
         Row: {
+          city: string | null
           company_name: string
           contacts: Json
           created_at: string
@@ -122,11 +123,14 @@ export type Database = {
           stage: string | null
           starred: boolean
           state: string | null
+          street: string | null
           type: string | null
           updated_at: string
           website: string | null
+          zip: string | null
         }
         Insert: {
+          city?: string | null
           company_name: string
           contacts?: Json
           created_at?: string
@@ -140,11 +144,14 @@ export type Database = {
           stage?: string | null
           starred?: boolean
           state?: string | null
+          street?: string | null
           type?: string | null
           updated_at?: string
           website?: string | null
+          zip?: string | null
         }
         Update: {
+          city?: string | null
           company_name?: string
           contacts?: Json
           created_at?: string
@@ -158,9 +165,11 @@ export type Database = {
           stage?: string | null
           starred?: boolean
           state?: string | null
+          street?: string | null
           type?: string | null
           updated_at?: string
           website?: string | null
+          zip?: string | null
         }
         Relationships: []
       }

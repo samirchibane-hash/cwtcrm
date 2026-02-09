@@ -52,7 +52,10 @@ export interface Prospect {
   id: string;
   companyName: string;
   contacts: Contact[];
+  street?: string;
+  city?: string;
   state: string;
+  zip?: string;
   type: CompanyType;
   marketType: MarketType;
   leadTier: LeadTier;
@@ -104,9 +107,9 @@ const inferMarketType = (notes: string): MarketType => {
 };
 
 export const prospects: Prospect[] = [
-  { id: '1', companyName: 'Brio Water Technology', contacts: parseContacts(''), state: '', type: 'OEM', marketType: 'Water Coolers', leadTier: '', stage: '', lastContact: '1/23', engagementNotes: 'Water coolers', linkedIn: 'https://www.linkedin.com/company/briowatertech/people/', engagements: generateEngagements('Water coolers', '1/23') },
-  { id: '2', companyName: 'Glacier Fresh / WaterH', contacts: parseContacts(''), state: 'NJ', type: 'OEM', marketType: 'Water Filtration', leadTier: '', stage: '', lastContact: '1/23', engagementNotes: 'WaterH is parent company', linkedIn: 'https://www.linkedin.com/company/glacier-fresh/people/', engagements: generateEngagements('WaterH is parent company', '1/23') },
-  { id: '3', companyName: 'Aquatru', contacts: parseContacts(''), state: 'CA', type: 'OEM', marketType: 'Water Filtration', leadTier: '', stage: '', lastContact: '1/23', engagementNotes: 'Ideal Living is parent company', linkedIn: 'https://www.linkedin.com/company/aquatru', engagements: generateEngagements('Ideal Living is parent company', '1/23') },
+  { id: '1', companyName: 'Brio Water Technology', contacts: parseContacts(''), street: '', city: '', state: '', zip: '', type: 'OEM', marketType: 'Water Coolers', leadTier: '', stage: '', lastContact: '1/23', engagementNotes: 'Water coolers', linkedIn: 'https://www.linkedin.com/company/briowatertech/people/', engagements: generateEngagements('Water coolers', '1/23') },
+  { id: '2', companyName: 'Glacier Fresh / WaterH', contacts: parseContacts(''), street: '', city: '', state: 'NJ', zip: '', type: 'OEM', marketType: 'Water Filtration', leadTier: '', stage: '', lastContact: '1/23', engagementNotes: 'WaterH is parent company', linkedIn: 'https://www.linkedin.com/company/glacier-fresh/people/', engagements: generateEngagements('WaterH is parent company', '1/23') },
+  { id: '3', companyName: 'Aquatru', contacts: parseContacts(''), street: '', city: '', state: 'CA', zip: '', type: 'OEM', marketType: 'Water Filtration', leadTier: '', stage: '', lastContact: '1/23', engagementNotes: 'Ideal Living is parent company', linkedIn: 'https://www.linkedin.com/company/aquatru', engagements: generateEngagements('Ideal Living is parent company', '1/23') },
   { id: '4', companyName: 'iSpring', contacts: parseContacts(''), state: 'GA', type: 'OEM', marketType: 'Water Filtration', leadTier: '', stage: '', lastContact: '', engagementNotes: '', linkedIn: '', engagements: [] },
   { id: '5', companyName: 'Multiplex Beverage', contacts: parseContacts(''), state: 'IN', type: 'OEM', marketType: 'Beverage Dispensers', leadTier: '', stage: '', lastContact: '1/20', engagementNotes: 'Soda dispensers', linkedIn: 'https://www.linkedin.com/company/multiplexbeverage/people/', engagements: generateEngagements('Soda dispensers', '1/20') },
   { id: '6', companyName: 'Micro Matic', contacts: parseContacts('Michelle'), state: 'FL', type: 'OEM', marketType: 'Beverage Dispensers', leadTier: '', stage: 'No Current Interest', lastContact: '1/20', engagementNotes: 'Beverage dispensers - hard to locate email format - Michelle cell: 813-727-9420', linkedIn: 'https://www.linkedin.com/company/micro-matic---beverage-dispensing/about/', engagements: generateEngagements('Beverage dispensers - hard to locate email format - Michelle cell: 813-727-9420', '1/20') },

@@ -65,7 +65,10 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
     setIsSubmitting(true);
     const result = await addProspect({
       companyName: companyName.trim(),
+      street: '',
+      city: '',
       state: state.trim(),
+      zip: '',
       type: type || '',
       marketType: marketType || '',
       leadTier: leadTier || '',

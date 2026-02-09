@@ -36,7 +36,10 @@ interface CompanyDetails {
   companyType: CompanyType;
   marketType: MarketType;
   leadTier: LeadTier;
+  street: string;
+  city: string;
   state: string;
+  zip: string;
   stage: string;
   linkedIn: string;
   website?: string;
@@ -260,15 +263,39 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
             </Select>
           </div>
 
-          {/* Location */}
+          {/* Street Address */}
           <div className="space-y-2">
-            <Label>Location</Label>
+            <Label htmlFor="street">Street Address</Label>
+            <Input
+              id="street"
+              value={details.street}
+              onChange={(e) => updateField('street', e.target.value)}
+              placeholder="Enter street address"
+              className="rounded-xl"
+            />
+          </div>
+
+          {/* City */}
+          <div className="space-y-2">
+            <Label htmlFor="city">City</Label>
+            <Input
+              id="city"
+              value={details.city}
+              onChange={(e) => updateField('city', e.target.value)}
+              placeholder="Enter city"
+              className="rounded-xl"
+            />
+          </div>
+
+          {/* Location (State/Country) */}
+          <div className="space-y-2">
+            <Label>State / Country</Label>
             <Select 
               value={toSelectValue(details.state)} 
               onValueChange={(value) => updateField('state', fromSelectValue(value))}
             >
               <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Select location" />
+                <SelectValue placeholder="Select state/country" />
               </SelectTrigger>
               <SelectContent className="rounded-xl bg-background max-h-[200px]">
                 <SelectItem value={NONE_VALUE}>Not specified</SelectItem>
@@ -279,6 +306,18 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
                 ))}
               </SelectContent>
             </Select>
+          </div>
+
+          {/* Zip Code */}
+          <div className="space-y-2">
+            <Label htmlFor="zip">Zip Code</Label>
+            <Input
+              id="zip"
+              value={details.zip}
+              onChange={(e) => updateField('zip', e.target.value)}
+              placeholder="Enter zip code"
+              className="rounded-xl"
+            />
           </div>
 
           {/* Pipeline Stages (Multi-select) */}
