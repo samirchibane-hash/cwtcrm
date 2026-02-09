@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { useProspects } from '@/context/ProspectsContext';
 import { Prospect } from '@/data/prospects';
@@ -10,6 +10,7 @@ interface PipelineViewProps {
 
 const PipelineView = ({ onSelectProspect }: PipelineViewProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { prospects, isLoading } = useProspects();
   
   const stages = [
@@ -20,7 +21,9 @@ const PipelineView = ({ onSelectProspect }: PipelineViewProps) => {
   ];
 
   const handleCardClick = (prospect: Prospect) => {
-    navigate(`/company/${prospect.id}`);
+    navigate(`/company/${prospect.id}`, {
+      state: { from: `${location.pathname}${location.search}` },
+    });
   };
 
   if (isLoading) {
