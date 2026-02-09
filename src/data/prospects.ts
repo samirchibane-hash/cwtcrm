@@ -65,6 +65,7 @@ export interface Prospect {
   engagementNotes: string;
   linkedIn: string;
   website?: string;
+  googleMapsUrl?: string;
   engagements: Engagement[];
 }
 

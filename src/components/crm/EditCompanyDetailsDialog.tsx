@@ -36,6 +36,7 @@ interface CompanyDetails {
   stage: string;
   linkedIn: string;
   website?: string;
+  googleMapsUrl?: string;
 }
 
 interface EditCompanyDetailsDialogProps {
@@ -312,6 +313,18 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
               value={details.zip}
               onChange={(e) => updateField('zip', e.target.value)}
               placeholder="Enter zip code"
+              className="rounded-xl"
+            />
+          </div>
+
+          {/* Google Maps URL */}
+          <div className="space-y-2">
+            <Label htmlFor="googleMapsUrl">Google Maps Link</Label>
+            <Input
+              id="googleMapsUrl"
+              value={details.googleMapsUrl || ''}
+              onChange={(e) => updateField('googleMapsUrl', e.target.value)}
+              placeholder="https://maps.google.com/..."
               className="rounded-xl"
             />
           </div>

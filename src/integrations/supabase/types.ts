@@ -116,6 +116,7 @@ export type Database = {
           created_at: string
           engagement_notes: string | null
           engagements: Json
+          google_maps_url: string | null
           id: string
           last_contact: string | null
           lead_tier: string
@@ -138,6 +139,7 @@ export type Database = {
           created_at?: string
           engagement_notes?: string | null
           engagements?: Json
+          google_maps_url?: string | null
           id?: string
           last_contact?: string | null
           lead_tier?: string
@@ -160,6 +162,7 @@ export type Database = {
           created_at?: string
           engagement_notes?: string | null
           engagements?: Json
+          google_maps_url?: string | null
           id?: string
           last_contact?: string | null
           lead_tier?: string
