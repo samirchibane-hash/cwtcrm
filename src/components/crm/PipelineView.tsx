@@ -22,7 +22,7 @@ const PipelineView = ({ onSelectProspect }: PipelineViewProps) => {
 
   const handleCardClick = (prospect: Prospect) => {
     navigate(`/company/${prospect.id}`, {
-      state: { from: `${location.pathname}${location.search}` },
+      state: { from: '/?view=pipeline' },
     });
   };
 
