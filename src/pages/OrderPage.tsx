@@ -186,13 +186,13 @@ const OrderPage = () => {
                 if (from) {
                   navigate(from);
                 } else {
-                  navigate(-1);
+                  navigate('/?view=orders');
                 }
               }}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="text-sm font-medium">Back</span>
+              <span className="text-sm font-medium">Back to Orders</span>
             </button>
             
             <div className="flex items-center gap-2">
