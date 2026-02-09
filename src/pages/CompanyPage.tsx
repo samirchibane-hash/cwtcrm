@@ -254,12 +254,23 @@ const CompanyPage = () => {
             <button 
               onClick={() => {
                 const from = (location.state as { from?: string } | null)?.from;
-                navigate(from || '/?view=prospects');
+                if (from) {
+                  navigate(from);
+                } else {
+                  navigate(-1);
+                }
               }}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="text-sm font-medium">Back to Prospects</span>
+              <span className="text-sm font-medium">
+                {(() => {
+                  const from = (location.state as { from?: string } | null)?.from;
+                  if (from?.includes('view=customers')) return 'Back to Customers';
+                  if (from?.includes('view=orders')) return 'Back to Orders';
+                  return 'Back';
+                })()}
+              </span>
             </button>
             
             <div className="flex items-center gap-2">

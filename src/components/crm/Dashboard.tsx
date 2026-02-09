@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Building2, Users, FileCheck, MessageSquare, TrendingUp, AlertCircle, Loader2 } from 'lucide-react';
 import { useProspects } from '@/context/ProspectsContext';
 import { Prospect } from '@/data/prospects';
@@ -12,6 +12,7 @@ interface DashboardProps {
 
 const Dashboard = ({ onSelectProspect }: DashboardProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { prospects, isLoading } = useProspects();
 
   // Calculate stats from prospects
@@ -42,7 +43,9 @@ const Dashboard = ({ onSelectProspect }: DashboardProps) => {
     .slice(0, 5);
 
   const handleProspectClick = (prospect: Prospect) => {
-    navigate(`/company/${prospect.id}`);
+    navigate(`/company/${prospect.id}`, {
+      state: { from: `${location.pathname}${location.search}` },
+    });
   };
 
   if (isLoading) {
