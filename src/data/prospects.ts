@@ -55,6 +55,7 @@ export interface Prospect {
   street?: string;
   city?: string;
   state: string;
+  country?: string;
   zip?: string;
   type: CompanyType;
   marketType: MarketType;
