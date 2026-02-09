@@ -52,6 +52,7 @@ const CompanyPage = () => {
   const [stage, setStage] = useState('');
   const [linkedIn, setLinkedIn] = useState('');
   const [website, setWebsite] = useState('');
+  const [googleMapsUrl, setGoogleMapsUrl] = useState('');
   const [lastContact, setLastContact] = useState('');
   const [engagementNotes, setEngagementNotes] = useState('');
   
@@ -88,6 +89,7 @@ const CompanyPage = () => {
       setStage(prospect.stage);
       setLinkedIn(prospect.linkedIn);
       setWebsite(prospect.website || '');
+      setGoogleMapsUrl(prospect.googleMapsUrl || '');
       setLastContact(prospect.lastContact);
       setEngagementNotes(prospect.engagementNotes);
     }
@@ -130,6 +132,7 @@ const CompanyPage = () => {
     stage: string;
     linkedIn: string;
     website: string;
+    googleMapsUrl: string;
   }>) => {
     updateProspect({
       id: prospect.id,
@@ -147,6 +150,7 @@ const CompanyPage = () => {
       stage: updates.stage ?? stage,
       linkedIn: updates.linkedIn ?? linkedIn,
       website: updates.website ?? website,
+      googleMapsUrl: updates.googleMapsUrl ?? googleMapsUrl,
       lastContact: lastContact,
       engagementNotes: engagementNotes,
     });
@@ -253,6 +257,7 @@ const CompanyPage = () => {
     stage: string;
     linkedIn: string;
     website?: string;
+    googleMapsUrl?: string;
   }) => {
     setCompanyName(details.companyName);
     setCompanyType(details.companyType);
@@ -266,6 +271,7 @@ const CompanyPage = () => {
     setStage(details.stage);
     setLinkedIn(details.linkedIn);
     setWebsite(details.website || '');
+    setGoogleMapsUrl(details.googleMapsUrl || '');
     saveProspect(details);
   };
 
@@ -357,6 +363,7 @@ const CompanyPage = () => {
                   stage,
                   linkedIn,
                   website,
+                  googleMapsUrl,
                 }}
                 onSave={handleUpdateCompanyDetails}
               />
@@ -373,6 +380,14 @@ const CompanyPage = () => {
                   <a href={website.startsWith('http') ? website : `https://${website}`} target="_blank" rel="noopener noreferrer">
                     <Globe className="w-4 h-4 mr-2" />
                     Website
+                  </a>
+                </Button>
+              )}
+              {googleMapsUrl && (
+                <Button variant="outline" size="sm" asChild>
+                  <a href={googleMapsUrl.startsWith('http') ? googleMapsUrl : `https://${googleMapsUrl}`} target="_blank" rel="noopener noreferrer">
+                    <MapPin className="w-4 h-4 mr-2" />
+                    Maps
                   </a>
                 </Button>
               )}
@@ -429,6 +444,7 @@ const CompanyPage = () => {
                     stage,
                     linkedIn,
                     website,
+                    googleMapsUrl,
                   }}
                   onSave={handleUpdateCompanyDetails}
                 />
