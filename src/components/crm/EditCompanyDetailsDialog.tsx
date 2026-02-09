@@ -28,8 +28,9 @@ const US_STATES = [
   'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
   'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
   'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
-  'USA', 'Canada',
 ];
+
+const COUNTRIES = ['USA', 'Canada'];
 
 interface CompanyDetails {
   companyName: string;
@@ -39,6 +40,7 @@ interface CompanyDetails {
   street: string;
   city: string;
   state: string;
+  country: string;
   zip: string;
   stage: string;
   linkedIn: string;
@@ -287,21 +289,42 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
             />
           </div>
 
-          {/* Location (State/Country) */}
+          {/* State */}
           <div className="space-y-2">
-            <Label>State / Country</Label>
+            <Label>State</Label>
             <Select 
               value={toSelectValue(details.state)} 
               onValueChange={(value) => updateField('state', fromSelectValue(value))}
             >
               <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Select state/country" />
+                <SelectValue placeholder="Select state" />
               </SelectTrigger>
               <SelectContent className="rounded-xl bg-background max-h-[200px]">
                 <SelectItem value={NONE_VALUE}>Not specified</SelectItem>
                 {US_STATES.map((s) => (
                   <SelectItem key={s} value={s}>
                     {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Country */}
+          <div className="space-y-2">
+            <Label>Country</Label>
+            <Select 
+              value={toSelectValue(details.country)} 
+              onValueChange={(value) => updateField('country', fromSelectValue(value))}
+            >
+              <SelectTrigger className="rounded-xl">
+                <SelectValue placeholder="Select country" />
+              </SelectTrigger>
+              <SelectContent className="rounded-xl bg-background">
+                <SelectItem value={NONE_VALUE}>Not specified</SelectItem>
+                {COUNTRIES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
                   </SelectItem>
                 ))}
               </SelectContent>

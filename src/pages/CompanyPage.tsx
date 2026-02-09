@@ -47,6 +47,7 @@ const CompanyPage = () => {
   const [street, setStreet] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
+  const [country, setCountry] = useState('');
   const [zip, setZip] = useState('');
   const [stage, setStage] = useState('');
   const [linkedIn, setLinkedIn] = useState('');
@@ -82,6 +83,7 @@ const CompanyPage = () => {
       setStreet(prospect.street || '');
       setCity(prospect.city || '');
       setState(prospect.state);
+      setCountry(prospect.country || '');
       setZip(prospect.zip || '');
       setStage(prospect.stage);
       setLinkedIn(prospect.linkedIn);
@@ -123,6 +125,7 @@ const CompanyPage = () => {
     street: string;
     city: string;
     state: string;
+    country: string;
     zip: string;
     stage: string;
     linkedIn: string;
@@ -139,6 +142,7 @@ const CompanyPage = () => {
       street: updates.street ?? street,
       city: updates.city ?? city,
       state: updates.state ?? state,
+      country: updates.country ?? country,
       zip: updates.zip ?? zip,
       stage: updates.stage ?? stage,
       linkedIn: updates.linkedIn ?? linkedIn,
@@ -244,6 +248,7 @@ const CompanyPage = () => {
     street: string;
     city: string;
     state: string;
+    country: string;
     zip: string;
     stage: string;
     linkedIn: string;
@@ -256,6 +261,7 @@ const CompanyPage = () => {
     setStreet(details.street);
     setCity(details.city);
     setState(details.state);
+    setCountry(details.country);
     setZip(details.zip);
     setStage(details.stage);
     setLinkedIn(details.linkedIn);
@@ -326,10 +332,10 @@ const CompanyPage = () => {
                   <MarketTypeBadge marketType={marketType} />
                   <LeadTierBadge leadTier={leadTier} />
                   <StageBadge stage={stage} />
-                  {(city || state) && (
+                  {(city || state || country) && (
                     <span className="flex items-center gap-1 text-sm text-muted-foreground">
                       <MapPin className="w-3.5 h-3.5" />
-                      {[city, state].filter(Boolean).join(', ')}
+                      {[city, state, country].filter(Boolean).join(', ')}
                     </span>
                   )}
                 </div>
@@ -346,6 +352,7 @@ const CompanyPage = () => {
                   street,
                   city,
                   state,
+                  country,
                   zip,
                   stage,
                   linkedIn,
@@ -417,6 +424,7 @@ const CompanyPage = () => {
                     street,
                     city,
                     state,
+                    country,
                     zip,
                     stage,
                     linkedIn,
@@ -463,13 +471,14 @@ const CompanyPage = () => {
                 <div>
                   <label className="text-xs text-muted-foreground">Address</label>
                   <div className="font-medium">
-                    {street || city || state || zip ? (
+                    {street || city || state || zip || country ? (
                       <>
                         {street && <p>{street}</p>}
                         <p>
                           {[city, state].filter(Boolean).join(', ')}
                           {zip ? ` ${zip}` : ''}
                         </p>
+                        {country && <p>{country}</p>}
                       </>
                     ) : (
                       <span className="text-sm text-muted-foreground">Not specified</span>

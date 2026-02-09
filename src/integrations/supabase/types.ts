@@ -112,6 +112,7 @@ export type Database = {
           city: string | null
           company_name: string
           contacts: Json
+          country: string | null
           created_at: string
           engagement_notes: string | null
           engagements: Json
@@ -133,6 +134,7 @@ export type Database = {
           city?: string | null
           company_name: string
           contacts?: Json
+          country?: string | null
           created_at?: string
           engagement_notes?: string | null
           engagements?: Json
@@ -154,6 +156,7 @@ export type Database = {
           city?: string | null
           company_name?: string
           contacts?: Json
+          country?: string | null
           created_at?: string
           engagement_notes?: string | null
           engagements?: Json
