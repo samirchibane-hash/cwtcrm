@@ -252,7 +252,14 @@ const CompanyPage = () => {
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <button 
-              onClick={() => navigate(-1)}
+              onClick={() => {
+                const from = location.state?.from;
+                if (from) {
+                  navigate(from);
+                } else {
+                  navigate('/?view=pipeline');
+                }
+              }}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
