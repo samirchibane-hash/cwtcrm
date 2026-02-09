@@ -5,7 +5,6 @@ import MobileNav from '@/components/crm/MobileNav';
 import MobileHeader from '@/components/crm/MobileHeader';
 import Dashboard from '@/components/crm/Dashboard';
 import ProspectsTable from '@/components/crm/ProspectsTable';
-import CustomersTable from '@/components/crm/CustomersTable';
 import OrdersReportingDashboard from '@/components/crm/OrdersReportingDashboard';
 import OrdersTable from '@/components/crm/OrdersTable';
 import { Prospect } from '@/data/prospects';
@@ -18,8 +17,12 @@ const Index = () => {
   // Handle view query parameter (e.g., /?view=orders)
   useEffect(() => {
     const viewParam = searchParams.get('view');
-    if (viewParam && ['dashboard', 'prospects', 'customers', 'orders', 'reports'].includes(viewParam)) {
+    if (viewParam && ['dashboard', 'pipeline', 'orders', 'reports'].includes(viewParam)) {
       setActiveView(viewParam);
+    }
+    // Support legacy 'prospects' and 'customers' params
+    if (viewParam === 'prospects' || viewParam === 'customers') {
+      setActiveView('pipeline');
     }
   }, [searchParams]);
 
@@ -31,10 +34,8 @@ const Index = () => {
     switch (activeView) {
       case 'dashboard':
         return <Dashboard onSelectProspect={handleSelectProspect} />;
-      case 'prospects':
+      case 'pipeline':
         return <ProspectsTable onSelectProspect={handleSelectProspect} />;
-      case 'customers':
-        return <CustomersTable onSelectProspect={handleSelectProspect} />;
       case 'orders':
         return <OrdersTable />;
       case 'reports':
@@ -48,10 +49,8 @@ const Index = () => {
     switch (activeView) {
       case 'dashboard':
         return 'Dashboard';
-      case 'prospects':
-        return 'Prospects';
-      case 'customers':
-        return 'Customers';
+      case 'pipeline':
+        return 'Pipeline';
       case 'orders':
         return 'Orders';
       case 'reports':
@@ -65,10 +64,8 @@ const Index = () => {
     switch (activeView) {
       case 'dashboard':
         return 'Overview of your sales pipeline';
-      case 'prospects':
-        return 'Manage and track all your prospects';
-      case 'customers':
-        return 'Manage your VIP customer relationships';
+      case 'pipeline':
+        return 'Manage and track all your prospects and customers';
       case 'orders':
         return 'Track all customer orders and shipments';
       case 'reports':
