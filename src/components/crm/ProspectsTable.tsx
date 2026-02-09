@@ -153,7 +153,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     const prospectIds = filteredAndSortedProspects.map(p => p.id);
     navigate(`/company/${prospect.id}`, {
       state: { 
-        from: `${location.pathname}${location.search}`,
+        from: '/?view=pipeline',
         prospectIds,
       },
     });

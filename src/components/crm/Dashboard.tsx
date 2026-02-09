@@ -44,7 +44,7 @@ const Dashboard = ({ onSelectProspect }: DashboardProps) => {
 
   const handleProspectClick = (prospect: Prospect) => {
     navigate(`/company/${prospect.id}`, {
-      state: { from: `${location.pathname}${location.search}` },
+      state: { from: '/?view=dashboard' },
     });
   };
 
