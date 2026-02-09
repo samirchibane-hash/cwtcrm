@@ -22,15 +22,6 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 
-const US_STATES = [
-  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'FL', 'GA',
-  'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
-  'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ',
-  'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
-  'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
-];
-
-const COUNTRIES = ['USA', 'Canada'];
 
 interface CompanyDetails {
   companyName: string;
@@ -291,44 +282,26 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
 
           {/* State */}
           <div className="space-y-2">
-            <Label>State</Label>
-            <Select 
-              value={toSelectValue(details.state)} 
-              onValueChange={(value) => updateField('state', fromSelectValue(value))}
-            >
-              <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Select state" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl bg-background max-h-[200px]">
-                <SelectItem value={NONE_VALUE}>Not specified</SelectItem>
-                {US_STATES.map((s) => (
-                  <SelectItem key={s} value={s}>
-                    {s}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="state">State</Label>
+            <Input
+              id="state"
+              value={details.state}
+              onChange={(e) => updateField('state', e.target.value)}
+              placeholder="Enter state (e.g. CA, NY)"
+              className="rounded-xl"
+            />
           </div>
 
           {/* Country */}
           <div className="space-y-2">
-            <Label>Country</Label>
-            <Select 
-              value={toSelectValue(details.country)} 
-              onValueChange={(value) => updateField('country', fromSelectValue(value))}
-            >
-              <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Select country" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl bg-background">
-                <SelectItem value={NONE_VALUE}>Not specified</SelectItem>
-                {COUNTRIES.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label htmlFor="country">Country</Label>
+            <Input
+              id="country"
+              value={details.country}
+              onChange={(e) => updateField('country', e.target.value)}
+              placeholder="Enter country (e.g. USA, Canada)"
+              className="rounded-xl"
+            />
           </div>
 
           {/* Zip Code */}
