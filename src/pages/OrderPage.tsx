@@ -181,18 +181,11 @@ const OrderPage = () => {
         <div className="max-w-4xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <button 
-              onClick={() => {
-                const from = (location.state as { from?: string } | null)?.from;
-                if (from) {
-                  navigate(from);
-                } else {
-                  navigate('/?view=orders');
-                }
-              }}
+              onClick={() => navigate(-1)}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="text-sm font-medium">Back to Orders</span>
+              <span className="text-sm font-medium">Back</span>
             </button>
             
             <div className="flex items-center gap-2">
