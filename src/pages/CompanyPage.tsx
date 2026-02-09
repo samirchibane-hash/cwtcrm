@@ -252,26 +252,11 @@ const CompanyPage = () => {
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between mb-4">
             <button 
-              onClick={() => {
-                const from = (location.state as { from?: string } | null)?.from;
-                if (from) {
-                  navigate(from);
-                } else {
-                  navigate('/?view=prospects');
-                }
-              }}
+              onClick={() => navigate(-1)}
               className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="text-sm font-medium">
-                {(() => {
-                  const from = (location.state as { from?: string } | null)?.from;
-                  if (from?.includes('view=customers')) return 'Back to Customers';
-                  if (from?.includes('view=orders')) return 'Back to Orders';
-                  if (from?.includes('view=reports')) return 'Back to Reports';
-                  return 'Back to Prospects';
-                })()}
-              </span>
+              <span className="text-sm font-medium">Back</span>
             </button>
             
             <div className="flex items-center gap-2">
