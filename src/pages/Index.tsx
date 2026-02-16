@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Sidebar from '@/components/crm/Sidebar';
 import MobileNav from '@/components/crm/MobileNav';
 import MobileHeader from '@/components/crm/MobileHeader';
-import Dashboard from '@/components/crm/Dashboard';
 import ProspectsTable from '@/components/crm/ProspectsTable';
 import OrdersReportingDashboard from '@/components/crm/OrdersReportingDashboard';
 import OrdersTable from '@/components/crm/OrdersTable';
@@ -12,16 +11,16 @@ import { Prospect } from '@/data/prospects';
 const Index = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const [activeView, setActiveView] = useState('dashboard');
+  const [activeView, setActiveView] = useState('pipeline');
 
   // Handle view query parameter (e.g., /?view=orders)
   useEffect(() => {
     const viewParam = searchParams.get('view');
-    if (viewParam && ['dashboard', 'pipeline', 'orders', 'reports'].includes(viewParam)) {
+    if (viewParam && ['pipeline', 'orders', 'reports'].includes(viewParam)) {
       setActiveView(viewParam);
     }
-    // Support legacy 'prospects' and 'customers' params
-    if (viewParam === 'prospects' || viewParam === 'customers') {
+    // Support legacy params
+    if (viewParam === 'prospects' || viewParam === 'customers' || viewParam === 'dashboard') {
       setActiveView('pipeline');
     }
   }, [searchParams]);
@@ -32,8 +31,6 @@ const Index = () => {
 
   const renderView = () => {
     switch (activeView) {
-      case 'dashboard':
-        return <Dashboard onSelectProspect={handleSelectProspect} />;
       case 'pipeline':
         return <ProspectsTable onSelectProspect={handleSelectProspect} />;
       case 'orders':
@@ -41,14 +38,12 @@ const Index = () => {
       case 'reports':
         return <OrdersReportingDashboard />;
       default:
-        return <Dashboard onSelectProspect={handleSelectProspect} />;
+        return <ProspectsTable onSelectProspect={handleSelectProspect} />;
     }
   };
 
   const getViewTitle = () => {
     switch (activeView) {
-      case 'dashboard':
-        return 'Dashboard';
       case 'pipeline':
         return 'Pipeline';
       case 'orders':
@@ -56,14 +51,12 @@ const Index = () => {
       case 'reports':
         return 'Reports';
       default:
-        return 'Dashboard';
+        return 'Pipeline';
     }
   };
 
   const getViewSubtitle = () => {
     switch (activeView) {
-      case 'dashboard':
-        return 'Overview of your sales pipeline';
       case 'pipeline':
         return 'Manage and track all your prospects and customers';
       case 'orders':
@@ -71,7 +64,7 @@ const Index = () => {
       case 'reports':
         return 'Revenue analytics and business insights';
       default:
-        return 'Overview of your sales pipeline';
+        return 'Manage and track all your prospects and customers';
     }
   };
 
