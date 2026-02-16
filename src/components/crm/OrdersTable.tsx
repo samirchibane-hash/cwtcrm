@@ -34,8 +34,8 @@ const NONE_VALUE = '__none__';
 const OrdersTable = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>(NONE_VALUE);
+  const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') || '');
+  const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get('status') || NONE_VALUE);
   const { orders } = useOrders();
 
   // Initialize sort state from URL params
@@ -52,9 +52,16 @@ const OrdersTable = () => {
     return null;
   });
 
-  // Sync sort state to URL
+  // Sync all filter/sort state to URL
   useEffect(() => {
     const newParams = new URLSearchParams(searchParams);
+    
+    if (searchTerm) newParams.set('q', searchTerm);
+    else newParams.delete('q');
+    
+    if (statusFilter && statusFilter !== NONE_VALUE) newParams.set('status', statusFilter);
+    else newParams.delete('status');
+    
     if (sortField && sortDirection) {
       newParams.set('sortField', sortField);
       newParams.set('sortDir', sortDirection);
@@ -65,7 +72,7 @@ const OrdersTable = () => {
     if (newParams.toString() !== searchParams.toString()) {
       setSearchParams(newParams, { replace: true });
     }
-  }, [sortField, sortDirection, searchParams, setSearchParams]);
+  }, [searchTerm, statusFilter, sortField, sortDirection, searchParams, setSearchParams]);
 
   const stats = useMemo(() => {
     const totalOrders = orders.length;
