@@ -30,10 +30,19 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { prospects, isLoading } = useProspects();
-  const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string[]>([]);
-  const [stageFilter, setStageFilter] = useState<string[]>([]);
-  const [leadTierFilter, setLeadTierFilter] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get('q') || '');
+  const [typeFilter, setTypeFilter] = useState<string[]>(() => {
+    const val = searchParams.get('type');
+    return val ? val.split(',') : [];
+  });
+  const [stageFilter, setStageFilter] = useState<string[]>(() => {
+    const val = searchParams.get('stage');
+    return val ? val.split(',') : [];
+  });
+  const [leadTierFilter, setLeadTierFilter] = useState<string[]>(() => {
+    const val = searchParams.get('tier');
+    return val ? val.split(',') : [];
+  });
   const [sortField, setSortField] = useState<SortField | null>(() => {
     const field = searchParams.get('sortField');
     if (field && ['companyName', 'contacts', 'state', 'type', 'leadTier', 'stage', 'lastContact'].includes(field)) {
@@ -49,9 +58,22 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
 
   useEffect(() => {
     const currentView = searchParams.get('view');
-    if (currentView && currentView !== 'prospects') return;
+    if (currentView && currentView !== 'pipeline') return;
     
     const newParams = new URLSearchParams(searchParams);
+    
+    if (searchQuery) newParams.set('q', searchQuery);
+    else newParams.delete('q');
+    
+    if (typeFilter.length > 0) newParams.set('type', typeFilter.join(','));
+    else newParams.delete('type');
+    
+    if (stageFilter.length > 0) newParams.set('stage', stageFilter.join(','));
+    else newParams.delete('stage');
+    
+    if (leadTierFilter.length > 0) newParams.set('tier', leadTierFilter.join(','));
+    else newParams.delete('tier');
+    
     if (sortField && sortDirection) {
       newParams.set('sortField', sortField);
       newParams.set('sortDir', sortDirection);
@@ -62,7 +84,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     if (newParams.toString() !== searchParams.toString()) {
       setSearchParams(newParams, { replace: true });
     }
-  }, [sortField, sortDirection, searchParams, setSearchParams]);
+  }, [searchQuery, typeFilter, stageFilter, leadTierFilter, sortField, sortDirection, searchParams, setSearchParams]);
 
   // Filter options from constants
   const types = COMPANY_TYPES.filter(t => t !== '');
@@ -153,7 +175,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     const prospectIds = filteredAndSortedProspects.map(p => p.id);
     navigate(`/company/${prospect.id}`, {
       state: { 
-        from: '/?view=pipeline',
+        from: `/${location.search ? location.search : '?view=pipeline'}`,
         prospectIds,
       },
     });
