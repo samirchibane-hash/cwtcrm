@@ -1,6 +1,7 @@
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2 } from 'lucide-react';
 import { Contact, Engagement, CompanyType, MarketType, LeadTier } from '@/data/prospects';
+import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import { getOrdersByCustomer, Order, getStatusColor } from '@/data/orders';
 import { useProspects } from '@/context/ProspectsContext';
 import StageBadge from '@/components/crm/StageBadge';
@@ -346,11 +347,11 @@ const CompanyPage = () => {
                   )}
                 </div>
                 <div className="flex items-center gap-4 mt-2 flex-wrap">
-                  {prospect.lastContact && (
-                    <span className="text-xs text-muted-foreground">
-                      Last contact: <span className="font-medium text-foreground">{prospect.lastContact}</span>
-                    </span>
-                  )}
+                  {getProspectLastContactLabel(prospect) && (
+                     <span className="text-xs text-muted-foreground">
+                       Last contact: <span className="font-medium text-foreground">{getProspectLastContactLabel(prospect)}</span>
+                     </span>
+                   )}
                   {website && (
                     <a
                       href={website.startsWith('http') ? website : `https://${website}`}
