@@ -41,6 +41,7 @@ const getTierIndex = (quantity: number): number => {
 
 interface EditableModelItem extends OrderModelItem {
   tierOverride?: number; // Allow manual tier selection
+  priceOverride?: number; // Allow fully manual price per unit
 }
 
 const OrderPage = () => {
@@ -51,11 +52,13 @@ const OrderPage = () => {
   const { models: productModels, getModelByName } = useProductModels();
   const { orders, getOrderById, updateOrder, deleteOrder } = useOrders();
 
-  // Calculate item value based on model, tier, and quantity
-  const calculateItemValue = (modelName: string, quantity: number, tierOverride?: number): number => {
+  // Calculate item value: priceOverride > tierOverride > auto tier
+  const calculateItemValue = (modelName: string, quantity: number, tierOverride?: number, priceOverride?: number): number => {
+    if (priceOverride !== undefined && priceOverride >= 0) {
+      return priceOverride * quantity;
+    }
     const model = getModelByName(modelName);
     if (!model) return 0;
-    
     const tierIndex = tierOverride !== undefined ? tierOverride : getTierIndex(quantity);
     const unitPrice = model.pricingTiers[tierIndex]?.price || 0;
     return unitPrice * quantity;
@@ -82,7 +85,7 @@ const OrderPage = () => {
 
   // Calculate total value from model items (Sample/Replacement = $0)
   const rawTotalValue = modelItems.reduce((total, item) => {
-    return total + calculateItemValue(item.modelName, item.quantity, item.tierOverride);
+    return total + calculateItemValue(item.modelName, item.quantity, item.tierOverride, item.priceOverride);
   }, 0);
   
   const calculatedTotalValue = formData?.orderType === 'Sample' || formData?.orderType === 'Replacement' 
@@ -110,27 +113,21 @@ const OrderPage = () => {
   const statusColors = getStatusColor(formData.status);
 
   const handleSave = () => {
-    // Update formData with calculated values
     const updatedOrder: Order = {
       ...formData,
       units: totalUnits,
-      modelItems: modelItems.map(({ quantity, modelName, tierOverride }) => ({
+      modelItems: modelItems.map(({ quantity, modelName, tierOverride, priceOverride }) => ({
         quantity,
         modelName,
         tierOverride,
+        priceOverride,
       })),
       totalValue: calculatedTotalValue,
       modelType: modelItems.map(item => `${item.quantity}x ${item.modelName}`).join(', ')
     };
     setFormData(updatedOrder);
-    
-    // Persist to context (and localStorage)
     updateOrder(updatedOrder);
-    
-    toast({
-      title: 'Order updated',
-      description: 'Your changes have been saved.',
-    });
+    toast({ title: 'Order updated', description: 'Your changes have been saved.' });
     setIsEditing(false);
   };
 
@@ -147,6 +144,9 @@ const OrderPage = () => {
         updated[index] = { ...updated[index], modelName: String(value) };
       } else if (field === 'tierOverride') {
         updated[index] = { ...updated[index], tierOverride: value === 'auto' ? undefined : Number(value) };
+      } else if (field === 'priceOverride') {
+        const num = value === '' ? undefined : Number(value);
+        updated[index] = { ...updated[index], priceOverride: num };
       }
       return updated;
     });
@@ -430,8 +430,9 @@ const OrderPage = () => {
                   item.modelName.toLowerCase().includes(m.name.toLowerCase())
                 );
                 const effectiveTier = item.tierOverride !== undefined ? item.tierOverride : getTierIndex(item.quantity);
-                const unitPrice = model?.pricingTiers[effectiveTier]?.price || 0;
-                const itemTotal = calculateItemValue(item.modelName, item.quantity, item.tierOverride);
+                const tierUnitPrice = model?.pricingTiers[effectiveTier]?.price || 0;
+                const unitPrice = item.priceOverride !== undefined ? item.priceOverride : tierUnitPrice;
+                const itemTotal = calculateItemValue(item.modelName, item.quantity, item.tierOverride, item.priceOverride);
 
                 return (
                   <div key={index} className="p-4 rounded-lg border bg-muted/30">
@@ -481,29 +482,57 @@ const OrderPage = () => {
                           </div>
                         </div>
                         
-                        <div>
-                          <Label className="text-xs text-muted-foreground">Pricing Tier</Label>
-                          <Select 
-                            value={item.tierOverride !== undefined ? String(item.tierOverride) : 'auto'}
-                            onValueChange={(value) => handleModelItemChange(index, 'tierOverride', value)}
-                          >
-                            <SelectTrigger className="mt-1">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="auto">Auto (based on quantity)</SelectItem>
-                              {defaultTierNames.map((tierName, tierIndex) => (
-                                <SelectItem key={tierIndex} value={String(tierIndex)}>
-                                  {tierName} - {model ? formatCurrency(model.pricingTiers[tierIndex]?.price || 0) : 'N/A'}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">Pricing Tier</Label>
+                            <Select 
+                              value={item.tierOverride !== undefined ? String(item.tierOverride) : 'auto'}
+                              onValueChange={(value) => handleModelItemChange(index, 'tierOverride', value)}
+                              disabled={item.priceOverride !== undefined}
+                            >
+                              <SelectTrigger className="mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="auto">Auto (by quantity)</SelectItem>
+                                {defaultTierNames.map((tierName, tierIndex) => (
+                                  <SelectItem key={tierIndex} value={String(tierIndex)}>
+                                    {tierName} — {model ? formatCurrency(model.pricingTiers[tierIndex]?.price || 0) : 'N/A'}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div>
+                            <Label className="text-xs text-muted-foreground">
+                              Manual Price/Unit
+                              {item.priceOverride !== undefined && (
+                                <button
+                                  className="ml-2 text-accent hover:underline font-normal"
+                                  onClick={() => handleModelItemChange(index, 'priceOverride', '')}
+                                  type="button"
+                                >
+                                  (clear)
+                                </button>
+                              )}
+                            </Label>
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.priceOverride !== undefined ? item.priceOverride : ''}
+                              onChange={(e) => handleModelItemChange(index, 'priceOverride', e.target.value)}
+                              className="mt-1"
+                              placeholder={`$${tierUnitPrice} (tier)`}
+                            />
+                          </div>
                         </div>
                         
                         <div className="flex justify-between items-center pt-2 border-t">
                           <span className="text-sm text-muted-foreground">
                             {item.quantity} × {formatCurrency(unitPrice)}
+                            {item.priceOverride !== undefined && <span className="ml-1 text-accent">(manual)</span>}
                           </span>
                           <span className="font-semibold text-accent">
                             {formatCurrency(itemTotal)}
@@ -515,7 +544,9 @@ const OrderPage = () => {
                         <div>
                           <p className="font-medium">{item.quantity}x {item.modelName}</p>
                           <p className="text-sm text-muted-foreground">
-                            {defaultTierNames[effectiveTier]} @ {formatCurrency(unitPrice)}/unit
+                            {item.priceOverride !== undefined
+                              ? `Manual price @ ${formatCurrency(item.priceOverride)}/unit`
+                              : `${defaultTierNames[effectiveTier]} @ ${formatCurrency(tierUnitPrice)}/unit`}
                           </p>
                         </div>
                         <span className="font-semibold text-accent">
