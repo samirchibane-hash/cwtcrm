@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pencil, X, Plus } from 'lucide-react';
-import { CompanyType, MarketType, LeadTier, COMPANY_TYPES, MARKET_TYPES, LEAD_TIERS, PIPELINE_STAGES, getStageColor } from '@/data/prospects';
+import { CompanyType, MarketType, LeadTier, COMPANY_TYPES, LEAD_TIERS, PIPELINE_STAGES, getStageColor } from '@/data/prospects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useProductVerticals } from '@/hooks/useProductVerticals';
 
 
 interface CompanyDetails {
@@ -51,13 +52,12 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
   const [open, setOpen] = useState(false);
   const [details, setDetails] = useState<CompanyDetails>(currentDetails);
   const [stageInput, setStageInput] = useState('');
-  const [customMarketTypes, setCustomMarketTypes] = useState<string[]>([]);
   const [newMarketType, setNewMarketType] = useState('');
   const [showNewMarketInput, setShowNewMarketInput] = useState(false);
   const { toast } = useToast();
+  const { allVerticals, addVertical } = useProductVerticals();
 
   const selectedStages = details.stage ? details.stage.split(',').map(s => s.trim()).filter(Boolean) : [];
-  const allMarketTypes = [...MARKET_TYPES, ...customMarketTypes.filter(mt => !MARKET_TYPES.includes(mt as MarketType))];
 
   const addStage = (stage: string) => {
     if (!selectedStages.includes(stage)) {
@@ -74,10 +74,7 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
 
   const handleAddNewMarketType = () => {
     if (newMarketType.trim()) {
-      const trimmed = newMarketType.trim();
-      if (!customMarketTypes.includes(trimmed) && !MARKET_TYPES.includes(trimmed as MarketType)) {
-        setCustomMarketTypes(prev => [...prev, trimmed]);
-      }
+      const trimmed = addVertical(newMarketType);
       setDetails(prev => ({ ...prev, marketType: trimmed as MarketType }));
       setNewMarketType('');
       setShowNewMarketInput(false);
@@ -220,7 +217,7 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
                 </SelectTrigger>
                 <SelectContent className="rounded-xl bg-background">
                   <SelectItem value={NONE_VALUE}>None</SelectItem>
-                  {allMarketTypes.map((t) => (
+                  {allVerticals.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
                     </SelectItem>
