@@ -345,6 +345,24 @@ const CompanyPage = () => {
                     </span>
                   )}
                 </div>
+                <div className="flex items-center gap-4 mt-2 flex-wrap">
+                  {prospect.lastContact && (
+                    <span className="text-xs text-muted-foreground">
+                      Last contact: <span className="font-medium text-foreground">{prospect.lastContact}</span>
+                    </span>
+                  )}
+                  {website && (
+                    <a
+                      href={website.startsWith('http') ? website : `https://${website}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-accent hover:underline flex items-center gap-1"
+                    >
+                      <Globe className="w-3 h-3" />
+                      {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                    </a>
+                  )}
+                </div>
               </div>
             </div>
             
@@ -423,121 +441,8 @@ const CompanyPage = () => {
 
       {/* Content */}
       <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
-        {/* Top Row - Company Details & Contacts side by side */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Company Details - Left */}
-          <div className="lg:col-span-1">
-            <section className="content-card p-6 animate-fade-in h-full">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="section-header mb-0">Company Details</h2>
-                <EditCompanyDetailsDialog
-                  currentDetails={{
-                    companyName,
-                    companyType,
-                    marketType,
-                    leadTier,
-                    street,
-                    city,
-                    state,
-                    country,
-                    zip,
-                    stage,
-                    linkedIn,
-                    website,
-                    googleMapsUrl,
-                  }}
-                  onSave={handleUpdateCompanyDetails}
-                />
-              </div>
-              <div className="space-y-4">
-                <div>
-                  <label className="text-xs text-muted-foreground">Company Name</label>
-                  <p className="font-medium">{companyName}</p>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Business Model</label>
-                  <div className="flex items-center gap-2 mt-1">
-                    {companyType ? (
-                      <TypeBadge type={companyType} />
-                    ) : (
-                      <span className="text-sm text-muted-foreground">Not specified</span>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Product Vertical</label>
-                  <div className="mt-1">
-                    {marketType ? (
-                      <MarketTypeBadge marketType={marketType} />
-                    ) : (
-                      <span className="text-sm text-muted-foreground">Not specified</span>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Lead Tier</label>
-                  <div className="mt-1">
-                    {leadTier ? (
-                      <LeadTierBadge leadTier={leadTier} />
-                    ) : (
-                      <span className="text-sm text-muted-foreground">Not specified</span>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Address</label>
-                  <div className="font-medium">
-                    {street || city || state || zip || country ? (
-                      <>
-                        {street && <p>{street}</p>}
-                        <p>
-                          {[city, state].filter(Boolean).join(', ')}
-                          {zip ? ` ${zip}` : ''}
-                        </p>
-                        {country && <p>{country}</p>}
-                      </>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">Not specified</span>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Pipeline Stage</label>
-                  <div className="mt-1">
-                    {stage ? (
-                      <StageBadge stage={stage} />
-                    ) : (
-                      <span className="text-sm text-muted-foreground">Not set</span>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Last Contact</label>
-                  <p className="font-medium font-mono">{prospect.lastContact || 'Never'}</p>
-                </div>
-                <div>
-                  <label className="text-xs text-muted-foreground">Website</label>
-                  {website ? (
-                    <a 
-                      href={website.startsWith('http') ? website : `https://${website}`} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="text-accent hover:underline flex items-center gap-1"
-                    >
-                      <Globe className="w-3.5 h-3.5" />
-                      {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-                    </a>
-                  ) : (
-                    <span className="text-sm text-muted-foreground">Not specified</span>
-                  )}
-                </div>
-              </div>
-            </section>
-          </div>
-
-          {/* Contacts - Right, expanded */}
-          <div className="lg:col-span-2">
-            <section className="content-card animate-fade-in h-full" style={{ animationDelay: '100ms' }}>
+        {/* Contacts */}
+        <section className="content-card animate-fade-in" style={{ animationDelay: '100ms' }}>
               <div className="flex items-center justify-between p-6 border-b border-border">
                 <h2 className="section-header mb-0">Contacts</h2>
                 <div className="flex items-center gap-2">
@@ -656,9 +561,7 @@ const CompanyPage = () => {
                   />
                 </div>
               )}
-            </section>
-          </div>
-        </div>
+        </section>
 
         {/* Engagements Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
