@@ -48,6 +48,18 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     const val = searchParams.get('vertical');
     return val ? val.split(',') : [];
   });
+  const [typeFilterMode, setTypeFilterMode] = useState<'include' | 'exclude'>(() =>
+    searchParams.get('typeMode') === 'exclude' ? 'exclude' : 'include'
+  );
+  const [stageFilterMode, setStageFilterMode] = useState<'include' | 'exclude'>(() =>
+    searchParams.get('stageMode') === 'exclude' ? 'exclude' : 'include'
+  );
+  const [leadTierFilterMode, setLeadTierFilterMode] = useState<'include' | 'exclude'>(() =>
+    searchParams.get('tierMode') === 'exclude' ? 'exclude' : 'include'
+  );
+  const [verticalFilterMode, setVerticalFilterMode] = useState<'include' | 'exclude'>(() =>
+    searchParams.get('verticalMode') === 'exclude' ? 'exclude' : 'include'
+  );
   const [sortField, setSortField] = useState<SortField | null>(() => {
     const field = searchParams.get('sortField');
     if (field && ['companyName', 'contacts', 'state', 'type', 'leadTier', 'stage', 'lastContact'].includes(field)) {
@@ -81,6 +93,18 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
 
     if (verticalFilter.length > 0) newParams.set('vertical', verticalFilter.join(','));
     else newParams.delete('vertical');
+
+    if (typeFilterMode === 'exclude') newParams.set('typeMode', 'exclude');
+    else newParams.delete('typeMode');
+
+    if (stageFilterMode === 'exclude') newParams.set('stageMode', 'exclude');
+    else newParams.delete('stageMode');
+
+    if (leadTierFilterMode === 'exclude') newParams.set('tierMode', 'exclude');
+    else newParams.delete('tierMode');
+
+    if (verticalFilterMode === 'exclude') newParams.set('verticalMode', 'exclude');
+    else newParams.delete('verticalMode');
     
     if (sortField && sortDirection) {
       newParams.set('sortField', sortField);
@@ -92,7 +116,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     if (newParams.toString() !== searchParams.toString()) {
       setSearchParams(newParams, { replace: true });
     }
-  }, [searchQuery, typeFilter, stageFilter, leadTierFilter, verticalFilter, sortField, sortDirection, searchParams, setSearchParams]);
+  }, [searchQuery, typeFilter, stageFilter, leadTierFilter, verticalFilter, typeFilterMode, stageFilterMode, leadTierFilterMode, verticalFilterMode, sortField, sortDirection, searchParams, setSearchParams]);
 
   // Filter options: merge static constants with any custom stages present in actual data
   const types = COMPANY_TYPES.filter(t => t !== '');
@@ -131,13 +155,22 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         prospect.state.toLowerCase().includes(searchQuery.toLowerCase()) ||
         prospect.engagementNotes.toLowerCase().includes(searchQuery.toLowerCase());
       
-      const matchesType = typeFilter.length === 0 || typeFilter.includes(prospect.type);
+      const matchesType = typeFilter.length === 0 || (
+        typeFilterMode === 'include' ? typeFilter.includes(prospect.type) : !typeFilter.includes(prospect.type)
+      );
       
-      const matchesStage = stageFilter.length === 0 || 
-        stageFilter.some(s => prospect.stage.toLowerCase().includes(s.toLowerCase()));
+      const matchesStage = stageFilter.length === 0 || (
+        stageFilterMode === 'include'
+          ? stageFilter.some(s => prospect.stage.toLowerCase().includes(s.toLowerCase()))
+          : !stageFilter.some(s => prospect.stage.toLowerCase().includes(s.toLowerCase()))
+      );
 
-      const matchesLeadTier = leadTierFilter.length === 0 || leadTierFilter.includes(prospect.leadTier);
-      const matchesVertical = verticalFilter.length === 0 || verticalFilter.includes(prospect.marketType || '');
+      const matchesLeadTier = leadTierFilter.length === 0 || (
+        leadTierFilterMode === 'include' ? leadTierFilter.includes(prospect.leadTier) : !leadTierFilter.includes(prospect.leadTier)
+      );
+      const matchesVertical = verticalFilter.length === 0 || (
+        verticalFilterMode === 'include' ? verticalFilter.includes(prospect.marketType || '') : !verticalFilter.includes(prospect.marketType || '')
+      );
 
       return matchesSearch && matchesType && matchesStage && matchesLeadTier && matchesVertical;
     });
@@ -185,7 +218,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     }
 
     return result;
-  }, [prospects, searchQuery, typeFilter, stageFilter, leadTierFilter, verticalFilter, sortField, sortDirection]);
+  }, [prospects, searchQuery, typeFilter, stageFilter, leadTierFilter, verticalFilter, typeFilterMode, stageFilterMode, leadTierFilterMode, verticalFilterMode, sortField, sortDirection]);
 
   const handleRowClick = (prospect: Prospect) => {
     const prospectIds = filteredAndSortedProspects.map(p => p.id);
@@ -219,13 +252,14 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
           />
         </div>
         <div className="flex gap-2">
+          {/* Business Model filter */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
                 <Filter className="w-4 h-4" />
                 Business Model
                 {typeFilter.length > 0 && (
-                  <span className="bg-accent text-accent-foreground text-xs px-1.5 rounded-full">
+                  <span className={`text-xs px-1.5 rounded-full ${typeFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-accent text-accent-foreground'}`}>
                     {typeFilter.length}
                   </span>
                 )}
@@ -233,14 +267,17 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="rounded-xl">
+              <div className="flex gap-1 p-2 pb-1">
+                <button onClick={() => setTypeFilterMode('include')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${typeFilterMode === 'include' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Include</button>
+                <button onClick={() => setTypeFilterMode('exclude')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${typeFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Exclude</button>
+              </div>
+              <div className="border-t border-border my-1" />
               {types.map((type) => (
                 <DropdownMenuCheckboxItem
                   key={type}
                   checked={typeFilter.includes(type)}
                   onCheckedChange={(checked) => {
-                    setTypeFilter(prev => 
-                      checked ? [...prev, type] : prev.filter(t => t !== type)
-                    );
+                    setTypeFilter(prev => checked ? [...prev, type] : prev.filter(t => t !== type));
                   }}
                 >
                   {type}
@@ -249,13 +286,14 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Stage filter */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
                 <Filter className="w-4 h-4" />
                 Stage
                 {stageFilter.length > 0 && (
-                  <span className="bg-accent text-accent-foreground text-xs px-1.5 rounded-full">
+                  <span className={`text-xs px-1.5 rounded-full ${stageFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-accent text-accent-foreground'}`}>
                     {stageFilter.length}
                   </span>
                 )}
@@ -263,14 +301,17 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="rounded-xl">
+              <div className="flex gap-1 p-2 pb-1">
+                <button onClick={() => setStageFilterMode('include')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${stageFilterMode === 'include' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Include</button>
+                <button onClick={() => setStageFilterMode('exclude')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${stageFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Exclude</button>
+              </div>
+              <div className="border-t border-border my-1" />
               {stages.map((stage) => (
                 <DropdownMenuCheckboxItem
                   key={stage}
                   checked={stageFilter.includes(stage)}
                   onCheckedChange={(checked) => {
-                    setStageFilter(prev => 
-                      checked ? [...prev, stage] : prev.filter(s => s !== stage)
-                    );
+                    setStageFilter(prev => checked ? [...prev, stage] : prev.filter(s => s !== stage));
                   }}
                 >
                   {stage}
@@ -279,13 +320,14 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Lead Tier filter */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
                 <Filter className="w-4 h-4" />
                 Lead Tier
                 {leadTierFilter.length > 0 && (
-                  <span className="bg-accent text-accent-foreground text-xs px-1.5 rounded-full">
+                  <span className={`text-xs px-1.5 rounded-full ${leadTierFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-accent text-accent-foreground'}`}>
                     {leadTierFilter.length}
                   </span>
                 )}
@@ -293,14 +335,17 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="rounded-xl">
+              <div className="flex gap-1 p-2 pb-1">
+                <button onClick={() => setLeadTierFilterMode('include')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${leadTierFilterMode === 'include' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Include</button>
+                <button onClick={() => setLeadTierFilterMode('exclude')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${leadTierFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Exclude</button>
+              </div>
+              <div className="border-t border-border my-1" />
               {leadTiers.map((tier) => (
                 <DropdownMenuCheckboxItem
                   key={tier}
                   checked={leadTierFilter.includes(tier)}
                   onCheckedChange={(checked) => {
-                    setLeadTierFilter(prev => 
-                      checked ? [...prev, tier] : prev.filter(t => t !== tier)
-                    );
+                    setLeadTierFilter(prev => checked ? [...prev, tier] : prev.filter(t => t !== tier));
                   }}
                 >
                   {tier}
@@ -309,13 +354,14 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          {/* Product Vertical filter */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
                 <Filter className="w-4 h-4" />
                 Product Vertical
                 {verticalFilter.length > 0 && (
-                  <span className="bg-accent text-accent-foreground text-xs px-1.5 rounded-full">
+                  <span className={`text-xs px-1.5 rounded-full ${verticalFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-accent text-accent-foreground'}`}>
                     {verticalFilter.length}
                   </span>
                 )}
@@ -323,14 +369,17 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="rounded-xl">
+              <div className="flex gap-1 p-2 pb-1">
+                <button onClick={() => setVerticalFilterMode('include')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${verticalFilterMode === 'include' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Include</button>
+                <button onClick={() => setVerticalFilterMode('exclude')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${verticalFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Exclude</button>
+              </div>
+              <div className="border-t border-border my-1" />
               {allVerticals.map((vertical) => (
                 <DropdownMenuCheckboxItem
                   key={vertical}
                   checked={verticalFilter.includes(vertical)}
                   onCheckedChange={(checked) => {
-                    setVerticalFilter(prev =>
-                      checked ? [...prev, vertical] : prev.filter(v => v !== vertical)
-                    );
+                    setVerticalFilter(prev => checked ? [...prev, vertical] : prev.filter(v => v !== vertical));
                   }}
                 >
                   {vertical}
