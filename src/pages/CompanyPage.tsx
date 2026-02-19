@@ -39,6 +39,8 @@ const CompanyPage = () => {
   const { toast } = useToast();
   const { getProspectById, updateProspect, deleteProspect, isLoading } = useProspects();
   const [newNote, setNewNote] = useState('');
+  const [newNoteCalls, setNewNoteCalls] = useState<number>(0);
+  const [newNoteEmails, setNewNoteEmails] = useState<number>(0);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [engagements, setEngagements] = useState<Engagement[]>([]);
   const [companyName, setCompanyName] = useState('');
@@ -207,31 +209,39 @@ const CompanyPage = () => {
   const handleAddNote = () => {
     if (!newNote.trim()) return;
     
+    const activity: Engagement['activity'] = {};
+    if (newNoteCalls > 0) activity.calls = newNoteCalls;
+    if (newNoteEmails > 0) activity.emails = newNoteEmails;
+
     const newEngagement: Engagement = {
       id: `eng-${Date.now()}`,
       date: new Date().toLocaleDateString(),
       type: 'note',
       summary: newNote.length > 60 ? newNote.slice(0, 60) + '...' : newNote,
       details: newNote,
+      ...(Object.keys(activity).length > 0 ? { activity } : {}),
     };
     
     const updatedEngagements = [newEngagement, ...engagements];
     setEngagements(updatedEngagements);
     saveProspect({ engagements: updatedEngagements });
     toast({
-      title: 'Note saved',
+      title: 'Activity logged',
       description: 'Your note has been added to engagements.',
     });
     setNewNote('');
+    setNewNoteCalls(0);
+    setNewNoteEmails(0);
   };
 
-  const handleEditNote = (engagementId: string, newDetails: string) => {
+  const handleEditNote = (engagementId: string, newDetails: string, activity?: { calls?: number; emails?: number }) => {
     const updatedEngagements = engagements.map(eng => 
       eng.id === engagementId 
         ? { 
             ...eng, 
             details: newDetails,
             summary: newDetails.length > 60 ? newDetails.slice(0, 60) + '...' : newDetails,
+            activity: activity,
           }
         : eng
     );
@@ -568,7 +578,7 @@ const CompanyPage = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Quick Add Note */}
           <section className="content-card p-6 animate-fade-in lg:col-span-1" style={{ animationDelay: '150ms' }}>
-            <h2 className="section-header">Quick Note</h2>
+            <h2 className="section-header">Log Activity</h2>
             <div className="space-y-3">
               <Textarea
                 placeholder="Add a note about this company..."
@@ -576,13 +586,37 @@ const CompanyPage = () => {
                 onChange={(e) => setNewNote(e.target.value)}
                 className="min-h-[100px] resize-none border-0 bg-muted/50 focus:bg-card focus:ring-2 focus:ring-accent rounded-xl"
               />
-              <div className="flex items-center justify-between">
-                <Button variant="outline" size="sm">
-                  <Upload className="w-4 h-4 mr-2" />
-                  Attach File
-                </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Phone className="w-3 h-3" /> Calls made
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={newNoteCalls || ''}
+                    onChange={(e) => setNewNoteCalls(Math.max(0, parseInt(e.target.value) || 0))}
+                    placeholder="0"
+                    className="w-full h-9 rounded-lg border border-input bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Mail className="w-3 h-3" /> Emails sent
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={newNoteEmails || ''}
+                    onChange={(e) => setNewNoteEmails(Math.max(0, parseInt(e.target.value) || 0))}
+                    placeholder="0"
+                    className="w-full h-9 rounded-lg border border-input bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center justify-end">
                 <Button size="sm" onClick={handleAddNote} disabled={!newNote.trim()}>
-                  Save Note
+                  Save
                 </Button>
               </div>
             </div>
@@ -835,7 +869,7 @@ const ContactCard = ({ contact }: { contact: Contact }) => {
 
 interface EngagementCardProps {
   engagement: Engagement;
-  onEdit: (id: string, details: string) => void;
+  onEdit: (id: string, details: string, activity?: { calls?: number; emails?: number }) => void;
   onDelete: (id: string) => void;
 }
 
@@ -844,12 +878,33 @@ const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) =
                engagement.type === 'email' ? Mail :
                engagement.type === 'meeting' ? Calendar : FileText;
   
+  const hasCalls = (engagement.activity?.calls || 0) > 0;
+  const hasEmails = (engagement.activity?.emails || 0) > 0;
+
   return (
     <div className="px-6 py-3 hover:bg-muted/30 transition-colors group">
-      <div className="flex items-center gap-3">
+      <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <p className="text-sm">{engagement.details || engagement.summary}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm">{engagement.details || engagement.summary}</p>
+              {(hasCalls || hasEmails) && (
+                <div className="flex items-center gap-2 mt-1.5">
+                  {hasCalls && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-chart-1/10 text-chart-1">
+                      <Phone className="w-3 h-3" />
+                      {engagement.activity!.calls} call{engagement.activity!.calls !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {hasEmails && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-chart-2/10 text-chart-2">
+                      <Mail className="w-3 h-3" />
+                      {engagement.activity!.emails} email{engagement.activity!.emails !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">{engagement.date}</span>
               <div className="opacity-0 group-hover:opacity-100 transition-opacity">
@@ -868,3 +923,4 @@ const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) =
 };
 
 export default CompanyPage;
+

@@ -14,6 +14,10 @@ export interface Engagement {
   type: 'call' | 'email' | 'meeting' | 'note';
   summary: string;
   details?: string;
+  activity?: {
+    calls?: number;
+    emails?: number;
+  };
 }
 
 export type CompanyType = 'OEM' | 'Distributor' | 'eCommerce' | 'Installer' | '';

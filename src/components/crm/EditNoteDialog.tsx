@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Pencil, Trash2 } from 'lucide-react';
+import { Pencil, Trash2, Phone, Mail } from 'lucide-react';
 import { Engagement } from '@/data/prospects';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,13 +35,15 @@ type NoteFormData = z.infer<typeof noteSchema>;
 
 interface EditNoteDialogProps {
   engagement: Engagement;
-  onSave: (id: string, details: string) => void;
+  onSave: (id: string, details: string, activity?: { calls?: number; emails?: number }) => void;
   onDelete: (id: string) => void;
 }
 
 const EditNoteDialog = ({ engagement, onSave, onDelete }: EditNoteDialogProps) => {
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [calls, setCalls] = useState<number>(engagement.activity?.calls || 0);
+  const [emails, setEmails] = useState<number>(engagement.activity?.emails || 0);
   const { toast } = useToast();
 
   const {
@@ -57,7 +59,10 @@ const EditNoteDialog = ({ engagement, onSave, onDelete }: EditNoteDialogProps) =
   });
 
   const onSubmit = (data: NoteFormData) => {
-    onSave(engagement.id, data.details);
+    const activity: { calls?: number; emails?: number } = {};
+    if (calls > 0) activity.calls = calls;
+    if (emails > 0) activity.emails = emails;
+    onSave(engagement.id, data.details, Object.keys(activity).length > 0 ? activity : undefined);
     toast({
       title: 'Note updated',
       description: 'Your note has been saved.',
@@ -78,6 +83,8 @@ const EditNoteDialog = ({ engagement, onSave, onDelete }: EditNoteDialogProps) =
     setEditOpen(open);
     if (open) {
       reset({ details: engagement.details || engagement.summary });
+      setCalls(engagement.activity?.calls || 0);
+      setEmails(engagement.activity?.emails || 0);
     }
   };
 
@@ -124,6 +131,35 @@ const EditNoteDialog = ({ engagement, onSave, onDelete }: EditNoteDialogProps) =
               {errors.details && (
                 <p className="text-xs text-destructive">{errors.details.message}</p>
               )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1 text-xs">
+                  <Phone className="w-3 h-3" /> Calls made
+                </Label>
+                <input
+                  type="number"
+                  min={0}
+                  value={calls || ''}
+                  onChange={(e) => setCalls(Math.max(0, parseInt(e.target.value) || 0))}
+                  placeholder="0"
+                  className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1 text-xs">
+                  <Mail className="w-3 h-3" /> Emails sent
+                </Label>
+                <input
+                  type="number"
+                  min={0}
+                  value={emails || ''}
+                  onChange={(e) => setEmails(Math.max(0, parseInt(e.target.value) || 0))}
+                  placeholder="0"
+                  className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
             </div>
             
             <DialogFooter>
