@@ -4,6 +4,7 @@ export interface OrderModelItem {
   quantity: number;
   modelName: string;
   tierOverride?: number; // Optional manual pricing tier override (0-4)
+  priceOverride?: number; // Optional manual price per unit (overrides tier)
 }
 
 export type OrderType = 'Standard' | 'Sample' | 'Replacement';

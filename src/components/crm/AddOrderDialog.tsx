@@ -45,7 +45,7 @@ const AddOrderDialog = ({
   const [status, setStatus] = useState<Order['status']>('PO/Invoice');
   const [orderType, setOrderType] = useState<OrderType>('Standard');
   const [invoice, setInvoice] = useState('');
-  const [modelItems, setModelItems] = useState<Array<{ modelName: string; quantity: number }>>([
+  const [modelItems, setModelItems] = useState<Array<{ modelName: string; quantity: number; priceOverride?: number }>>([
     { modelName: '', quantity: 1 },
   ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -79,10 +79,12 @@ const AddOrderDialog = ({
     }
   };
 
-  const updateModelItem = (index: number, field: 'modelName' | 'quantity', value: string | number) => {
+  const updateModelItem = (index: number, field: 'modelName' | 'quantity' | 'priceOverride', value: string | number) => {
     const updated = [...modelItems];
     if (field === 'quantity') {
       updated[index].quantity = Math.max(1, Number(value) || 1);
+    } else if (field === 'priceOverride') {
+      updated[index].priceOverride = value === '' ? undefined : Number(value);
     } else {
       updated[index].modelName = value as string;
     }
@@ -122,6 +124,7 @@ const AddOrderDialog = ({
     const orderModelItems: OrderModelItem[] = validItems.map(item => ({
       modelName: item.modelName,
       quantity: item.quantity,
+      priceOverride: item.priceOverride,
     }));
 
     const totalUnits = orderModelItems.reduce((sum, item) => sum + item.quantity, 0);
@@ -271,43 +274,57 @@ const AddOrderDialog = ({
                 Add Item
               </Button>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {modelItems.map((item, index) => (
-                <div key={index} className="flex gap-2 items-center">
-                  <Select
-                    value={item.modelName}
-                    onValueChange={(value) => updateModelItem(index, 'modelName', value)}
-                  >
-                    <SelectTrigger className="flex-1">
-                      <SelectValue placeholder="Select model" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {productModels.map((model) => (
-                        <SelectItem key={model.id} value={model.name}>
-                          {model.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    min="1"
-                    value={item.quantity}
-                    onChange={(e) => updateModelItem(index, 'quantity', e.target.value)}
-                    className="w-20"
-                    placeholder="Qty"
-                  />
-                  {modelItems.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeModelItem(index)}
-                      className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                <div key={index} className="space-y-2 p-3 rounded-lg border bg-muted/30">
+                  <div className="flex gap-2 items-center">
+                    <Select
+                      value={item.modelName}
+                      onValueChange={(value) => updateModelItem(index, 'modelName', value)}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
+                      <SelectTrigger className="flex-1">
+                        <SelectValue placeholder="Select model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {productModels.map((model) => (
+                          <SelectItem key={model.id} value={model.name}>
+                            {model.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min="1"
+                      value={item.quantity}
+                      onChange={(e) => updateModelItem(index, 'quantity', e.target.value)}
+                      className="w-20"
+                      placeholder="Qty"
+                    />
+                    {modelItems.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeModelItem(index)}
+                        className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Price/unit ($)</Label>
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={item.priceOverride !== undefined ? item.priceOverride : ''}
+                      onChange={(e) => updateModelItem(index, 'priceOverride', e.target.value)}
+                      placeholder="Auto from tier"
+                      className="flex-1"
+                    />
+                  </div>
                 </div>
               ))}
             </div>
