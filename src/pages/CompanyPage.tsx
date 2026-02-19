@@ -845,18 +845,13 @@ const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) =
                engagement.type === 'meeting' ? Calendar : FileText;
   
   return (
-    <div className="p-6 hover:bg-muted/30 transition-colors group">
-      <div className="flex items-start gap-4">
-        <div className="w-10 h-10 rounded-xl bg-muted flex items-center justify-center flex-shrink-0">
-          <Icon className="w-5 h-5 text-muted-foreground" />
-        </div>
+    <div className="px-6 py-3 hover:bg-muted/30 transition-colors group">
+      <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground capitalize">
-              {engagement.type}
-            </span>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground font-mono">{engagement.date}</span>
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm">{engagement.details || engagement.summary}</p>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">{engagement.date}</span>
               <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                 <EditNoteDialog 
                   engagement={engagement}
@@ -866,10 +861,6 @@ const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) =
               </div>
             </div>
           </div>
-          <p className="text-sm font-medium">{engagement.summary}</p>
-          {engagement.details && engagement.details !== engagement.summary && (
-            <p className="text-sm text-muted-foreground mt-2 leading-relaxed">{engagement.details}</p>
-          )}
         </div>
       </div>
     </div>
