@@ -1,61 +1,79 @@
 
-## Add Include / Exclude Toggle to Filters
+## Activity Tracker Feature
 
-Currently, checking items in a filter dropdown means "show only these". The goal is to let users switch each filter between **Include** mode (show only selected) and **Exclude** mode (hide selected), per filter.
+### Overview
 
-### Approach
+This feature extends the note-logging system so that each engagement entry can optionally record **quantified activity** — number of emails sent, phone calls made, etc. A new **Activity** tab will display aggregate analytics across all companies: total calls, emails, companies contacted, and trend charts.
 
-Each of the four filter dropdowns (Business Model, Stage, Lead Tier, Product Vertical) will get:
+### Part 1 — Extend the Engagement Data Model
 
-1. A **mode toggle** at the top of the dropdown — two small pill buttons: "Include" and "Exclude".
-2. The filter button badge will change appearance to signal exclusion mode (e.g. a strikethrough style or a different colour like red/orange).
-3. The filtering logic will invert for any filter whose mode is set to "Exclude".
-
-### State Changes — `ProspectsTable.tsx`
-
-Four new state variables tracking the mode per filter (defaulting to `'include'`):
-
+The `Engagement` interface in `src/data/prospects.ts` currently has:
 ```
-typeFilterMode: 'include' | 'exclude'
-stageFilterMode: 'include' | 'exclude'
-leadTierFilterMode: 'include' | 'exclude'
-verticalFilterMode: 'include' | 'exclude'
+id, date, type ('call' | 'email' | 'meeting' | 'note'), summary, details
 ```
 
-These will also be persisted in the URL as query params (e.g. `typeMode=exclude`) so the state survives navigation.
-
-### Filtering Logic Changes
-
-For each filter, the match check becomes:
-
-```
-// Include mode (current behaviour)
-const matchesType = typeFilter.length === 0 || typeFilter.includes(prospect.type);
-
-// Exclude mode (new)
-const matchesType = typeFilter.length === 0 || !typeFilter.includes(prospect.type);
+It will gain an optional `activity` object:
+```typescript
+activity?: {
+  calls?: number;
+  emails?: number;
+}
 ```
 
-The mode variable simply swaps the `||` path.
+This is additive — no existing data is broken. The field is stored inside the `engagements` JSONB column of the `prospects` table, so no database migration is required.
 
-### UI Changes
+### Part 2 — Update the "Quick Note" Panel on Company Page
 
-Inside each dropdown, a mode selector will appear above the list of options:
+The current note input is a plain textarea + "Save Note" button. It will be upgraded to a small form that includes:
 
-```text
-┌──────────────────────────────┐
-│  [  Include  ] [  Exclude  ] │  ← toggle row
-├──────────────────────────────┤
-│ ☑ Residential                │
-│ ☐ Commercial                 │
-│ ☑ Both                       │
-└──────────────────────────────┘
-```
+- The existing note textarea (unchanged)
+- Two compact number spinners side-by-side:
+  - **Calls made** (min 0, optional)
+  - **Emails sent** (min 0, optional)
+- Save button behavior unchanged — both fields are optional so existing workflow is not disrupted
 
-The active filter badge on the button will show differently in exclude mode — e.g. a red/destructive background — so the user can tell at a glance that the filter is hiding rather than showing.
+When saved, the `handleAddNote` function in `src/pages/CompanyPage.tsx` will attach the non-zero values into `engagement.activity`.
 
-### Files to Edit
+The section title will change from "Quick Note" → **"Log Activity"** to match the header button already present.
 
-- **`src/components/crm/ProspectsTable.tsx`** — all state, URL sync, filtering logic, and dropdown UI changes.
+### Part 3 — Update the Edit Note Dialog
 
-No backend or data model changes are needed. The change is entirely in the front-end filtering component.
+`src/components/crm/EditNoteDialog.tsx` will gain the same two number inputs so existing entries can have their call/email counts updated or corrected.
+
+### Part 4 — New Activity Tracker Page
+
+A new component `src/components/crm/ActivityDashboard.tsx` will be created. It reads all prospects from `useProspects()`, flattens their engagements, and computes:
+
+**Summary Cards (top row):**
+| Metric | Derivation |
+|---|---|
+| Total Calls Made | Sum of `engagement.activity.calls` across all engagements |
+| Total Emails Sent | Sum of `engagement.activity.emails` across all engagements |
+| Companies Contacted | Distinct prospect IDs that have ≥1 engagement with any activity |
+| Total Activities | Sum of all calls + emails logged |
+
+**Charts (bottom section):**
+- **Activity over time** — bar chart (weekly or monthly) showing calls vs emails side-by-side using Recharts (same library already used in `OrdersReportingDashboard`)
+- **Activity by Company** — horizontal bar chart ranking top 10 most-contacted companies
+
+### Part 5 — Add Activity Tab to Navigation
+
+The `activity` view ID will be added to:
+
+- `src/components/crm/Sidebar.tsx` — new nav item with `Activity` label and `BarChart2` icon
+- `src/components/crm/MobileNav.tsx` — new bottom nav item
+- `src/pages/Index.tsx` — new case in `renderView()`, `getViewTitle()`, `getViewSubtitle()`
+
+### Files to Create / Edit
+
+| File | Change |
+|---|---|
+| `src/data/prospects.ts` | Add `activity?: { calls?: number; emails?: number }` to `Engagement` interface |
+| `src/pages/CompanyPage.tsx` | Extend `handleAddNote` + Quick Note UI with call/email count inputs |
+| `src/components/crm/EditNoteDialog.tsx` | Add call/email count fields to edit form |
+| `src/components/crm/ActivityDashboard.tsx` | **New** — full activity analytics dashboard |
+| `src/components/crm/Sidebar.tsx` | Add Activity nav item |
+| `src/components/crm/MobileNav.tsx` | Add Activity bottom nav item |
+| `src/pages/Index.tsx` | Wire up new `activity` view |
+
+No backend schema changes are needed. All data is stored within the existing `engagements` JSONB column.
