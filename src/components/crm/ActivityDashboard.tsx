@@ -3,8 +3,8 @@ import { useProspects } from '@/context/ProspectsContext';
 import MetricCard from '@/components/crm/MetricCard';
 import { Phone, Mail, Building2, Activity } from 'lucide-react';
 import {
-  LineChart,
-  Line,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -32,7 +32,7 @@ type Period = 'daily' | 'weekly';
 
 const ActivityDashboard = () => {
   const { prospects } = useProspects();
-  const [period, setPeriod] = useState<Period>('weekly');
+  const [period, setPeriod] = useState<Period>('daily');
 
   // Flatten all engagements with prospect info
   const allEngagements = useMemo(() => {
@@ -144,7 +144,7 @@ const ActivityDashboard = () => {
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={timeChartData} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
+              <BarChart data={timeChartData} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
                 <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} allowDecimals={false} />
@@ -153,25 +153,19 @@ const ActivityDashboard = () => {
                   labelStyle={{ color: 'hsl(var(--foreground))' }}
                 />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
-                <Line
-                  type="monotone"
+                <Bar
                   dataKey="calls"
                   name="Calls"
-                  stroke="hsl(var(--chart-1))"
-                  strokeWidth={2}
-                  dot={{ r: 4, fill: 'hsl(var(--chart-1))' }}
-                  activeDot={{ r: 6 }}
+                  fill="hsl(var(--chart-1))"
+                  radius={[4, 4, 0, 0]}
                 />
-                <Line
-                  type="monotone"
+                <Bar
                   dataKey="emails"
                   name="Emails"
-                  stroke="hsl(var(--chart-2))"
-                  strokeWidth={2}
-                  dot={{ r: 4, fill: 'hsl(var(--chart-2))' }}
-                  activeDot={{ r: 6 }}
+                  fill="hsl(var(--chart-2))"
+                  radius={[4, 4, 0, 0]}
                 />
-              </LineChart>
+              </BarChart>
             </ResponsiveContainer>
           </CardContent>
         </Card>
