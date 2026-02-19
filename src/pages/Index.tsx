@@ -6,6 +6,7 @@ import MobileHeader from '@/components/crm/MobileHeader';
 import ProspectsTable from '@/components/crm/ProspectsTable';
 import OrdersReportingDashboard from '@/components/crm/OrdersReportingDashboard';
 import OrdersTable from '@/components/crm/OrdersTable';
+import ActivityDashboard from '@/components/crm/ActivityDashboard';
 import { Prospect } from '@/data/prospects';
 
 const Index = () => {
@@ -16,7 +17,7 @@ const Index = () => {
   // Handle view query parameter (e.g., /?view=orders)
   useEffect(() => {
     const viewParam = searchParams.get('view');
-    if (viewParam && ['pipeline', 'orders', 'reports'].includes(viewParam)) {
+    if (viewParam && ['pipeline', 'orders', 'reports', 'activity'].includes(viewParam)) {
       setActiveView(viewParam);
     }
     // Support legacy params
@@ -37,6 +38,8 @@ const Index = () => {
         return <OrdersTable />;
       case 'reports':
         return <OrdersReportingDashboard />;
+      case 'activity':
+        return <ActivityDashboard />;
       default:
         return <ProspectsTable onSelectProspect={handleSelectProspect} />;
     }
@@ -44,27 +47,21 @@ const Index = () => {
 
   const getViewTitle = () => {
     switch (activeView) {
-      case 'pipeline':
-        return 'Pipeline';
-      case 'orders':
-        return 'Orders';
-      case 'reports':
-        return 'Reports';
-      default:
-        return 'Pipeline';
+      case 'pipeline': return 'Pipeline';
+      case 'orders': return 'Orders';
+      case 'reports': return 'Reports';
+      case 'activity': return 'Activity Tracker';
+      default: return 'Pipeline';
     }
   };
 
   const getViewSubtitle = () => {
     switch (activeView) {
-      case 'pipeline':
-        return 'Manage and track all your prospects and customers';
-      case 'orders':
-        return 'Track all customer orders and shipments';
-      case 'reports':
-        return 'Revenue analytics and business insights';
-      default:
-        return 'Manage and track all your prospects and customers';
+      case 'pipeline': return 'Manage and track all your prospects and customers';
+      case 'orders': return 'Track all customer orders and shipments';
+      case 'reports': return 'Revenue analytics and business insights';
+      case 'activity': return 'Aggregate call and email activity across all companies';
+      default: return 'Manage and track all your prospects and customers';
     }
   };
 
