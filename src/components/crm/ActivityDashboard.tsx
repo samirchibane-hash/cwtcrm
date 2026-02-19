@@ -3,8 +3,8 @@ import { useProspects } from '@/context/ProspectsContext';
 import MetricCard from '@/components/crm/MetricCard';
 import { Phone, Mail, Building2, Activity } from 'lucide-react';
 import {
-  BarChart,
-  Bar,
+  LineChart,
+  Line,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -17,7 +17,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 // Parse M/D/YYYY or any date string into a Date
 const parseEngagementDate = (dateStr: string): Date | null => {
   if (!dateStr) return null;
-  // Try M/D/YYYY
   const parts = dateStr.split('/');
   if (parts.length === 3) {
     const [month, day, year] = parts.map(Number);
@@ -29,14 +28,11 @@ const parseEngagementDate = (dateStr: string): Date | null => {
   return isNaN(d.getTime()) ? null : d;
 };
 
-const formatMonth = (year: number, month: number) =>
-  new Date(year, month).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
-
-type Period = 'monthly' | 'weekly';
+type Period = 'daily' | 'weekly';
 
 const ActivityDashboard = () => {
   const { prospects } = useProspects();
-  const [period, setPeriod] = useState<Period>('monthly');
+  const [period, setPeriod] = useState<Period>('weekly');
 
   // Flatten all engagements with prospect info
   const allEngagements = useMemo(() => {
@@ -66,20 +62,21 @@ const ActivityDashboard = () => {
 
   // Activity over time chart data
   const timeChartData = useMemo(() => {
-    if (period === 'monthly') {
-      const map = new Map<string, { label: string; year: number; month: number; calls: number; emails: number }>();
+    if (period === 'daily') {
+      const map = new Map<string, { label: string; date: Date; calls: number; emails: number }>();
       allEngagements.forEach(e => {
         const calls = e.activity?.calls || 0;
         const emails = e.activity?.emails || 0;
         if (calls + emails === 0) return;
         const d = parseEngagementDate(e.date);
         if (!d) return;
-        const key = `${d.getFullYear()}-${d.getMonth()}`;
-        const existing = map.get(key) || { label: formatMonth(d.getFullYear(), d.getMonth()), year: d.getFullYear(), month: d.getMonth(), calls: 0, emails: 0 };
+        const key = d.toISOString().slice(0, 10);
+        const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        const existing = map.get(key) || { label, date: d, calls: 0, emails: 0 };
         map.set(key, { ...existing, calls: existing.calls + calls, emails: existing.emails + emails });
       });
       return Array.from(map.values())
-        .sort((a, b) => a.year !== b.year ? a.year - b.year : a.month - b.month)
+        .sort((a, b) => a.date.getTime() - b.date.getTime())
         .map(({ label, calls, emails }) => ({ label, calls, emails }));
     } else {
       // Weekly
@@ -104,26 +101,6 @@ const ActivityDashboard = () => {
     }
   }, [allEngagements, period]);
 
-  // Activity by company (top 10)
-  const companyChartData = useMemo(() => {
-    const map = new Map<string, { company: string; calls: number; emails: number; total: number }>();
-    allEngagements.forEach(e => {
-      const calls = e.activity?.calls || 0;
-      const emails = e.activity?.emails || 0;
-      if (calls + emails === 0) return;
-      const existing = map.get(e.prospectId) || { company: e.companyName, calls: 0, emails: 0, total: 0 };
-      map.set(e.prospectId, {
-        ...existing,
-        calls: existing.calls + calls,
-        emails: existing.emails + emails,
-        total: existing.total + calls + emails,
-      });
-    });
-    return Array.from(map.values())
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10);
-  }, [allEngagements]);
-
   const hasData = totalActivities > 0;
 
   return (
@@ -145,75 +122,59 @@ const ActivityDashboard = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Activity over time */}
-          <Card>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold">Activity Over Time</CardTitle>
-                <div className="flex gap-1 rounded-lg overflow-hidden border border-border">
-                  <button
-                    onClick={() => setPeriod('monthly')}
-                    className={`px-3 py-1 text-xs font-medium transition-colors ${period === 'monthly' ? 'bg-accent text-accent-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
-                  >
-                    Monthly
-                  </button>
-                  <button
-                    onClick={() => setPeriod('weekly')}
-                    className={`px-3 py-1 text-xs font-medium transition-colors ${period === 'weekly' ? 'bg-accent text-accent-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
-                  >
-                    Weekly
-                  </button>
-                </div>
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold">Activity Over Time</CardTitle>
+              <div className="flex gap-1 rounded-lg overflow-hidden border border-border">
+                <button
+                  onClick={() => setPeriod('daily')}
+                  className={`px-3 py-1 text-xs font-medium transition-colors ${period === 'daily' ? 'bg-accent text-accent-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
+                >
+                  Daily
+                </button>
+                <button
+                  onClick={() => setPeriod('weekly')}
+                  className={`px-3 py-1 text-xs font-medium transition-colors ${period === 'weekly' ? 'bg-accent text-accent-foreground' : 'bg-card text-muted-foreground hover:bg-muted'}`}
+                >
+                  Weekly
+                </button>
               </div>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={timeChartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                  <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
-                    labelStyle={{ color: 'hsl(var(--foreground))' }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="calls" name="Calls" fill="hsl(var(--chart-1))" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="emails" name="Emails" fill="hsl(var(--chart-2))" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          {/* Activity by Company */}
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold">Activity by Company (Top 10)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={260}>
-                <BarChart data={companyChartData} layout="vertical" margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                  <XAxis type="number" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} allowDecimals={false} />
-                  <YAxis
-                    type="category"
-                    dataKey="company"
-                    width={110}
-                    tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
-                    tickFormatter={(v: string) => v.length > 14 ? v.slice(0, 13) + '…' : v}
-                  />
-                  <Tooltip
-                    contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
-                    labelStyle={{ color: 'hsl(var(--foreground))' }}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="calls" name="Calls" fill="hsl(var(--chart-1))" radius={[0, 4, 4, 0]} stackId="a" />
-                  <Bar dataKey="emails" name="Emails" fill="hsl(var(--chart-2))" radius={[0, 4, 4, 0]} stackId="a" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={timeChartData} margin={{ top: 4, right: 16, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                <YAxis tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} allowDecimals={false} />
+                <Tooltip
+                  contentStyle={{ background: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 12 }}
+                  labelStyle={{ color: 'hsl(var(--foreground))' }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Line
+                  type="monotone"
+                  dataKey="calls"
+                  name="Calls"
+                  stroke="hsl(var(--chart-1))"
+                  strokeWidth={2}
+                  dot={{ r: 4, fill: 'hsl(var(--chart-1))' }}
+                  activeDot={{ r: 6 }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="emails"
+                  name="Emails"
+                  stroke="hsl(var(--chart-2))"
+                  strokeWidth={2}
+                  dot={{ r: 4, fill: 'hsl(var(--chart-2))' }}
+                  activeDot={{ r: 6 }}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
