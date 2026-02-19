@@ -3,6 +3,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown } from 'lucide-react';
 import { useProspects } from '@/context/ProspectsContext';
 import { Prospect, COMPANY_TYPES, PIPELINE_STAGES, LEAD_TIERS } from '@/data/prospects';
+import { useProductVerticals } from '@/hooks/useProductVerticals';
 import { getProspectLastContactLabel, getProspectLastContactSortValue } from '@/lib/prospect-last-contact';
 import StageBadge from './StageBadge';
 import TypeBadge from './TypeBadge';
@@ -43,6 +44,10 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     const val = searchParams.get('tier');
     return val ? val.split(',') : [];
   });
+  const [verticalFilter, setVerticalFilter] = useState<string[]>(() => {
+    const val = searchParams.get('vertical');
+    return val ? val.split(',') : [];
+  });
   const [sortField, setSortField] = useState<SortField | null>(() => {
     const field = searchParams.get('sortField');
     if (field && ['companyName', 'contacts', 'state', 'type', 'leadTier', 'stage', 'lastContact'].includes(field)) {
@@ -73,6 +78,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     
     if (leadTierFilter.length > 0) newParams.set('tier', leadTierFilter.join(','));
     else newParams.delete('tier');
+
+    if (verticalFilter.length > 0) newParams.set('vertical', verticalFilter.join(','));
+    else newParams.delete('vertical');
     
     if (sortField && sortDirection) {
       newParams.set('sortField', sortField);
@@ -84,7 +92,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     if (newParams.toString() !== searchParams.toString()) {
       setSearchParams(newParams, { replace: true });
     }
-  }, [searchQuery, typeFilter, stageFilter, leadTierFilter, sortField, sortDirection, searchParams, setSearchParams]);
+  }, [searchQuery, typeFilter, stageFilter, leadTierFilter, verticalFilter, sortField, sortDirection, searchParams, setSearchParams]);
 
   // Filter options: merge static constants with any custom stages present in actual data
   const types = COMPANY_TYPES.filter(t => t !== '');
@@ -96,6 +104,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     return merged;
   }, [prospects]);
   const leadTiers = LEAD_TIERS;
+  const { allVerticals } = useProductVerticals();
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -128,8 +137,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         stageFilter.some(s => prospect.stage.toLowerCase().includes(s.toLowerCase()));
 
       const matchesLeadTier = leadTierFilter.length === 0 || leadTierFilter.includes(prospect.leadTier);
+      const matchesVertical = verticalFilter.length === 0 || verticalFilter.includes(prospect.marketType || '');
 
-      return matchesSearch && matchesType && matchesStage && matchesLeadTier;
+      return matchesSearch && matchesType && matchesStage && matchesLeadTier && matchesVertical;
     });
 
     if (sortField && sortDirection) {
@@ -175,7 +185,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     }
 
     return result;
-  }, [prospects, searchQuery, typeFilter, stageFilter, leadTierFilter, sortField, sortDirection]);
+  }, [prospects, searchQuery, typeFilter, stageFilter, leadTierFilter, verticalFilter, sortField, sortDirection]);
 
   const handleRowClick = (prospect: Prospect) => {
     const prospectIds = filteredAndSortedProspects.map(p => p.id);
@@ -294,6 +304,36 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   }}
                 >
                   {tier}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
+                <Filter className="w-4 h-4" />
+                Product Vertical
+                {verticalFilter.length > 0 && (
+                  <span className="bg-accent text-accent-foreground text-xs px-1.5 rounded-full">
+                    {verticalFilter.length}
+                  </span>
+                )}
+                <ChevronDown className="w-4 h-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="rounded-xl">
+              {allVerticals.map((vertical) => (
+                <DropdownMenuCheckboxItem
+                  key={vertical}
+                  checked={verticalFilter.includes(vertical)}
+                  onCheckedChange={(checked) => {
+                    setVerticalFilter(prev =>
+                      checked ? [...prev, vertical] : prev.filter(v => v !== vertical)
+                    );
+                  }}
+                >
+                  {vertical}
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>
