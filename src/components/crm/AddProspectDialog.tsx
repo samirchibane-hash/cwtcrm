@@ -21,7 +21,10 @@ import {
 } from '@/components/ui/select';
 import { useProspects } from '@/context/ProspectsContext';
 import { useToast } from '@/hooks/use-toast';
+import { useProductVerticals } from '@/hooks/useProductVerticals';
 import { CompanyType, MarketType, LeadTier, PIPELINE_STAGES, COMPANY_TYPES, LEAD_TIERS, getStageColor } from '@/data/prospects';
+
+const ADD_NEW_VALUE = '__add_new__';
 
 interface AddProspectDialogProps {
   defaultType?: CompanyType;
@@ -32,15 +35,18 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
   const [companyName, setCompanyName] = useState('');
   const [state, setState] = useState('');
   const [type, setType] = useState<CompanyType | ''>(defaultType || '');
-  const [marketType, setMarketType] = useState<MarketType | ''>('');
+  const [marketType, setMarketType] = useState<string>('');
   const [leadTier, setLeadTier] = useState<LeadTier | ''>('');
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [linkedIn, setLinkedIn] = useState('');
   const [website, setWebsite] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showNewVerticalInput, setShowNewVerticalInput] = useState(false);
+  const [newVertical, setNewVertical] = useState('');
 
   const { addProspect } = useProspects();
   const { toast } = useToast();
+  const { allVerticals, addVertical } = useProductVerticals();
 
   const addStage = (stage: string) => {
     if (!selectedStages.includes(stage)) {
@@ -70,7 +76,7 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
       state: state.trim(),
       zip: '',
       type: type || '',
-      marketType: marketType || '',
+      marketType: (marketType || '') as MarketType,
       leadTier: leadTier || '',
       stage: selectedStages.length > 0 ? selectedStages.join(', ') : 'Contact Made',
       lastContact: new Date().toLocaleDateString('en-US'),
@@ -151,16 +157,64 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
           <div className="grid grid-cols-2 gap-4">
             <div className="grid gap-2">
               <Label htmlFor="marketType">Product Vertical</Label>
-              <Select value={marketType} onValueChange={(value) => setMarketType(value as MarketType)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select vertical" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Residential">Residential</SelectItem>
-                  <SelectItem value="Commercial">Commercial</SelectItem>
-                  <SelectItem value="Both">Both</SelectItem>
-                </SelectContent>
-              </Select>
+              {showNewVerticalInput ? (
+                <div className="flex gap-1">
+                  <Input
+                    value={newVertical}
+                    onChange={(e) => setNewVertical(e.target.value)}
+                    placeholder="New vertical name"
+                    className="flex-1"
+                    autoFocus
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (newVertical.trim()) {
+                          const added = addVertical(newVertical);
+                          setMarketType(added);
+                          setNewVertical('');
+                          setShowNewVerticalInput(false);
+                        }
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    type="button"
+                    onClick={() => {
+                      if (newVertical.trim()) {
+                        const added = addVertical(newVertical);
+                        setMarketType(added);
+                        setNewVertical('');
+                        setShowNewVerticalInput(false);
+                      }
+                    }}
+                  >Add</Button>
+                  <Button size="sm" variant="outline" type="button" onClick={() => { setShowNewVerticalInput(false); setNewVertical(''); }}>✕</Button>
+                </div>
+              ) : (
+                <Select value={marketType} onValueChange={(value) => {
+                  if (value === ADD_NEW_VALUE) {
+                    setShowNewVerticalInput(true);
+                  } else {
+                    setMarketType(value);
+                  }
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select vertical" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {allVerticals.map((v) => (
+                      <SelectItem key={v} value={v}>{v}</SelectItem>
+                    ))}
+                    <SelectItem value={ADD_NEW_VALUE} className="text-accent">
+                      <span className="flex items-center gap-2">
+                        <Plus className="w-3 h-3" />
+                        Add new vertical...
+                      </span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div className="grid gap-2">
               <Label>Lead Tier</Label>
