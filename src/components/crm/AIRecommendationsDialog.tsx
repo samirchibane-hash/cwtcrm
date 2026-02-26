@@ -3,8 +3,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sparkles, Plus, ExternalLink, Loader2 } from "lucide-react";
 import { useProspects } from "@/context/ProspectsContext";
+import { useProductVerticals } from "@/hooks/useProductVerticals";
 import TypeBadge from "./TypeBadge";
 import MarketTypeBadge from "./MarketTypeBadge";
 import { toast } from "sonner";
@@ -29,7 +31,9 @@ export function AIRecommendationsDialog() {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AIResponse | null>(null);
+  const [selectedVertical, setSelectedVertical] = useState<string>("all");
   const { prospects, addProspect } = useProspects();
+  const { allVerticals } = useProductVerticals();
 
   const fetchRecommendations = async () => {
     setLoading(true);
@@ -44,7 +48,7 @@ export function AIRecommendationsDialog() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-          body: JSON.stringify({ prospects }),
+          body: JSON.stringify({ prospects, targetVertical: selectedVertical !== "all" ? selectedVertical : undefined }),
         }
       );
 
@@ -105,11 +109,25 @@ export function AIRecommendationsDialog() {
         </DialogHeader>
 
         {!result && !loading && (
-          <div className="flex flex-col items-center justify-center py-12 gap-4">
+          <div className="flex flex-col items-center justify-center py-12 gap-6">
             <p className="text-muted-foreground text-center max-w-md">
               Our AI will analyze your {prospects.length} existing prospects and recommend new companies 
               that match your target market and customer profile.
             </p>
+            <div className="w-full max-w-xs space-y-2">
+              <label className="text-sm font-medium text-foreground">Target Product Vertical</label>
+              <Select value={selectedVertical} onValueChange={setSelectedVertical}>
+                <SelectTrigger>
+                  <SelectValue placeholder="All Verticals" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Verticals</SelectItem>
+                  {allVerticals.map((v) => (
+                    <SelectItem key={v} value={v}>{v}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <Button onClick={fetchRecommendations} size="lg" className="gap-2">
               <Sparkles className="h-4 w-4" />
               Generate Recommendations
@@ -205,7 +223,21 @@ export function AIRecommendationsDialog() {
               </div>
 
               {/* Regenerate Button */}
-              <div className="pt-4 flex justify-center">
+              <div className="pt-4 flex flex-col items-center gap-3">
+                <div className="w-full max-w-xs space-y-2">
+                  <label className="text-sm font-medium text-foreground">Target Product Vertical</label>
+                  <Select value={selectedVertical} onValueChange={setSelectedVertical}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All Verticals" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Verticals</SelectItem>
+                      {allVerticals.map((v) => (
+                        <SelectItem key={v} value={v}>{v}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <Button variant="outline" onClick={fetchRecommendations} className="gap-2">
                   <Sparkles className="h-4 w-4" />
                   Generate New Recommendations
