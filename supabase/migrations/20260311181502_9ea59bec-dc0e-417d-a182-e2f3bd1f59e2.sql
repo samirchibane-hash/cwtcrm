@@ -1,0 +1,1 @@
+UPDATE public.prospects SET lead_tier = '' WHERE lead_tier IN ('Prospect', 'Long-term');

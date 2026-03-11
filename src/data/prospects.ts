@@ -34,7 +34,7 @@ export type MarketType =
   | 'Commercial'
   | '';
 
-export type LeadTier = 'VIP' | 'Prospect' | 'Long-term' | 'Customer' | 'Indirect Customer' | '';
+export type LeadTier = 'VIP' | 'Customer' | 'Indirect Customer' | '';
 
 export const COMPANY_TYPES: CompanyType[] = ['OEM', 'Distributor', 'eCommerce', 'Installer'];
 
@@ -50,7 +50,7 @@ export const MARKET_TYPES: MarketType[] = [
   'Commercial',
 ];
 
-export const LEAD_TIERS: LeadTier[] = ['VIP', 'Customer', 'Indirect Customer', 'Prospect', 'Long-term'];
+export const LEAD_TIERS: LeadTier[] = ['VIP', 'Customer', 'Indirect Customer'];
 
 export interface Prospect {
   id: string;
@@ -195,8 +195,6 @@ export const getTypeColor = (type: string): { bg: string; text: string } => {
 export const getLeadTierColor = (tier: string): { bg: string; text: string } => {
   switch (tier) {
     case 'VIP': return { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-800 dark:text-amber-300' };
-    case 'Prospect': return { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-800 dark:text-blue-300' };
-    case 'Long-term': return { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-800 dark:text-emerald-300' };
     case 'Customer': return { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-800 dark:text-purple-300' };
     case 'Indirect Customer': return { bg: 'bg-pink-100 dark:bg-pink-900/30', text: 'text-pink-800 dark:text-pink-300' };
     default: return { bg: 'bg-muted', text: 'text-muted-foreground' };
