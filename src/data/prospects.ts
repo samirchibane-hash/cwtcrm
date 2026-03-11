@@ -34,7 +34,7 @@ export type MarketType =
   | 'Commercial'
   | '';
 
-export type LeadTier = 'VIP' | 'Prospect' | 'Long-term' | 'Customer' | 'Indirect Customer' | '';
+export type LeadTier = 'VIP' | 'Customer' | 'Indirect Customer' | '';
 
 export const COMPANY_TYPES: CompanyType[] = ['OEM', 'Distributor', 'eCommerce', 'Installer'];
 
@@ -50,7 +50,7 @@ export const MARKET_TYPES: MarketType[] = [
   'Commercial',
 ];
 
-export const LEAD_TIERS: LeadTier[] = ['VIP', 'Customer', 'Indirect Customer', 'Prospect', 'Long-term'];
+export const LEAD_TIERS: LeadTier[] = ['VIP', 'Customer', 'Indirect Customer'];
 
 export interface Prospect {
   id: string;
