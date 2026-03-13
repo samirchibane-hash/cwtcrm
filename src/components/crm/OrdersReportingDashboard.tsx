@@ -204,6 +204,11 @@ const OrdersReportingDashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* Date Range Filter */}
+      <div className="flex justify-end">
+        <DateRangeFilter value={dateRange} onChange={setDateRange} />
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-gradient-to-br from-stage-closed/10 to-transparent border-stage-closed/20">
