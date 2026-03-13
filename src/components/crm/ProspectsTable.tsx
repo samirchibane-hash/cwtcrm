@@ -537,21 +537,6 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                 <td className="p-4 text-sm font-mono text-muted-foreground">
                   {getProspectLastContactLabel(prospect) || '—'}
                 </td>
-                <td className="p-4">
-                  {prospect.linkedIn ? (
-                    <a 
-                      href={prospect.linkedIn} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
-                      className="text-accent hover:text-accent/80 transition-colors"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                  ) : (
-                    <span className="text-muted-foreground text-sm">—</span>
-                  )}
-                </td>
               </tr>
             ))}
           </tbody>
