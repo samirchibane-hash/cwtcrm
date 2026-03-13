@@ -116,7 +116,7 @@ const OrdersReportingDashboard = () => {
   const revenueByProduct = useMemo(() => {
     const productMap = new Map<string, { revenue: number; units: number }>();
     
-    orders.forEach(order => {
+    filteredOrders.forEach(order => {
       order.modelItems.forEach(item => {
         const key = item.modelName;
         const existing = productMap.get(key) || { revenue: 0, units: 0 };
