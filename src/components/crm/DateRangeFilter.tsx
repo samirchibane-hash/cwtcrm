@@ -73,7 +73,7 @@ const DateRangeFilter = ({ value, onChange }: DateRangeFilterProps) => {
                   setOpen(false);
                 }}
                 className={cn(
-                  'w-full text-left px-2 py-1 rounded text-xs transition-colors',
+                  'w-full text-left px-1.5 py-0.5 rounded text-[11px] whitespace-nowrap transition-colors',
                   activePreset === preset.label
                     ? 'bg-accent text-accent-foreground font-medium'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
