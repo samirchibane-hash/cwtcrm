@@ -1,6 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown, Download, X } from 'lucide-react';
+import { format } from 'date-fns';
+import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown, Download, X, CalendarIcon } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 import { exportToCSV } from '@/lib/export-csv';
 import { useProspects } from '@/context/ProspectsContext';
 import { Prospect, COMPANY_TYPES, PIPELINE_STAGES, LEAD_TIERS } from '@/data/prospects';
