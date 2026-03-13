@@ -1,11 +1,14 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown, Download, X } from 'lucide-react';
+import { format } from 'date-fns';
+import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown, Download, X, CalendarIcon } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { cn } from '@/lib/utils';
 import { exportToCSV } from '@/lib/export-csv';
 import { useProspects } from '@/context/ProspectsContext';
 import { Prospect, COMPANY_TYPES, PIPELINE_STAGES, LEAD_TIERS } from '@/data/prospects';
 import { useProductVerticals } from '@/hooks/useProductVerticals';
-import { getProspectLastContactLabel, getProspectLastContactSortValue } from '@/lib/prospect-last-contact';
+import { getProspectLastContactLabel, getProspectLastContactSortValue, getProspectLastContactDate } from '@/lib/prospect-last-contact';
 import StageBadge from './StageBadge';
 import TypeBadge from './TypeBadge';
 import LeadTierBadge from './LeadTierBadge';
@@ -171,6 +174,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const [verticalFilterMode, setVerticalFilterMode] = useState<'include' | 'exclude'>(() =>
     searchParams.get('verticalMode') === 'exclude' ? 'exclude' : 'include'
   );
+  const [lastContactFrom, setLastContactFrom] = useState<Date | undefined>(undefined);
+  const [lastContactTo, setLastContactTo] = useState<Date | undefined>(undefined);
+  const [lastContactCalendarOpen, setLastContactCalendarOpen] = useState<'from' | 'to' | null>(null);
   const [sortField, setSortField] = useState<SortField | null>(() => {
     const field = searchParams.get('sortField');
     if (field && ['companyName', 'contacts', 'state', 'type', 'leadTier', 'stage', 'lastContact'].includes(field)) {
@@ -241,7 +247,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const leadTiers = LEAD_TIERS;
   const { allVerticals } = useProductVerticals();
 
-  const totalActiveFilters = typeFilter.length + stageFilter.length + leadTierFilter.length + verticalFilter.length;
+  const hasLastContactFilter = lastContactFrom !== undefined || lastContactTo !== undefined;
+  const totalActiveFilters = typeFilter.length + stageFilter.length + leadTierFilter.length + verticalFilter.length + (hasLastContactFilter ? 1 : 0);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -285,7 +292,22 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         verticalFilterMode === 'include' ? verticalFilter.includes(prospect.marketType || '') : !verticalFilter.includes(prospect.marketType || '')
       );
 
-      return matchesSearch && matchesType && matchesStage && matchesLeadTier && matchesVertical;
+      let matchesLastContact = true;
+      if (lastContactFrom || lastContactTo) {
+        const lastContactDate = getProspectLastContactDate(prospect);
+        if (!lastContactDate) {
+          matchesLastContact = false;
+        } else {
+          if (lastContactFrom && lastContactDate < lastContactFrom) matchesLastContact = false;
+          if (lastContactTo) {
+            const endOfDay = new Date(lastContactTo);
+            endOfDay.setHours(23, 59, 59, 999);
+            if (lastContactDate > endOfDay) matchesLastContact = false;
+          }
+        }
+      }
+
+      return matchesSearch && matchesType && matchesStage && matchesLeadTier && matchesVertical && matchesLastContact;
     });
 
     if (sortField && sortDirection) {
@@ -331,7 +353,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     }
 
     return result;
-  }, [prospects, searchQuery, typeFilter, stageFilter, leadTierFilter, verticalFilter, typeFilterMode, stageFilterMode, leadTierFilterMode, verticalFilterMode, sortField, sortDirection]);
+  }, [prospects, searchQuery, typeFilter, stageFilter, leadTierFilter, verticalFilter, typeFilterMode, stageFilterMode, leadTierFilterMode, verticalFilterMode, lastContactFrom, lastContactTo, sortField, sortDirection]);
 
   const handleRowClick = (prospect: Prospect) => {
     const prospectIds = filteredAndSortedProspects.map(p => p.id);
@@ -392,6 +414,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                       setStageFilterMode('include');
                       setLeadTierFilterMode('include');
                       setVerticalFilterMode('include');
+                      setLastContactFrom(undefined);
+                      setLastContactTo(undefined);
                     }}
                     className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                   >
@@ -436,6 +460,55 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   mode={verticalFilterMode}
                   onModeChange={setVerticalFilterMode}
                 />
+                {/* Last Contact Date Range */}
+                <div className="p-3 space-y-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Last Contact</span>
+                  <div className="flex items-center gap-2">
+                    <Popover open={lastContactCalendarOpen === 'from'} onOpenChange={(open) => setLastContactCalendarOpen(open ? 'from' : null)}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className={cn("flex-1 justify-start text-left text-xs h-8", !lastContactFrom && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-1 h-3 w-3" />
+                          {lastContactFrom ? format(lastContactFrom, 'MM/dd/yyyy') : 'From'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start" side="bottom">
+                        <Calendar
+                          mode="single"
+                          selected={lastContactFrom}
+                          onSelect={(date) => { setLastContactFrom(date ?? undefined); setLastContactCalendarOpen(null); }}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <span className="text-xs text-muted-foreground">–</span>
+                    <Popover open={lastContactCalendarOpen === 'to'} onOpenChange={(open) => setLastContactCalendarOpen(open ? 'to' : null)}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className={cn("flex-1 justify-start text-left text-xs h-8", !lastContactTo && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-1 h-3 w-3" />
+                          {lastContactTo ? format(lastContactTo, 'MM/dd/yyyy') : 'To'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start" side="bottom">
+                        <Calendar
+                          mode="single"
+                          selected={lastContactTo}
+                          onSelect={(date) => { setLastContactTo(date ?? undefined); setLastContactCalendarOpen(null); }}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  {hasLastContactFilter && (
+                    <button
+                      onClick={() => { setLastContactFrom(undefined); setLastContactTo(undefined); }}
+                      className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Clear dates
+                    </button>
+                  )}
+                </div>
               </div>
             </PopoverContent>
           </Popover>
