@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown, Download } from 'lucide-react';
+import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown, Download, X } from 'lucide-react';
 import { exportToCSV } from '@/lib/export-csv';
 import { useProspects } from '@/context/ProspectsContext';
 import { Prospect, COMPANY_TYPES, PIPELINE_STAGES, LEAD_TIERS } from '@/data/prospects';
@@ -10,12 +10,8 @@ import StageBadge from './StageBadge';
 import TypeBadge from './TypeBadge';
 import LeadTierBadge from './LeadTierBadge';
 import { Input } from '@/components/ui/input';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuCheckboxItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import AddProspectDialog from './AddProspectDialog';
 import { AIRecommendationsDialog } from './AIRecommendationsDialog';
