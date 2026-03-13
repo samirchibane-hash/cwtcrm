@@ -2,6 +2,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { Link, useLocation, useSearchParams, useNavigate } from 'react-router-dom';
 import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink, ChevronUp, ChevronDown, ArrowUpDown, Download } from 'lucide-react';
 import { exportToCSV } from '@/lib/export-csv';
+import { parseDateLoose } from '@/lib/date';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -126,8 +127,8 @@ const OrdersTable = () => {
             bVal = b.customer.toLowerCase();
             break;
           case 'placed':
-            aVal = a.placed || '';
-            bVal = b.placed || '';
+            aVal = parseDateLoose(a.placed)?.getTime() ?? 0;
+            bVal = parseDateLoose(b.placed)?.getTime() ?? 0;
             break;
           case 'units':
             aVal = a.units;
