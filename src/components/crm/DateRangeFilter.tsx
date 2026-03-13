@@ -64,7 +64,7 @@ const DateRangeFilter = ({ value, onChange }: DateRangeFilterProps) => {
       <PopoverContent className="w-auto p-0" align="end">
         <div className="flex">
           {/* Presets sidebar */}
-          <div className="border-r py-1 px-1 w-fit">
+          <div className="border-r py-1 px-1 flex flex-col">
             {PRESETS.map((preset) => (
               <button
                 key={preset.label}
@@ -73,7 +73,7 @@ const DateRangeFilter = ({ value, onChange }: DateRangeFilterProps) => {
                   setOpen(false);
                 }}
                 className={cn(
-                  'w-fit text-left px-1.5 py-0.5 rounded text-[11px] whitespace-nowrap transition-colors',
+                  'text-left px-1.5 py-0.5 rounded text-[11px] whitespace-nowrap transition-colors',
                   activePreset === preset.label
                     ? 'bg-accent text-accent-foreground font-medium'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
