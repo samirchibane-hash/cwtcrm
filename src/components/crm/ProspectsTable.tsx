@@ -8,7 +8,7 @@ import { exportToCSV } from '@/lib/export-csv';
 import { useProspects } from '@/context/ProspectsContext';
 import { Prospect, COMPANY_TYPES, PIPELINE_STAGES, LEAD_TIERS } from '@/data/prospects';
 import { useProductVerticals } from '@/hooks/useProductVerticals';
-import { getProspectLastContactLabel, getProspectLastContactSortValue } from '@/lib/prospect-last-contact';
+import { getProspectLastContactLabel, getProspectLastContactSortValue, getProspectLastContactDate } from '@/lib/prospect-last-contact';
 import StageBadge from './StageBadge';
 import TypeBadge from './TypeBadge';
 import LeadTierBadge from './LeadTierBadge';
