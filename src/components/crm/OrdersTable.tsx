@@ -269,14 +269,11 @@ const OrdersTable = () => {
         <Table>
           <TableHeader>
             <TableRow className="bg-muted/50">
-              <TableHead className="font-semibold cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('id')}>
-                <span className="flex items-center">Order{getSortIcon('id')}</span>
+              <TableHead className="font-semibold cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('placed')}>
+                <span className="flex items-center">Date Placed{getSortIcon('placed')}</span>
               </TableHead>
               <TableHead className="font-semibold cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('customer')}>
                 <span className="flex items-center">Customer{getSortIcon('customer')}</span>
-              </TableHead>
-              <TableHead className="font-semibold cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('placed')}>
-                <span className="flex items-center">Date Placed{getSortIcon('placed')}</span>
               </TableHead>
               <TableHead className="font-semibold text-center cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('units')}>
                 <span className="flex items-center justify-center">Units{getSortIcon('units')}</span>
@@ -296,23 +293,19 @@ const OrdersTable = () => {
           </TableHeader>
           <TableBody>
             {filteredAndSortedOrders.map((order) => (
-              <TableRow key={order.id} className="hover:bg-muted/30 transition-colors group">
-                <TableCell>
-                  <Link
-                    to={`/order/${order.id}`}
-                    state={{ from: `${location.pathname}${location.search}` }}
-                    className="font-medium text-accent hover:underline flex items-center gap-1.5"
-                  >
-                    #{order.id}
-                    <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                  </Link>
-                </TableCell>
+              <TableRow 
+                key={order.id} 
+                className="hover:bg-muted/30 transition-colors group cursor-pointer"
+                onClick={() => navigate(`/order/${order.id}`, { state: { from: `${location.pathname}${location.search}` } })}
+              >
+                <TableCell className="text-muted-foreground">{order.placed}</TableCell>
                 <TableCell className="font-medium">
                   {order.companyId ? (
                     <Link 
                       to={`/company/${order.companyId}`}
                       state={{ from: `${location.pathname}${location.search}` }}
                       className="flex items-center gap-1.5 text-foreground hover:text-accent transition-colors"
+                      onClick={(e) => e.stopPropagation()}
                     >
                       <Building2 className="w-3.5 h-3.5 text-muted-foreground" />
                       {order.customer}
@@ -324,7 +317,6 @@ const OrdersTable = () => {
                     </span>
                   )}
                 </TableCell>
-                <TableCell className="text-muted-foreground">{order.placed}</TableCell>
                 <TableCell className="text-center">
                   <Badge variant="outline" className="font-mono">
                     {order.units}
