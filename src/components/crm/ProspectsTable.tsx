@@ -177,7 +177,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const [lastContactFrom, setLastContactFrom] = useState<Date | undefined>(undefined);
   const [lastContactTo, setLastContactTo] = useState<Date | undefined>(undefined);
   const [lastContactCalendarOpen, setLastContactCalendarOpen] = useState<'from' | 'to' | null>(null);
-
+  const [sortField, setSortField] = useState<SortField | null>(() => {
     const field = searchParams.get('sortField');
     if (field && ['companyName', 'contacts', 'state', 'type', 'leadTier', 'stage', 'lastContact'].includes(field)) {
       return field as SortField;
