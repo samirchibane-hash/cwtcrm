@@ -23,6 +23,88 @@ interface ProspectsTableProps {
 type SortField = 'companyName' | 'contacts' | 'state' | 'type' | 'leadTier' | 'stage' | 'lastContact';
 type SortDirection = 'asc' | 'desc' | null;
 
+interface ExportColumn {
+  key: string;
+  label: string;
+  getValue: (p: Prospect) => string;
+}
+
+const EXPORT_COLUMNS: ExportColumn[] = [
+  { key: 'company', label: 'Company', getValue: p => p.companyName },
+  { key: 'state', label: 'State', getValue: p => p.state || '' },
+  { key: 'type', label: 'Business Model', getValue: p => p.type || '' },
+  { key: 'marketType', label: 'Product Vertical', getValue: p => p.marketType || '' },
+  { key: 'leadTier', label: 'Lead Tier', getValue: p => p.leadTier || '' },
+  { key: 'stage', label: 'Stage', getValue: p => p.stage || '' },
+  { key: 'lastContact', label: 'Last Contact', getValue: p => p.lastContact || '' },
+  { key: 'contacts', label: 'Contacts', getValue: p => (p.contacts || []).map(c => `${c.name} (${c.email || ''})`).join('; ') },
+  { key: 'website', label: 'Website', getValue: p => p.website || '' },
+  { key: 'linkedIn', label: 'LinkedIn', getValue: p => p.linkedIn || '' },
+  { key: 'street', label: 'Street', getValue: p => p.street || '' },
+  { key: 'city', label: 'City', getValue: p => p.city || '' },
+  { key: 'zip', label: 'Zip', getValue: p => p.zip || '' },
+  { key: 'country', label: 'Country', getValue: p => p.country || '' },
+  { key: 'notes', label: 'Notes', getValue: p => p.engagementNotes || '' },
+];
+
+const DEFAULT_EXPORT_KEYS = ['company', 'state', 'type', 'marketType', 'leadTier', 'stage', 'lastContact', 'contacts', 'website', 'linkedIn'];
+
+const ExportColumnsPopover = ({ data }: { data: Prospect[] }) => {
+  const [selectedKeys, setSelectedKeys] = useState<string[]>(DEFAULT_EXPORT_KEYS);
+
+  const toggleKey = (key: string, checked: boolean) => {
+    setSelectedKeys(prev => checked ? [...prev, key] : prev.filter(k => k !== key));
+  };
+
+  const handleExport = () => {
+    const cols = EXPORT_COLUMNS.filter(c => selectedKeys.includes(c.key));
+    const headers = cols.map(c => c.label);
+    const rows = data.map(p => cols.map(c => c.getValue(p)));
+    exportToCSV(`prospects-${new Date().toISOString().slice(0, 10)}`, headers, rows);
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
+          <Download className="h-4 w-4" />
+          <span className="hidden sm:inline">Export</span>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-64 p-0 rounded-xl" sideOffset={8}>
+        <div className="p-3 border-b border-border flex items-center justify-between">
+          <span className="text-sm font-semibold">Export Columns</span>
+          <button
+            onClick={() => setSelectedKeys(
+              selectedKeys.length === EXPORT_COLUMNS.length ? DEFAULT_EXPORT_KEYS : EXPORT_COLUMNS.map(c => c.key)
+            )}
+            className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            {selectedKeys.length === EXPORT_COLUMNS.length ? 'Reset' : 'Select all'}
+          </button>
+        </div>
+        <div className="max-h-[50vh] overflow-y-auto p-2 space-y-0.5">
+          {EXPORT_COLUMNS.map(col => (
+            <label key={col.key} className="flex items-center gap-2 text-sm py-1.5 px-2 rounded hover:bg-muted/50 cursor-pointer">
+              <Checkbox
+                checked={selectedKeys.includes(col.key)}
+                onCheckedChange={(checked) => toggleKey(col.key, !!checked)}
+              />
+              <span>{col.label}</span>
+            </label>
+          ))}
+        </div>
+        <div className="p-2 border-t border-border">
+          <Button size="sm" className="w-full" onClick={handleExport} disabled={selectedKeys.length === 0}>
+            <Download className="h-4 w-4 mr-1" />
+            Export {data.length} rows
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+};
+
 interface FilterSectionProps {
   label: string;
   items: string[];
@@ -358,29 +440,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
             </PopoverContent>
           </Popover>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              const headers = ['Company', 'State', 'Type', 'Market Type', 'Lead Tier', 'Stage', 'Last Contact', 'Contacts', 'Website', 'LinkedIn'];
-              const rows = filteredAndSortedProspects.map(p => [
-                p.companyName,
-                p.state || '',
-                p.type || '',
-                p.marketType || '',
-                p.leadTier || '',
-                p.stage || '',
-                p.lastContact || '',
-                (p.contacts || []).map(c => `${c.name} (${c.email || ''})`).join('; '),
-                p.website || '',
-                p.linkedIn || '',
-              ]);
-              exportToCSV(`prospects-${new Date().toISOString().slice(0, 10)}`, headers, rows);
-            }}
-          >
-            <Download className="h-4 w-4" />
-            <span className="hidden sm:inline">Export</span>
-          </Button>
+          <ExportColumnsPopover data={filteredAndSortedProspects} />
           <AIRecommendationsDialog />
           <AddProspectDialog />
         </div>
