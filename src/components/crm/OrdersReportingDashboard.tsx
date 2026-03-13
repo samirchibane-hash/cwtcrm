@@ -159,7 +159,7 @@ const OrdersReportingDashboard = () => {
       }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10); // Top 10 customers
-  }, [orders]);
+  }, [filteredOrders]);
 
   // Summary stats
   const summaryStats = useMemo(() => {
