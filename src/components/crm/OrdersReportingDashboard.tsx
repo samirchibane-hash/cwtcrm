@@ -50,6 +50,23 @@ const COLORS = [
 
 const OrdersReportingDashboard = () => {
   const { orders } = useOrders();
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+
+  // Filter orders by date range
+  const filteredOrders = useMemo(() => {
+    if (!dateRange.from && !dateRange.to) return orders;
+    return orders.filter(order => {
+      const date = parseDate(order.placed);
+      if (!date) return false;
+      if (dateRange.from && date < dateRange.from) return false;
+      if (dateRange.to) {
+        const endOfDay = new Date(dateRange.to);
+        endOfDay.setHours(23, 59, 59, 999);
+        if (date > endOfDay) return false;
+      }
+      return true;
+    });
+  }, [orders, dateRange]);
 
   // Revenue by month - show all months between first and last order
   const revenueByMonth = useMemo(() => {
