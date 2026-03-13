@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import DateRangeFilter, { DateRange } from '@/components/crm/DateRangeFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useOrders } from '@/context/OrdersContext';
 import { formatCurrency } from '@/data/orders';
