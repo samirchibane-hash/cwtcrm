@@ -110,7 +110,7 @@ const OrdersReportingDashboard = () => {
     }
 
     return result;
-  }, [orders]);
+  }, [filteredOrders]);
 
   // Revenue by product model
   const revenueByProduct = useMemo(() => {
