@@ -76,7 +76,7 @@ const OrdersReportingDashboard = () => {
     let minDate: Date | null = null;
     let maxDate: Date | null = null;
     
-    orders.forEach(order => {
+    filteredOrders.forEach(order => {
       const date = parseDate(order.placed);
       if (!date) return;
       
