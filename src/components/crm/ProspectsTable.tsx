@@ -23,6 +23,38 @@ interface ProspectsTableProps {
 type SortField = 'companyName' | 'contacts' | 'state' | 'type' | 'leadTier' | 'stage' | 'lastContact';
 type SortDirection = 'asc' | 'desc' | null;
 
+interface FilterSectionProps {
+  label: string;
+  items: string[];
+  selected: string[];
+  onToggle: (item: string, checked: boolean) => void;
+  mode: 'include' | 'exclude';
+  onModeChange: (mode: 'include' | 'exclude') => void;
+}
+
+const FilterSection = ({ label, items, selected, onToggle, mode, onModeChange }: FilterSectionProps) => (
+  <div className="p-3 space-y-2">
+    <div className="flex items-center justify-between">
+      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</span>
+      <div className="flex gap-1">
+        <button onClick={() => onModeChange('include')} className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${mode === 'include' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Include</button>
+        <button onClick={() => onModeChange('exclude')} className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${mode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Exclude</button>
+      </div>
+    </div>
+    <div className="space-y-1">
+      {items.map((item) => (
+        <label key={item} className="flex items-center gap-2 text-sm py-1 px-1 rounded hover:bg-muted/50 cursor-pointer">
+          <Checkbox
+            checked={selected.includes(item)}
+            onCheckedChange={(checked) => onToggle(item, !!checked)}
+          />
+          <span>{item}</span>
+        </label>
+      ))}
+    </div>
+  </div>
+);
+
 const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const navigate = useNavigate();
   const location = useLocation();
