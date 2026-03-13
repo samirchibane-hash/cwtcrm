@@ -442,7 +442,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   </button>
                 )}
               </div>
-              <div className="max-h-[60vh] overflow-y-auto divide-y divide-border">
+              <div className="max-h-[60vh] overflow-y-auto">
                 {/* Business Model */}
                 <FilterSection
                   label="Business Model"
