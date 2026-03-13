@@ -141,7 +141,7 @@ const OrdersReportingDashboard = () => {
   const revenueByCustomer = useMemo(() => {
     const customerMap = new Map<string, { revenue: number; orders: number; units: number }>();
     
-    orders.forEach(order => {
+    filteredOrders.forEach(order => {
       const key = order.customer;
       const existing = customerMap.get(key) || { revenue: 0, orders: 0, units: 0 };
       existing.revenue += order.totalValue;
