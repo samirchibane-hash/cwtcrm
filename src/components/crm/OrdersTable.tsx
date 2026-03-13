@@ -35,6 +35,7 @@ const NONE_VALUE = '__none__';
 const OrdersTable = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') || '');
   const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get('status') || NONE_VALUE);
   const { orders } = useOrders();
