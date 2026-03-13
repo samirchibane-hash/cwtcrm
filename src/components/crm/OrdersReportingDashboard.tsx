@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import DateRangeFilter, { DateRange } from '@/components/crm/DateRangeFilter';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useOrders } from '@/context/OrdersContext';
 import { formatCurrency } from '@/data/orders';
@@ -49,6 +50,23 @@ const COLORS = [
 
 const OrdersReportingDashboard = () => {
   const { orders } = useOrders();
+  const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
+
+  // Filter orders by date range
+  const filteredOrders = useMemo(() => {
+    if (!dateRange.from && !dateRange.to) return orders;
+    return orders.filter(order => {
+      const date = parseDate(order.placed);
+      if (!date) return false;
+      if (dateRange.from && date < dateRange.from) return false;
+      if (dateRange.to) {
+        const endOfDay = new Date(dateRange.to);
+        endOfDay.setHours(23, 59, 59, 999);
+        if (date > endOfDay) return false;
+      }
+      return true;
+    });
+  }, [orders, dateRange]);
 
   // Revenue by month - show all months between first and last order
   const revenueByMonth = useMemo(() => {
@@ -58,7 +76,7 @@ const OrdersReportingDashboard = () => {
     let minDate: Date | null = null;
     let maxDate: Date | null = null;
     
-    orders.forEach(order => {
+    filteredOrders.forEach(order => {
       const date = parseDate(order.placed);
       if (!date) return;
       
@@ -92,13 +110,13 @@ const OrdersReportingDashboard = () => {
     }
 
     return result;
-  }, [orders]);
+  }, [filteredOrders]);
 
   // Revenue by product model
   const revenueByProduct = useMemo(() => {
     const productMap = new Map<string, { revenue: number; units: number }>();
     
-    orders.forEach(order => {
+    filteredOrders.forEach(order => {
       order.modelItems.forEach(item => {
         const key = item.modelName;
         const existing = productMap.get(key) || { revenue: 0, units: 0 };
@@ -117,13 +135,13 @@ const OrdersReportingDashboard = () => {
         units: data.units,
       }))
       .sort((a, b) => b.revenue - a.revenue);
-  }, [orders]);
+  }, [filteredOrders]);
 
   // Revenue by customer
   const revenueByCustomer = useMemo(() => {
     const customerMap = new Map<string, { revenue: number; orders: number; units: number }>();
     
-    orders.forEach(order => {
+    filteredOrders.forEach(order => {
       const key = order.customer;
       const existing = customerMap.get(key) || { revenue: 0, orders: 0, units: 0 };
       existing.revenue += order.totalValue;
@@ -141,18 +159,18 @@ const OrdersReportingDashboard = () => {
       }))
       .sort((a, b) => b.revenue - a.revenue)
       .slice(0, 10); // Top 10 customers
-  }, [orders]);
+  }, [filteredOrders]);
 
   // Summary stats
   const summaryStats = useMemo(() => {
-    const totalRevenue = orders.reduce((sum, o) => sum + o.totalValue, 0);
+    const totalRevenue = filteredOrders.reduce((sum, o) => sum + o.totalValue, 0);
     const currentDate = new Date();
-    const currentMonth = orders.filter(o => {
+    const currentMonth = filteredOrders.filter(o => {
       const date = parseDate(o.placed);
       return date && date.getMonth() === currentDate.getMonth() && date.getFullYear() === currentDate.getFullYear();
     }).reduce((sum, o) => sum + o.totalValue, 0);
     
-    const lastMonth = orders.filter(o => {
+    const lastMonth = filteredOrders.filter(o => {
       const date = parseDate(o.placed);
       if (!date) return false;
       const lastMonthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1);
@@ -160,7 +178,7 @@ const OrdersReportingDashboard = () => {
     }).reduce((sum, o) => sum + o.totalValue, 0);
 
     return { totalRevenue, currentMonth, lastMonth };
-  }, [orders]);
+  }, [filteredOrders]);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
@@ -186,6 +204,11 @@ const OrdersReportingDashboard = () => {
 
   return (
     <div className="space-y-6">
+      {/* Date Range Filter */}
+      <div className="flex justify-end">
+        <DateRangeFilter value={dateRange} onChange={setDateRange} />
+      </div>
+
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-gradient-to-br from-stage-closed/10 to-transparent border-stage-closed/20">
