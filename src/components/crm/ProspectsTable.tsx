@@ -160,6 +160,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const { allVerticals } = useProductVerticals();
 
   const totalActiveFilters = typeFilter.length + stageFilter.length + leadTierFilter.length + verticalFilter.length;
+
+  const handleSort = (field: SortField) => {
     if (sortField === field) {
       if (sortDirection === 'asc') setSortDirection('desc');
       else if (sortDirection === 'desc') { setSortField(null); setSortDirection(null); }
