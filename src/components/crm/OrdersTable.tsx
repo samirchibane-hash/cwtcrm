@@ -289,8 +289,6 @@ const OrdersTable = () => {
               <TableHead className="font-semibold cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('status')}>
                 <span className="flex items-center">Status{getSortIcon('status')}</span>
               </TableHead>
-              <TableHead className="font-semibold">Links</TableHead>
-              <TableHead className="font-semibold">Order Updates</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
