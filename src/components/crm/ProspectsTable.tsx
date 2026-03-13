@@ -248,142 +248,81 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
             className="pl-11 h-11 border-0 bg-muted/50 rounded-xl"
           />
         </div>
-        <div className="flex gap-2">
-          {/* Business Model filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
+        <div className="flex gap-2 flex-wrap">
+          {/* Consolidated Filters Popover */}
+          <Popover>
+            <PopoverTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
                 <Filter className="w-4 h-4" />
-                Business Model
-                {typeFilter.length > 0 && (
-                  <span className={`text-xs px-1.5 rounded-full ${typeFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-accent text-accent-foreground'}`}>
-                    {typeFilter.length}
+                Filters
+                {totalActiveFilters > 0 && (
+                  <span className="text-xs px-1.5 rounded-full bg-accent text-accent-foreground">
+                    {totalActiveFilters}
                   </span>
                 )}
-                <ChevronDown className="w-4 h-4" />
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="rounded-xl">
-              <div className="flex gap-1 p-2 pb-1">
-                <button onClick={() => setTypeFilterMode('include')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${typeFilterMode === 'include' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Include</button>
-                <button onClick={() => setTypeFilterMode('exclude')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${typeFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Exclude</button>
-              </div>
-              <div className="border-t border-border my-1" />
-              {types.map((type) => (
-                <DropdownMenuCheckboxItem
-                  key={type}
-                  checked={typeFilter.includes(type)}
-                  onCheckedChange={(checked) => {
-                    setTypeFilter(prev => checked ? [...prev, type] : prev.filter(t => t !== type));
-                  }}
-                >
-                  {type}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Stage filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
-                <Filter className="w-4 h-4" />
-                Stage
-                {stageFilter.length > 0 && (
-                  <span className={`text-xs px-1.5 rounded-full ${stageFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-accent text-accent-foreground'}`}>
-                    {stageFilter.length}
-                  </span>
+            </PopoverTrigger>
+            <PopoverContent align="start" className="w-80 p-0 rounded-xl" sideOffset={8}>
+              <div className="p-3 border-b border-border flex items-center justify-between">
+                <span className="text-sm font-semibold">Filters</span>
+                {totalActiveFilters > 0 && (
+                  <button
+                    onClick={() => {
+                      setTypeFilter([]);
+                      setStageFilter([]);
+                      setLeadTierFilter([]);
+                      setVerticalFilter([]);
+                      setTypeFilterMode('include');
+                      setStageFilterMode('include');
+                      setLeadTierFilterMode('include');
+                      setVerticalFilterMode('include');
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Clear all
+                  </button>
                 )}
-                <ChevronDown className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="rounded-xl">
-              <div className="flex gap-1 p-2 pb-1">
-                <button onClick={() => setStageFilterMode('include')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${stageFilterMode === 'include' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Include</button>
-                <button onClick={() => setStageFilterMode('exclude')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${stageFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Exclude</button>
               </div>
-              <div className="border-t border-border my-1" />
-              {stages.map((stage) => (
-                <DropdownMenuCheckboxItem
-                  key={stage}
-                  checked={stageFilter.includes(stage)}
-                  onCheckedChange={(checked) => {
-                    setStageFilter(prev => checked ? [...prev, stage] : prev.filter(s => s !== stage));
-                  }}
-                >
-                  {stage}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Lead Tier filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
-                <Filter className="w-4 h-4" />
-                Lead Tier
-                {leadTierFilter.length > 0 && (
-                  <span className={`text-xs px-1.5 rounded-full ${leadTierFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-accent text-accent-foreground'}`}>
-                    {leadTierFilter.length}
-                  </span>
-                )}
-                <ChevronDown className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="rounded-xl">
-              <div className="flex gap-1 p-2 pb-1">
-                <button onClick={() => setLeadTierFilterMode('include')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${leadTierFilterMode === 'include' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Include</button>
-                <button onClick={() => setLeadTierFilterMode('exclude')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${leadTierFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Exclude</button>
+              <div className="max-h-[60vh] overflow-y-auto divide-y divide-border">
+                {/* Business Model */}
+                <FilterSection
+                  label="Business Model"
+                  items={types}
+                  selected={typeFilter}
+                  onToggle={(item, checked) => setTypeFilter(prev => checked ? [...prev, item] : prev.filter(t => t !== item))}
+                  mode={typeFilterMode}
+                  onModeChange={setTypeFilterMode}
+                />
+                {/* Stage */}
+                <FilterSection
+                  label="Stage"
+                  items={stages}
+                  selected={stageFilter}
+                  onToggle={(item, checked) => setStageFilter(prev => checked ? [...prev, item] : prev.filter(s => s !== item))}
+                  mode={stageFilterMode}
+                  onModeChange={setStageFilterMode}
+                />
+                {/* Lead Tier */}
+                <FilterSection
+                  label="Lead Tier"
+                  items={leadTiers}
+                  selected={leadTierFilter}
+                  onToggle={(item, checked) => setLeadTierFilter(prev => checked ? [...prev, item] : prev.filter(t => t !== item))}
+                  mode={leadTierFilterMode}
+                  onModeChange={setLeadTierFilterMode}
+                />
+                {/* Product Vertical */}
+                <FilterSection
+                  label="Product Vertical"
+                  items={allVerticals}
+                  selected={verticalFilter}
+                  onToggle={(item, checked) => setVerticalFilter(prev => checked ? [...prev, item] : prev.filter(v => v !== item))}
+                  mode={verticalFilterMode}
+                  onModeChange={setVerticalFilterMode}
+                />
               </div>
-              <div className="border-t border-border my-1" />
-              {leadTiers.map((tier) => (
-                <DropdownMenuCheckboxItem
-                  key={tier}
-                  checked={leadTierFilter.includes(tier)}
-                  onCheckedChange={(checked) => {
-                    setLeadTierFilter(prev => checked ? [...prev, tier] : prev.filter(t => t !== tier));
-                  }}
-                >
-                  {tier}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Product Vertical filter */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
-                <Filter className="w-4 h-4" />
-                Product Vertical
-                {verticalFilter.length > 0 && (
-                  <span className={`text-xs px-1.5 rounded-full ${verticalFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-accent text-accent-foreground'}`}>
-                    {verticalFilter.length}
-                  </span>
-                )}
-                <ChevronDown className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="rounded-xl">
-              <div className="flex gap-1 p-2 pb-1">
-                <button onClick={() => setVerticalFilterMode('include')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${verticalFilterMode === 'include' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Include</button>
-                <button onClick={() => setVerticalFilterMode('exclude')} className={`flex-1 text-xs px-2 py-1 rounded-md font-medium transition-colors ${verticalFilterMode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Exclude</button>
-              </div>
-              <div className="border-t border-border my-1" />
-              {allVerticals.map((vertical) => (
-                <DropdownMenuCheckboxItem
-                  key={vertical}
-                  checked={verticalFilter.includes(vertical)}
-                  onCheckedChange={(checked) => {
-                    setVerticalFilter(prev => checked ? [...prev, vertical] : prev.filter(v => v !== vertical));
-                  }}
-                >
-                  {vertical}
-                </DropdownMenuCheckboxItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
+            </PopoverContent>
+          </Popover>
 
           <Button
             variant="outline"
