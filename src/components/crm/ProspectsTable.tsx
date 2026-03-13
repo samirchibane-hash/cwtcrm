@@ -247,7 +247,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const leadTiers = LEAD_TIERS;
   const { allVerticals } = useProductVerticals();
 
-  const totalActiveFilters = typeFilter.length + stageFilter.length + leadTierFilter.length + verticalFilter.length;
+  const hasLastContactFilter = lastContactFrom !== undefined || lastContactTo !== undefined;
+  const totalActiveFilters = typeFilter.length + stageFilter.length + leadTierFilter.length + verticalFilter.length + (hasLastContactFilter ? 1 : 0);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
