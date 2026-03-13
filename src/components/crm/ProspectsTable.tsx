@@ -460,6 +460,55 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   mode={verticalFilterMode}
                   onModeChange={setVerticalFilterMode}
                 />
+                {/* Last Contact Date Range */}
+                <div className="p-3 space-y-2">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Last Contact</span>
+                  <div className="flex items-center gap-2">
+                    <Popover open={lastContactCalendarOpen === 'from'} onOpenChange={(open) => setLastContactCalendarOpen(open ? 'from' : null)}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className={cn("flex-1 justify-start text-left text-xs h-8", !lastContactFrom && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-1 h-3 w-3" />
+                          {lastContactFrom ? format(lastContactFrom, 'MM/dd/yyyy') : 'From'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start" side="bottom">
+                        <Calendar
+                          mode="single"
+                          selected={lastContactFrom}
+                          onSelect={(date) => { setLastContactFrom(date ?? undefined); setLastContactCalendarOpen(null); }}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <span className="text-xs text-muted-foreground">–</span>
+                    <Popover open={lastContactCalendarOpen === 'to'} onOpenChange={(open) => setLastContactCalendarOpen(open ? 'to' : null)}>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" size="sm" className={cn("flex-1 justify-start text-left text-xs h-8", !lastContactTo && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-1 h-3 w-3" />
+                          {lastContactTo ? format(lastContactTo, 'MM/dd/yyyy') : 'To'}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start" side="bottom">
+                        <Calendar
+                          mode="single"
+                          selected={lastContactTo}
+                          onSelect={(date) => { setLastContactTo(date ?? undefined); setLastContactCalendarOpen(null); }}
+                          initialFocus
+                          className={cn("p-3 pointer-events-auto")}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  {hasLastContactFilter && (
+                    <button
+                      onClick={() => { setLastContactFrom(undefined); setLastContactTo(undefined); }}
+                      className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      Clear dates
+                    </button>
+                  )}
+                </div>
               </div>
             </PopoverContent>
           </Popover>
