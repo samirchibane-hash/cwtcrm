@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown } from 'lucide-react';
+import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown, Download } from 'lucide-react';
+import { exportToCSV } from '@/lib/export-csv';
 import { useProspects } from '@/context/ProspectsContext';
 import { Prospect, COMPANY_TYPES, PIPELINE_STAGES, LEAD_TIERS } from '@/data/prospects';
 import { useProductVerticals } from '@/hooks/useProductVerticals';
@@ -388,6 +389,29 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
             </DropdownMenuContent>
           </DropdownMenu>
 
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const headers = ['Company', 'State', 'Type', 'Market Type', 'Lead Tier', 'Stage', 'Last Contact', 'Contacts', 'Website', 'LinkedIn'];
+              const rows = filteredAndSortedProspects.map(p => [
+                p.companyName,
+                p.state || '',
+                p.type || '',
+                p.marketType || '',
+                p.leadTier || '',
+                p.stage || '',
+                p.lastContact || '',
+                (p.contacts || []).map(c => `${c.name} (${c.email || ''})`).join('; '),
+                p.website || '',
+                p.linkedIn || '',
+              ]);
+              exportToCSV(`prospects-${new Date().toISOString().slice(0, 10)}`, headers, rows);
+            }}
+          >
+            <Download className="h-4 w-4" />
+            <span className="hidden sm:inline">Export</span>
+          </Button>
           <AIRecommendationsDialog />
           <AddProspectDialog />
         </div>

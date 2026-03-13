@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
-import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink, ChevronUp, ChevronDown, ArrowUpDown } from 'lucide-react';
+import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink, ChevronUp, ChevronDown, ArrowUpDown, Download } from 'lucide-react';
+import { exportToCSV } from '@/lib/export-csv';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -237,6 +238,28 @@ const OrdersTable = () => {
             <SelectItem value="Loaner">Loaner</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const headers = ['Customer', 'Date Placed', 'Units', 'Model Type', 'Total Value', 'PO/Invoice', 'Status', 'Order Type', 'Tracking'];
+            const rows = filteredAndSortedOrders.map(o => [
+              o.customer,
+              o.placed,
+              String(o.units),
+              o.modelType,
+              String(o.totalValue),
+              o.invoice || '',
+              o.status,
+              o.orderType || 'Standard',
+              o.tracking || '',
+            ]);
+            exportToCSV(`orders-${new Date().toISOString().slice(0, 10)}`, headers, rows);
+          }}
+        >
+          <Download className="h-4 w-4" />
+          <span className="hidden sm:inline">Export</span>
+        </Button>
         <AddOrderDialog />
         <ProductModelsDialog />
       </div>
