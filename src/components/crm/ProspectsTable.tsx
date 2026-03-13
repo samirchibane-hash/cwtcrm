@@ -353,7 +353,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     }
 
     return result;
-  }, [prospects, searchQuery, typeFilter, stageFilter, leadTierFilter, verticalFilter, typeFilterMode, stageFilterMode, leadTierFilterMode, verticalFilterMode, sortField, sortDirection]);
+  }, [prospects, searchQuery, typeFilter, stageFilter, leadTierFilter, verticalFilter, typeFilterMode, stageFilterMode, leadTierFilterMode, verticalFilterMode, lastContactFrom, lastContactTo, sortField, sortDirection]);
 
   const handleRowClick = (prospect: Prospect) => {
     const prospectIds = filteredAndSortedProspects.map(p => p.id);
