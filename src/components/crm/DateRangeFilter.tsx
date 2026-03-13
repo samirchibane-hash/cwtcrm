@@ -27,8 +27,17 @@ const PRESETS: { label: string; getRange: () => DateRange }[] = [
   { label: 'Last 12 Months', getRange: () => ({ from: subMonths(new Date(), 12), to: new Date() }) },
 ];
 
+const getYTDRange = (): DateRange => ({ from: startOfYear(new Date()), to: new Date() });
+
 const DateRangeFilter = ({ value, onChange }: DateRangeFilterProps) => {
   const [open, setOpen] = useState(false);
+  const [initialized, setInitialized] = useState(false);
+
+  // Set default to Year to Date on mount
+  if (!initialized) {
+    setInitialized(true);
+    onChange(getYTDRange());
+  }
 
   const activePreset = useMemo(() => {
     if (!value.from && !value.to) return 'All Time';
