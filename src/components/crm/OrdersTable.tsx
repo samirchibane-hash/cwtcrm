@@ -243,7 +243,7 @@ const OrdersTable = () => {
           size="sm"
           onClick={() => {
             const headers = ['Customer', 'Date Placed', 'Units', 'Model Type', 'Total Value', 'PO/Invoice', 'Status', 'Order Type', 'Tracking'];
-            const rows = sortedOrders.map(o => [
+            const rows = filteredAndSortedOrders.map(o => [
               o.customer,
               o.placed,
               String(o.units),

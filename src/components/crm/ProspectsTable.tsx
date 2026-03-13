@@ -394,7 +394,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
             size="sm"
             onClick={() => {
               const headers = ['Company', 'State', 'Type', 'Market Type', 'Lead Tier', 'Stage', 'Last Contact', 'Contacts', 'Website', 'LinkedIn'];
-              const rows = filteredAndSorted.map(p => [
+              const rows = filteredAndSortedProspects.map(p => [
                 p.companyName,
                 p.state || '',
                 p.type || '',
