@@ -64,7 +64,7 @@ const DateRangeFilter = ({ value, onChange }: DateRangeFilterProps) => {
       <PopoverContent className="w-auto p-0" align="end">
         <div className="flex">
           {/* Presets sidebar */}
-          <div className="border-r py-1.5 px-1.5 min-w-[120px]">
+          <div className="border-r py-1.5 px-1 shrink-0">
             {PRESETS.map((preset) => (
               <button
                 key={preset.label}
