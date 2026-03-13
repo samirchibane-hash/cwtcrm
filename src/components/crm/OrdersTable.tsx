@@ -127,8 +127,8 @@ const OrdersTable = () => {
             bVal = b.customer.toLowerCase();
             break;
           case 'placed':
-            aVal = a.placed || '';
-            bVal = b.placed || '';
+            aVal = parseDateLoose(a.placed)?.getTime() ?? 0;
+            bVal = parseDateLoose(b.placed)?.getTime() ?? 0;
             break;
           case 'units':
             aVal = a.units;
