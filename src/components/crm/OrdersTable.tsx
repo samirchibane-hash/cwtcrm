@@ -238,6 +238,28 @@ const OrdersTable = () => {
             <SelectItem value="Loaner">Loaner</SelectItem>
           </SelectContent>
         </Select>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            const headers = ['Customer', 'Date Placed', 'Units', 'Model Type', 'Total Value', 'PO/Invoice', 'Status', 'Order Type', 'Tracking'];
+            const rows = sortedOrders.map(o => [
+              o.customer,
+              o.placed,
+              String(o.units),
+              o.modelType,
+              String(o.totalValue),
+              o.invoice || '',
+              o.status,
+              o.orderType || 'Standard',
+              o.tracking || '',
+            ]);
+            exportToCSV(`orders-${new Date().toISOString().slice(0, 10)}`, headers, rows);
+          }}
+        >
+          <Download className="h-4 w-4" />
+          <span className="hidden sm:inline">Export</span>
+        </Button>
         <AddOrderDialog />
         <ProductModelsDialog />
       </div>
