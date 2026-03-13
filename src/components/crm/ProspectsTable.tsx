@@ -493,7 +493,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
               >
                 <span className="flex items-center">Last Contact{getSortIcon('lastContact')}</span>
               </th>
-              <th className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground">LinkedIn</th>
+              
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
