@@ -135,7 +135,7 @@ const OrdersReportingDashboard = () => {
         units: data.units,
       }))
       .sort((a, b) => b.revenue - a.revenue);
-  }, [orders]);
+  }, [filteredOrders]);
 
   // Revenue by customer
   const revenueByCustomer = useMemo(() => {
