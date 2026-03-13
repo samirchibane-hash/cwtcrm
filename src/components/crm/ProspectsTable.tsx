@@ -505,3 +505,4 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
 };
 
 export default ProspectsTable;
+
