@@ -118,28 +118,109 @@ interface FilterSectionProps {
   onModeChange: (mode: 'include' | 'exclude') => void;
 }
 
-const FilterSection = ({ label, items, selected, onToggle, mode, onModeChange }: FilterSectionProps) => (
-  <div className="p-3 space-y-2">
-    <div className="flex items-center justify-between">
-      <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{label}</span>
-      <div className="flex gap-1">
-        <button onClick={() => onModeChange('include')} className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${mode === 'include' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Include</button>
-        <button onClick={() => onModeChange('exclude')} className={`text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors ${mode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>Exclude</button>
-      </div>
+const FilterSection = ({ label, items, selected, onToggle, mode, onModeChange }: FilterSectionProps) => {
+  const [open, setOpen] = useState(false);
+  const activeCount = selected.length;
+  return (
+    <div className="border-b border-border last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center justify-between w-full p-3 hover:bg-muted/30 transition-colors"
+      >
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <ChevronRight className={cn("h-3 w-3 transition-transform", open && "rotate-90")} />
+          {label}
+          {activeCount > 0 && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent text-accent-foreground font-medium normal-case">
+              {activeCount}
+            </span>
+          )}
+        </span>
+        <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
+          <button type="button" onClick={() => onModeChange('include')} className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors", mode === 'include' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80')}>Include</button>
+          <button type="button" onClick={() => onModeChange('exclude')} className={cn("text-[10px] px-1.5 py-0.5 rounded font-medium transition-colors", mode === 'exclude' ? 'bg-destructive text-destructive-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80')}>Exclude</button>
+        </div>
+      </button>
+      {open && (
+        <div className="px-3 pb-3 space-y-1">
+          {items.map((item) => (
+            <label key={item} className="flex items-center gap-2 text-sm py-1 px-1 rounded hover:bg-muted/50 cursor-pointer">
+              <Checkbox
+                checked={selected.includes(item)}
+                onCheckedChange={(checked) => onToggle(item, !!checked)}
+              />
+              <span>{item}</span>
+            </label>
+          ))}
+        </div>
+      )}
     </div>
-    <div className="space-y-1">
-      {items.map((item) => (
-        <label key={item} className="flex items-center gap-2 text-sm py-1 px-1 rounded hover:bg-muted/50 cursor-pointer">
-          <Checkbox
-            checked={selected.includes(item)}
-            onCheckedChange={(checked) => onToggle(item, !!checked)}
-          />
-          <span>{item}</span>
-        </label>
-      ))}
+  );
+};
+
+const LastContactFilterSection = ({
+  lastContactFrom, lastContactTo, setLastContactFrom, setLastContactTo,
+  lastContactCalendarOpen, setLastContactCalendarOpen, hasLastContactFilter,
+}: {
+  lastContactFrom?: Date; lastContactTo?: Date;
+  setLastContactFrom: (d: Date | undefined) => void; setLastContactTo: (d: Date | undefined) => void;
+  lastContactCalendarOpen: 'from' | 'to' | null; setLastContactCalendarOpen: (v: 'from' | 'to' | null) => void;
+  hasLastContactFilter: boolean;
+}) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border-b border-border last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center justify-between w-full p-3 hover:bg-muted/30 transition-colors"
+      >
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <ChevronRight className={cn("h-3 w-3 transition-transform", open && "rotate-90")} />
+          Last Contact
+          {hasLastContactFilter && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent text-accent-foreground font-medium normal-case">1</span>
+          )}
+        </span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Popover open={lastContactCalendarOpen === 'from'} onOpenChange={(o) => setLastContactCalendarOpen(o ? 'from' : null)}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("flex-1 justify-start text-left text-xs h-8", !lastContactFrom && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-1 h-3 w-3" />
+                  {lastContactFrom ? format(lastContactFrom, 'MM/dd/yyyy') : 'From'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start" side="bottom">
+                <Calendar mode="single" selected={lastContactFrom} onSelect={(date) => { setLastContactFrom(date ?? undefined); setLastContactCalendarOpen(null); }} initialFocus className={cn("p-3 pointer-events-auto")} />
+              </PopoverContent>
+            </Popover>
+            <span className="text-xs text-muted-foreground">–</span>
+            <Popover open={lastContactCalendarOpen === 'to'} onOpenChange={(o) => setLastContactCalendarOpen(o ? 'to' : null)}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className={cn("flex-1 justify-start text-left text-xs h-8", !lastContactTo && "text-muted-foreground")}>
+                  <CalendarIcon className="mr-1 h-3 w-3" />
+                  {lastContactTo ? format(lastContactTo, 'MM/dd/yyyy') : 'To'}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start" side="bottom">
+                <Calendar mode="single" selected={lastContactTo} onSelect={(date) => { setLastContactTo(date ?? undefined); setLastContactCalendarOpen(null); }} initialFocus className={cn("p-3 pointer-events-auto")} />
+              </PopoverContent>
+            </Popover>
+          </div>
+          {hasLastContactFilter && (
+            <button onClick={() => { setLastContactFrom(undefined); setLastContactTo(undefined); }} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+              Clear dates
+            </button>
+          )}
+        </div>
+      )}
     </div>
-  </div>
-);
+  );
+};
 
 const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const navigate = useNavigate();
@@ -424,7 +505,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   </button>
                 )}
               </div>
-              <div className="max-h-[60vh] overflow-y-auto divide-y divide-border">
+              <div className="max-h-[60vh] overflow-y-auto">
                 {/* Business Model */}
                 <FilterSection
                   label="Business Model"
@@ -461,55 +542,16 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   mode={verticalFilterMode}
                   onModeChange={setVerticalFilterMode}
                 />
-                {/* Last Contact Date Range */}
-                <div className="p-3 space-y-2">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Last Contact</span>
-                  <div className="flex items-center gap-2">
-                    <Popover open={lastContactCalendarOpen === 'from'} onOpenChange={(open) => setLastContactCalendarOpen(open ? 'from' : null)}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className={cn("flex-1 justify-start text-left text-xs h-8", !lastContactFrom && "text-muted-foreground")}>
-                          <CalendarIcon className="mr-1 h-3 w-3" />
-                          {lastContactFrom ? format(lastContactFrom, 'MM/dd/yyyy') : 'From'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start" side="bottom">
-                        <Calendar
-                          mode="single"
-                          selected={lastContactFrom}
-                          onSelect={(date) => { setLastContactFrom(date ?? undefined); setLastContactCalendarOpen(null); }}
-                          initialFocus
-                          className={cn("p-3 pointer-events-auto")}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                    <span className="text-xs text-muted-foreground">–</span>
-                    <Popover open={lastContactCalendarOpen === 'to'} onOpenChange={(open) => setLastContactCalendarOpen(open ? 'to' : null)}>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" size="sm" className={cn("flex-1 justify-start text-left text-xs h-8", !lastContactTo && "text-muted-foreground")}>
-                          <CalendarIcon className="mr-1 h-3 w-3" />
-                          {lastContactTo ? format(lastContactTo, 'MM/dd/yyyy') : 'To'}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start" side="bottom">
-                        <Calendar
-                          mode="single"
-                          selected={lastContactTo}
-                          onSelect={(date) => { setLastContactTo(date ?? undefined); setLastContactCalendarOpen(null); }}
-                          initialFocus
-                          className={cn("p-3 pointer-events-auto")}
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  {hasLastContactFilter && (
-                    <button
-                      onClick={() => { setLastContactFrom(undefined); setLastContactTo(undefined); }}
-                      className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      Clear dates
-                    </button>
-                  )}
-                </div>
+                {/* Last Contact Date Range - collapsible */}
+                <LastContactFilterSection
+                  lastContactFrom={lastContactFrom}
+                  lastContactTo={lastContactTo}
+                  setLastContactFrom={setLastContactFrom}
+                  setLastContactTo={setLastContactTo}
+                  lastContactCalendarOpen={lastContactCalendarOpen}
+                  setLastContactCalendarOpen={setLastContactCalendarOpen}
+                  hasLastContactFilter={hasLastContactFilter}
+                />
               </div>
             </PopoverContent>
           </Popover>
