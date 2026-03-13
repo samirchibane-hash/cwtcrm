@@ -292,7 +292,22 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         verticalFilterMode === 'include' ? verticalFilter.includes(prospect.marketType || '') : !verticalFilter.includes(prospect.marketType || '')
       );
 
-      return matchesSearch && matchesType && matchesStage && matchesLeadTier && matchesVertical;
+      let matchesLastContact = true;
+      if (lastContactFrom || lastContactTo) {
+        const lastContactDate = getProspectLastContactDate(prospect);
+        if (!lastContactDate) {
+          matchesLastContact = false;
+        } else {
+          if (lastContactFrom && lastContactDate < lastContactFrom) matchesLastContact = false;
+          if (lastContactTo) {
+            const endOfDay = new Date(lastContactTo);
+            endOfDay.setHours(23, 59, 59, 999);
+            if (lastContactDate > endOfDay) matchesLastContact = false;
+          }
+        }
+      }
+
+      return matchesSearch && matchesType && matchesStage && matchesLeadTier && matchesVertical && matchesLastContact;
     });
 
     if (sortField && sortDirection) {
