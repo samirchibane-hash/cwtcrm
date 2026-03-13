@@ -174,7 +174,10 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const [verticalFilterMode, setVerticalFilterMode] = useState<'include' | 'exclude'>(() =>
     searchParams.get('verticalMode') === 'exclude' ? 'exclude' : 'include'
   );
-  const [sortField, setSortField] = useState<SortField | null>(() => {
+  const [lastContactFrom, setLastContactFrom] = useState<Date | undefined>(undefined);
+  const [lastContactTo, setLastContactTo] = useState<Date | undefined>(undefined);
+  const [lastContactCalendarOpen, setLastContactCalendarOpen] = useState<'from' | 'to' | null>(null);
+
     const field = searchParams.get('sortField');
     if (field && ['companyName', 'contacts', 'state', 'type', 'leadTier', 'stage', 'lastContact'].includes(field)) {
       return field as SortField;
