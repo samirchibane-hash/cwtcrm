@@ -414,6 +414,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                       setStageFilterMode('include');
                       setLeadTierFilterMode('include');
                       setVerticalFilterMode('include');
+                      setLastContactFrom(undefined);
+                      setLastContactTo(undefined);
                     }}
                     className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                   >
