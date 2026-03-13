@@ -289,8 +289,6 @@ const OrdersTable = () => {
               <TableHead className="font-semibold cursor-pointer hover:text-foreground transition-colors" onClick={() => handleSort('status')}>
                 <span className="flex items-center">Status{getSortIcon('status')}</span>
               </TableHead>
-              <TableHead className="font-semibold">Links</TableHead>
-              <TableHead className="font-semibold">Order Updates</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -336,39 +334,6 @@ const OrdersTable = () => {
                 </TableCell>
                 <TableCell>
                   <StatusBadge status={order.status} />
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    {order.invoice && order.invoice.startsWith('http') && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        asChild
-                      >
-                        <a href={order.invoice} target="_blank" rel="noopener noreferrer" title="View Invoice">
-                          <FileText className="h-4 w-4 text-blue-500" />
-                        </a>
-                      </Button>
-                    )}
-                    {order.tracking && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        asChild
-                      >
-                        <a href={order.tracking} target="_blank" rel="noopener noreferrer" title="Track Shipment">
-                          <Truck className="h-4 w-4 text-green-500" />
-                        </a>
-                      </Button>
-                    )}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <span className="text-sm text-muted-foreground line-clamp-2">
-                    {order.orderUpdates || '—'}
-                  </span>
                 </TableCell>
               </TableRow>
             ))}
