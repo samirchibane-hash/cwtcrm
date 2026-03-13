@@ -163,14 +163,14 @@ const OrdersReportingDashboard = () => {
 
   // Summary stats
   const summaryStats = useMemo(() => {
-    const totalRevenue = orders.reduce((sum, o) => sum + o.totalValue, 0);
+    const totalRevenue = filteredOrders.reduce((sum, o) => sum + o.totalValue, 0);
     const currentDate = new Date();
-    const currentMonth = orders.filter(o => {
+    const currentMonth = filteredOrders.filter(o => {
       const date = parseDate(o.placed);
       return date && date.getMonth() === currentDate.getMonth() && date.getFullYear() === currentDate.getFullYear();
     }).reduce((sum, o) => sum + o.totalValue, 0);
     
-    const lastMonth = orders.filter(o => {
+    const lastMonth = filteredOrders.filter(o => {
       const date = parseDate(o.placed);
       if (!date) return false;
       const lastMonthDate = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1);
@@ -178,7 +178,7 @@ const OrdersReportingDashboard = () => {
     }).reduce((sum, o) => sum + o.totalValue, 0);
 
     return { totalRevenue, currentMonth, lastMonth };
-  }, [orders]);
+  }, [filteredOrders]);
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
