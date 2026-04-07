@@ -912,7 +912,7 @@ const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) =
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
-                {new Date(engagement.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                {new Date(engagement.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}
               </span>
               <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                 <EditNoteDialog 
