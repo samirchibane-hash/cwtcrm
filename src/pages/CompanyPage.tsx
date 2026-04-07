@@ -510,7 +510,7 @@ const CompanyPage = () => {
                             {contact.email ? (
                               <div className="flex items-center gap-1.5">
                                 {contact.emailVerified && (
-                                  <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" title="Email verified by Clearout" />
+                                  <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />
                                 )}
                                 <a
                                   href={`mailto:${contact.email}`}
@@ -911,7 +911,9 @@ const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) =
               )}
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">{engagement.date}</span>
+              <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
+                {new Date(engagement.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </span>
               <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                 <EditNoteDialog 
                   engagement={engagement}
