@@ -6,6 +6,7 @@ export interface Contact {
   phone?: string;
   linkedIn?: string;
   isChampion?: boolean;
+  emailVerified?: boolean;
 }
 
 export interface Engagement {

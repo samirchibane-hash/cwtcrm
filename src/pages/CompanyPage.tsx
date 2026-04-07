@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2 } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle } from 'lucide-react';
 import { Contact, Engagement, CompanyType, MarketType, LeadTier } from '@/data/prospects';
 import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import { getOrdersByCustomer, Order, getStatusColor } from '@/data/orders';
@@ -508,13 +508,18 @@ const CompanyPage = () => {
                           </td>
                           <td className="px-6 py-4">
                             {contact.email ? (
-                              <a 
-                                href={`mailto:${contact.email}`}
-                                className="text-sm text-accent hover:underline flex items-center gap-1.5"
-                              >
-                                <Mail className="w-3.5 h-3.5" />
-                                {contact.email}
-                              </a>
+                              <div className="flex items-center gap-1.5">
+                                {contact.emailVerified && (
+                                  <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" title="Email verified by Clearout" />
+                                )}
+                                <a
+                                  href={`mailto:${contact.email}`}
+                                  className="text-sm text-accent hover:underline flex items-center gap-1.5"
+                                >
+                                  <Mail className="w-3.5 h-3.5" />
+                                  {contact.email}
+                                </a>
+                              </div>
                             ) : (
                               <span className="text-sm text-muted-foreground">—</span>
                             )}
