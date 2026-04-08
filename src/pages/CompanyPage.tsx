@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle } from 'lucide-react';
-import { Contact, Engagement, CompanyType, MarketType, LeadTier } from '@/data/prospects';
+import { Contact, Engagement, CompanyType, MarketType, LeadTier, REPS, getRepConfig } from '@/data/prospects';
 import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import { parseDateLoose, formatMmDdYyyy } from '@/lib/date';
 import { getOrdersByCustomer, Order, getStatusColor } from '@/data/orders';
@@ -42,6 +42,7 @@ const CompanyPage = () => {
   const [newNote, setNewNote] = useState('');
   const [newNoteCalls, setNewNoteCalls] = useState<number>(0);
   const [newNoteEmails, setNewNoteEmails] = useState<number>(0);
+  const [newNoteLoggedBy, setNewNoteLoggedBy] = useState<string>('Samir');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [engagements, setEngagements] = useState<Engagement[]>([]);
   const [companyName, setCompanyName] = useState('');
@@ -232,9 +233,10 @@ const CompanyPage = () => {
       type: 'note',
       summary: newNote.length > 60 ? newNote.slice(0, 60) + '...' : newNote,
       details: newNote,
+      loggedBy: newNoteLoggedBy,
       ...(Object.keys(activity).length > 0 ? { activity } : {}),
     };
-    
+
     const updatedEngagements = [newEngagement, ...engagements];
     setEngagements(updatedEngagements);
     saveProspect({ engagements: updatedEngagements });
@@ -247,14 +249,15 @@ const CompanyPage = () => {
     setNewNoteEmails(0);
   };
 
-  const handleEditNote = (engagementId: string, newDetails: string, activity?: { calls?: number; emails?: number }) => {
-    const updatedEngagements = engagements.map(eng => 
-      eng.id === engagementId 
-        ? { 
-            ...eng, 
+  const handleEditNote = (engagementId: string, newDetails: string, activity?: { calls?: number; emails?: number }, loggedBy?: string) => {
+    const updatedEngagements = engagements.map(eng =>
+      eng.id === engagementId
+        ? {
+            ...eng,
             details: newDetails,
             summary: newDetails.length > 60 ? newDetails.slice(0, 60) + '...' : newDetails,
             activity: activity,
+            loggedBy: loggedBy ?? eng.loggedBy,
           }
         : eng
     );
@@ -635,6 +638,28 @@ const CompanyPage = () => {
                   />
                 </div>
               </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Logged by</label>
+                <div className="flex gap-2">
+                  {REPS.map(rep => (
+                    <button
+                      key={rep.name}
+                      type="button"
+                      onClick={() => setNewNoteLoggedBy(rep.name)}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                        newNoteLoggedBy === rep.name
+                          ? `${rep.activeClass} border-current`
+                          : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'
+                      }`}
+                    >
+                      <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${rep.avatarClass}`}>
+                        {rep.initials}
+                      </span>
+                      {rep.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div className="flex items-center justify-end">
                 <Button size="sm" onClick={handleAddNote} disabled={!newNote.trim()}>
                   Save
@@ -890,21 +915,28 @@ const ContactCard = ({ contact }: { contact: Contact }) => {
 
 interface EngagementCardProps {
   engagement: Engagement;
-  onEdit: (id: string, details: string, activity?: { calls?: number; emails?: number }) => void;
+  onEdit: (id: string, details: string, activity?: { calls?: number; emails?: number }, loggedBy?: string) => void;
   onDelete: (id: string) => void;
 }
 
 const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) => {
-  const Icon = engagement.type === 'call' ? Phone :
-               engagement.type === 'email' ? Mail :
-               engagement.type === 'meeting' ? Calendar : FileText;
-  
   const hasCalls = (engagement.activity?.calls || 0) > 0;
   const hasEmails = (engagement.activity?.emails || 0) > 0;
+  const rep = getRepConfig(engagement.loggedBy);
 
   return (
     <div className="px-6 py-3 hover:bg-muted/30 transition-colors group">
       <div className="flex items-start gap-3">
+        {engagement.loggedBy && (
+          <div className="flex-shrink-0 pt-0.5">
+            <span
+              className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${rep.avatarClass}`}
+              title={rep.name}
+            >
+              {rep.initials}
+            </span>
+          </div>
+        )}
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
@@ -931,7 +963,7 @@ const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) =
                 {(() => { const d = parseDateLoose(engagement.date); return d ? formatMmDdYyyy(d) : engagement.date; })()}
               </span>
               <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                <EditNoteDialog 
+                <EditNoteDialog
                   engagement={engagement}
                   onSave={onEdit}
                   onDelete={onDelete}

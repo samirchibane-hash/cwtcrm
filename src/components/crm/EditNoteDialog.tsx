@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Pencil, Trash2, Phone, Mail } from 'lucide-react';
-import { Engagement } from '@/data/prospects';
+import { Engagement, REPS, getRepConfig } from '@/data/prospects';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -35,7 +35,7 @@ type NoteFormData = z.infer<typeof noteSchema>;
 
 interface EditNoteDialogProps {
   engagement: Engagement;
-  onSave: (id: string, details: string, activity?: { calls?: number; emails?: number }) => void;
+  onSave: (id: string, details: string, activity?: { calls?: number; emails?: number }, loggedBy?: string) => void;
   onDelete: (id: string) => void;
 }
 
@@ -44,6 +44,7 @@ const EditNoteDialog = ({ engagement, onSave, onDelete }: EditNoteDialogProps) =
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [calls, setCalls] = useState<number>(engagement.activity?.calls || 0);
   const [emails, setEmails] = useState<number>(engagement.activity?.emails || 0);
+  const [loggedBy, setLoggedBy] = useState<string>(engagement.loggedBy || 'Samir');
   const { toast } = useToast();
 
   const {
@@ -62,7 +63,7 @@ const EditNoteDialog = ({ engagement, onSave, onDelete }: EditNoteDialogProps) =
     const activity: { calls?: number; emails?: number } = {};
     if (calls > 0) activity.calls = calls;
     if (emails > 0) activity.emails = emails;
-    onSave(engagement.id, data.details, Object.keys(activity).length > 0 ? activity : undefined);
+    onSave(engagement.id, data.details, Object.keys(activity).length > 0 ? activity : undefined, loggedBy);
     toast({
       title: 'Note updated',
       description: 'Your note has been saved.',
@@ -85,6 +86,7 @@ const EditNoteDialog = ({ engagement, onSave, onDelete }: EditNoteDialogProps) =
       reset({ details: engagement.details || engagement.summary });
       setCalls(engagement.activity?.calls || 0);
       setEmails(engagement.activity?.emails || 0);
+      setLoggedBy(engagement.loggedBy || 'Samir');
     }
   };
 
@@ -161,7 +163,30 @@ const EditNoteDialog = ({ engagement, onSave, onDelete }: EditNoteDialogProps) =
                 />
               </div>
             </div>
-            
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Logged by</Label>
+              <div className="flex gap-2">
+                {REPS.map(rep => (
+                  <button
+                    key={rep.name}
+                    type="button"
+                    onClick={() => setLoggedBy(rep.name)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                      loggedBy === rep.name
+                        ? `${rep.activeClass} border-current`
+                        : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'
+                    }`}
+                  >
+                    <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${rep.avatarClass}`}>
+                      {rep.initials}
+                    </span>
+                    {rep.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)} className="rounded-xl">
                 Cancel

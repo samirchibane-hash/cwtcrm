@@ -9,12 +9,23 @@ export interface Contact {
   emailVerified?: boolean;
 }
 
+export const REPS = [
+  { name: 'Samir', initials: 'S', avatarClass: 'bg-blue-500 text-white', activeClass: 'bg-blue-500/10 text-blue-700 border-blue-400/40 dark:text-blue-400' },
+  { name: 'Deondre B.', initials: 'DB', avatarClass: 'bg-orange-500 text-white', activeClass: 'bg-orange-500/10 text-orange-700 border-orange-400/40 dark:text-orange-400' },
+] as const;
+
+export type RepName = typeof REPS[number]['name'];
+
+export const getRepConfig = (name?: string) =>
+  REPS.find(r => r.name === name) ?? { name: name || '', initials: (name?.[0] ?? '?').toUpperCase(), avatarClass: 'bg-muted text-muted-foreground', activeClass: '' };
+
 export interface Engagement {
   id: string;
   date: string;
   type: 'call' | 'email' | 'meeting' | 'note';
   summary: string;
   details?: string;
+  loggedBy?: string;
   activity?: {
     calls?: number;
     emails?: number;
