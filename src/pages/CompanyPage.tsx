@@ -2,6 +2,7 @@ import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
 import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import { Contact, Engagement, CompanyType, MarketType, LeadTier } from '@/data/prospects';
 import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
+import { parseDateLoose, formatMmDdYyyy } from '@/lib/date';
 import { getOrdersByCustomer, Order, getStatusColor } from '@/data/orders';
 import { useProspects } from '@/context/ProspectsContext';
 import StageBadge from '@/components/crm/StageBadge';
@@ -927,7 +928,7 @@ const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) =
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
               <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
-                {new Date(engagement.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}
+                {(() => { const d = parseDateLoose(engagement.date); return d ? formatMmDdYyyy(d) : engagement.date; })()}
               </span>
               <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                 <EditNoteDialog 
