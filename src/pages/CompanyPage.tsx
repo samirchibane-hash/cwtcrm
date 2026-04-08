@@ -137,11 +137,23 @@ const CompanyPage = () => {
     website: string;
     googleMapsUrl: string;
   }>) => {
+    const updatedEngagements = updates.engagements ?? engagements;
+    let derivedLastContact = lastContact;
+    if (updates.engagements && updates.engagements.length > 0) {
+      // Find the most recent engagement date and convert to M/D/YYYY
+      const sorted = [...updates.engagements].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      );
+      const mostRecent = sorted[0].date;
+      derivedLastContact = new Date(mostRecent + (mostRecent.includes('T') ? '' : 'T00:00:00'))
+        .toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+      setLastContact(derivedLastContact);
+    }
     updateProspect({
       id: prospect.id,
       companyName: updates.companyName ?? companyName,
       contacts: updates.contacts ?? contacts,
-      engagements: updates.engagements ?? engagements,
+      engagements: updatedEngagements,
       type: updates.companyType ?? companyType,
       marketType: updates.marketType ?? marketType,
       leadTier: updates.leadTier ?? leadTier,
@@ -154,7 +166,7 @@ const CompanyPage = () => {
       linkedIn: updates.linkedIn ?? linkedIn,
       website: updates.website ?? website,
       googleMapsUrl: updates.googleMapsUrl ?? googleMapsUrl,
-      lastContact: lastContact,
+      lastContact: derivedLastContact,
       engagementNotes: engagementNotes,
     });
   };
