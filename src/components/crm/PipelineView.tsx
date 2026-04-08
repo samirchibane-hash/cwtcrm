@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import { useProspects } from '@/context/ProspectsContext';
 import { Prospect } from '@/data/prospects';
 import TypeBadge from './TypeBadge';
+import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 
 interface PipelineViewProps {
   onSelectProspect: (prospect: Prospect) => void;
@@ -69,7 +70,7 @@ const PipelineView = ({ onSelectProspect }: PipelineViewProps) => {
                   )}
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span className="font-mono">{prospect.state || '—'}</span>
-                    <span className="font-mono">{prospect.lastContact || '—'}</span>
+                    <span className="font-mono">{getProspectLastContactLabel(prospect) || '—'}</span>
                   </div>
                 </div>
               ))}

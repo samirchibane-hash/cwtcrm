@@ -22,9 +22,11 @@ export function parseDateLoose(input: string, options: ParsedDateOptions = {}): 
   const raw = (input ?? '').trim();
   if (!raw) return null;
 
-  // ISO-ish fallback
+  // ISO-ish fallback — append T00:00:00 to force local-time parsing
+  // (bare YYYY-MM-DD strings are parsed as UTC by the spec, which causes off-by-one in US timezones)
   if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
-    const d = new Date(raw);
+    const normalized = raw.length === 10 ? raw + 'T00:00:00' : raw;
+    const d = new Date(normalized);
     return Number.isNaN(d.getTime()) ? null : d;
   }
 
