@@ -193,8 +193,10 @@ const ActivityDashboard = () => {
   }), [allActivities, cutoffDate]);
 
   // Chart data — bucket by period
+  // When "All reps": keys are rep names (e.g. 'Samir', 'Deondre B.'), colored per rep
+  // When single rep: keys are 'Calls' / 'Emails', colored in rep's palette
   const chartData = useMemo(() => {
-    type Bucket = { label: string; sortKey: number; calls: number; emails: number };
+    type Bucket = { label: string; sortKey: number } & Record<string, number>;
     const map = new Map<string, Bucket>();
 
     filtered.forEach(e => {
@@ -202,10 +204,7 @@ const ActivityDashboard = () => {
       const d = parseDate(e.date);
       if (!d) return;
 
-      let key: string;
-      let label: string;
-      let sortKey: number;
-
+      let key: string, label: string, sortKey: number;
       if (period === 'daily') {
         key = d.toISOString().slice(0, 10);
         label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -218,12 +217,24 @@ const ActivityDashboard = () => {
         sortKey = ws.getTime();
       }
 
-      const existing = map.get(key) || { label, sortKey, calls: 0, emails: 0 };
-      map.set(key, { ...existing, calls: existing.calls + e.calls, emails: existing.emails + e.emails });
+      const bucket: Bucket = map.get(key) ?? { label, sortKey };
+
+      if (repFilter === 'all') {
+        // Group by rep — value depends on metric filter
+        const repName = e.loggedBy || 'Samir';
+        const value = metricFilter === 'calls' ? e.calls : metricFilter === 'emails' ? e.emails : e.calls + e.emails;
+        if (value > 0) bucket[repName] = (bucket[repName] || 0) + value;
+      } else {
+        // Single rep — split by metric type
+        if (metricFilter !== 'emails' && e.calls > 0) bucket['Calls'] = (bucket['Calls'] || 0) + e.calls;
+        if (metricFilter !== 'calls' && e.emails > 0) bucket['Emails'] = (bucket['Emails'] || 0) + e.emails;
+      }
+
+      map.set(key, bucket);
     });
 
     return Array.from(map.values()).sort((a, b) => a.sortKey - b.sortKey);
-  }, [filtered, period]);
+  }, [filtered, period, repFilter, metricFilter]);
 
   const colors = getChartColors(repFilter);
   const hasData = totalActivities > 0;
@@ -378,11 +389,15 @@ const ActivityDashboard = () => {
                     labelStyle={{ color: 'hsl(var(--foreground))' }}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  {metricFilter !== 'emails' && (
-                    <Bar dataKey="calls" name="Calls" fill={colors.calls} radius={[4, 4, 0, 0]} />
-                  )}
-                  {metricFilter !== 'calls' && (
-                    <Bar dataKey="emails" name="Emails" fill={colors.emails} radius={[4, 4, 0, 0]} />
+                  {repFilter === 'all' ? (
+                    REPS.map(rep => (
+                      <Bar key={rep.name} dataKey={rep.name} name={rep.name} stackId="rep" fill={REP_CHART_COLORS[rep.name].calls} />
+                    ))
+                  ) : (
+                    <>
+                      {metricFilter !== 'emails' && <Bar dataKey="Calls" name="Calls" fill={colors.calls} radius={[4, 4, 0, 0]} />}
+                      {metricFilter !== 'calls'  && <Bar dataKey="Emails" name="Emails" fill={colors.emails} radius={[4, 4, 0, 0]} />}
+                    </>
                   )}
                 </BarChart>
               ) : (
@@ -395,11 +410,17 @@ const ActivityDashboard = () => {
                     labelStyle={{ color: 'hsl(var(--foreground))' }}
                   />
                   <Legend wrapperStyle={{ fontSize: 12 }} />
-                  {metricFilter !== 'emails' && (
-                    <Line type="monotone" dataKey="calls" name="Calls" stroke={colors.calls} strokeWidth={2} dot={{ r: 3, fill: colors.calls }} activeDot={{ r: 5 }} />
-                  )}
-                  {metricFilter !== 'calls' && (
-                    <Line type="monotone" dataKey="emails" name="Emails" stroke={colors.emails} strokeWidth={2} dot={{ r: 3, fill: colors.emails }} activeDot={{ r: 5 }} />
+                  {repFilter === 'all' ? (
+                    REPS.map(rep => (
+                      <Line key={rep.name} type="monotone" dataKey={rep.name} name={rep.name}
+                        stroke={REP_CHART_COLORS[rep.name].calls} strokeWidth={2}
+                        dot={{ r: 3, fill: REP_CHART_COLORS[rep.name].calls }} activeDot={{ r: 5 }} />
+                    ))
+                  ) : (
+                    <>
+                      {metricFilter !== 'emails' && <Line type="monotone" dataKey="Calls" name="Calls" stroke={colors.calls} strokeWidth={2} dot={{ r: 3, fill: colors.calls }} activeDot={{ r: 5 }} />}
+                      {metricFilter !== 'calls'  && <Line type="monotone" dataKey="Emails" name="Emails" stroke={colors.emails} strokeWidth={2} dot={{ r: 3, fill: colors.emails }} activeDot={{ r: 5 }} />}
+                    </>
                   )}
                 </LineChart>
               )}
