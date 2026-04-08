@@ -55,6 +55,8 @@
     --stage-disco-foreground: 0 0% 100%;
     --stage-negotiation: 45 90% 50%;
     --stage-negotiation-foreground: 0 0% 9%;
+    --stage-longterm: 220 15% 55%;
+    --stage-longterm-foreground: 0 0% 100%;
 
     --type-oem: 271 91% 65%;
     --type-oem-foreground: 0 0% 100%;

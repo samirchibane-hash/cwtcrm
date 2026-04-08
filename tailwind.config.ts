@@ -74,6 +74,8 @@ export default {
           "disco-foreground": "hsl(var(--stage-disco-foreground))",
           negotiation: "hsl(var(--stage-negotiation))",
           "negotiation-foreground": "hsl(var(--stage-negotiation-foreground))",
+          longterm: "hsl(var(--stage-longterm))",
+          "longterm-foreground": "hsl(var(--stage-longterm-foreground))",
         },
         type: {
           oem: "hsl(var(--type-oem))",
