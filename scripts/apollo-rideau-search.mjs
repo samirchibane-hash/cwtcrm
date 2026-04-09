@@ -29,14 +29,14 @@ const TARGET_COUNT = 10;
 if (!APOLLO_KEY)   { console.error('Missing APOLLO_API in .env'); process.exit(1); }
 if (!CLEAROUT_KEY) { console.error('Missing CLEAROUT_API_KEY in .env'); process.exit(1); }
 
-const SENIORITIES    = ['owner', 'founder', 'c_suite', 'vp', 'director', 'manager'];
-const TITLE_KEYWORDS = [
-  'engineer', 'engineering', 'product developer', 'product development',
-  'purchasing', 'procurement', 'service manager', 'operations',
-  'quality', 'manufacturing', 'supply chain', 'r&d', 'research',
-  'water treatment', 'technical', 'branch manager', 'general manager',
+const SENIORITIES = ['owner', 'founder', 'c_suite', 'vp', 'director', 'manager'];
+// No person_titles filter — Rideau Supply uses titles like "Business Division Manager",
+// "Branch Manager", "President" that don't match keyword lists. Filter in post-processing.
+const SKIP_TITLES = [
+  'marketing', 'finance', 'accounting', 'warehouse', 'intern', 'co-op',
+  'sales representative', 'inside sales', 'territory', 'logistics', 'driver',
+  'receptionist', 'administrator', 'dispatch', 'associate',
 ];
-const SKIP_TITLES = ['marketing', 'finance', 'accounting', 'warehouse', 'intern', 'co-op', 'operator', 'technician', 'sales'];
 
 // --- Apollo ---
 async function apolloSearch(page = 1) {
@@ -46,7 +46,6 @@ async function apolloSearch(page = 1) {
     body: JSON.stringify({
       organization_ids: [ORG_ID],
       person_seniorities: SENIORITIES,
-      person_titles: TITLE_KEYWORDS,
       page,
       per_page: 25,
     }),
