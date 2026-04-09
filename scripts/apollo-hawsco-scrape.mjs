@@ -84,7 +84,7 @@ async function verifyEmail(email) {
   const data = await res.json();
   return {
     status: data.data?.status || 'unknown',
-    safe_to_send: data.data?.safe_to_send === 'yes',
+    safe_to_send: data.data?.status === 'valid' || data.data?.safe_to_send === 'yes',
     catch_all: data.data?.is_catch_all === 'yes',
   };
 }
