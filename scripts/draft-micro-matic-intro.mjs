@@ -75,9 +75,15 @@ async function createDraft(token, raw) {
 // Contacts sourced from Apollo (2026-04-09) — verified via Clearout
 // Update this list after running apollo-micro-matic-contacts.mjs
 const withEmail = [
-  { name: 'Kelli Fall',        email: 'kefal@micro-matic.com',              role: 'Technical Project Manager - New Product Development' },
-  { name: 'Brett Kresge',      email: 'brk@micro-matic.com',                role: 'Purchasing Manager & Forecast Analyst' },
-  { name: 'Donatas Pakalnis',  email: 'donatas.pakalnis@micro-matic.dk',    role: 'Engineering Team Lead' },
+  { name: 'Kelli Fall',                      email: 'kefal@micro-matic.com',           role: 'Technical Project Manager - New Product Development' },
+  { name: 'Brett Kresge',                    email: 'brk@micro-matic.com',             role: 'Purchasing Manager & Forecast Analyst' },
+  { name: 'Donatas Pakalnis',               email: 'donatas.pakalnis@micro-matic.dk',  role: 'Engineering Team Lead' },
+  { name: 'Cian Hickey',                     email: 'cbh@micro-matic.com',             role: 'Managing Director' },
+  { name: 'Lars Gjodsbol',                   email: 'lars.gjodsbol@micromatic.dk',     role: 'Chief Executive Officer' },
+  { name: 'Steve Hall',                      email: 'sthal@micro-matic.com',           role: 'Chief Operating Officer' },
+  { name: 'Glen Metzger',                    email: 'ggm@micro-matic.com',             role: 'National Operations Manager' },
+  { name: 'Kristina Klemkaite-Ramanauske',  email: 'dr.kristina@micro-matic.dk',      role: 'Global Quality Manager' },
+  { name: 'Mark Vanhousen',                  email: 'mav@micro-matic.com',             role: 'Plant Manager' },
 ];
 
 console.log(`Creating drafts for ${withEmail.length} contact(s)...\n`);
