@@ -358,6 +358,74 @@ for (const person of relevant) {
 }
 console.log(`\n  Enriched: ${enriched.length} contacts\n`);
 
+// Phase 1d-pre: Guess emails for contacts missing one, using detected company format
+function detectEmailFormat(contacts, domain) {
+  for (const c of contacts) {
+    if (!c.email || !c.name) continue;
+    const parts = c.name.trim().toLowerCase().split(/\s+/);
+    if (parts.length < 2) continue;
+    const [first, ...rest] = parts;
+    const last = rest.join('');
+    const f = first[0];
+    const local = c.email.split('@')[0].toLowerCase();
+    if (local === `${f}${last}`)          return 'flast';
+    if (local === `${first}.${last}`)     return 'first.last';
+    if (local === `${first}${last}`)      return 'firstlast';
+    if (local === `${f}.${last}`)         return 'f.last';
+    if (local === `${last}.${first}`)     return 'last.first';
+    if (local === `${last}${f}`)          return 'lastf';
+    if (local === first)                  return 'first';
+  }
+  return null;
+}
+
+function generateEmail(name, format, domain) {
+  const parts = name.trim().toLowerCase().split(/\s+/);
+  if (parts.length < 2) return null;
+  const [first, ...rest] = parts;
+  const last = rest.join('');
+  const f = first[0];
+  switch (format) {
+    case 'flast':      return `${f}${last}@${domain}`;
+    case 'first.last': return `${first}.${last}@${domain}`;
+    case 'firstlast':  return `${first}${last}@${domain}`;
+    case 'f.last':     return `${f}.${last}@${domain}`;
+    case 'last.first': return `${last}.${first}@${domain}`;
+    case 'lastf':      return `${last}${f}@${domain}`;
+    case 'first':      return `${first}@${domain}`;
+    default:           return null;
+  }
+}
+
+const withEmails    = enriched.filter(c => c.email);
+const withoutEmails = enriched.filter(c => !c.email);
+
+if (withoutEmails.length > 0 && withEmails.length > 0) {
+  // Infer domain and format from known emails
+  const knownDomain = withEmails[0].email.split('@')[1];
+  const format = detectEmailFormat(withEmails, knownDomain);
+  if (format) {
+    console.log(`Phase 3b: Guessing emails (format: ${format} @${knownDomain})...\n`);
+    for (const contact of withoutEmails) {
+      const guess = generateEmail(contact.name, format, knownDomain);
+      if (guess) {
+        process.stdout.write(`  ${contact.name.padEnd(25)} → ${guess} → `);
+        const v = await verifyEmail(guess);
+        if (v.verified || v.catchAll) {
+          contact.email = guess;
+          console.log(`${v.status}${v.catchAll ? ' (catch-all)' : ''} ✓`);
+        } else {
+          console.log(`${v.status} — skipped`);
+        }
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
+    console.log();
+  } else {
+    console.log('Phase 3b: Could not detect email format from known contacts — skipping guesses.\n');
+  }
+}
+
 // Phase 1d: Verify emails
 console.log('Phase 4: Verifying emails with Clearout...\n');
 const results = [];
