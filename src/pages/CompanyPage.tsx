@@ -82,7 +82,9 @@ const CompanyPage = () => {
         id: c.id || `contact-${Date.now()}-${idx}`,
       }));
       setContacts(contactsWithIds);
-      setEngagements(prospect.engagements);
+      setEngagements([...prospect.engagements].sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+      ));
       setCompanyType(prospect.type);
       setMarketType(prospect.marketType);
       setLeadTier(prospect.leadTier);
