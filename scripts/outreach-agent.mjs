@@ -7,7 +7,7 @@
  *
  *   --auto      Skip confirmation prompt (fully hands-free)
  *   --dry-run   Phase 1 only — discover contacts, print table, write nothing
- *   --limit N   Cap enrichment at N contacts (default 10)
+ *   --limit N   Cap enrichment at N contacts (default 50, 0 = unlimited)
  */
 
 import { readFileSync } from 'fs';
@@ -29,7 +29,7 @@ const companyArg = args.find(a => !a.startsWith('--'));
 const AUTO      = args.includes('--auto');
 const DRY_RUN   = args.includes('--dry-run');
 const limitIdx  = args.indexOf('--limit');
-const LIMIT     = limitIdx !== -1 ? parseInt(args[limitIdx + 1]) : 10;
+const LIMIT     = limitIdx !== -1 ? parseInt(args[limitIdx + 1]) : 50;
 
 // Optional flags to bypass CRM lookup (used when service role key is unavailable)
 const getFlag = (flag) => { const i = args.indexOf(flag); return i !== -1 ? args[i + 1] : null; };
@@ -57,11 +57,31 @@ const FROM         = 'samir@canopuswatertechnologies.com';
 const SUBJECT      = 'LED UVs at the WQA in Miami';
 const DRIVE_LINK   = 'https://drive.google.com/drive/folders/1Pb8pPqPLei7VxoSe3FWT7IQZ93-dnT3q?usp=sharing';
 
-const SENIORITIES = ['owner', 'founder', 'c_suite', 'vp', 'director', 'manager'];
+// Pass 1: catch all leadership (president, VP, C-suite, director) regardless of function
+const LEADERSHIP_SENIORITIES = ['owner', 'founder', 'c_suite', 'vp', 'director'];
+
+// Pass 2: catch specific roles at any seniority level
+const ROLE_TITLES = [
+  'engineer', 'engineering',
+  'product manager', 'product management', 'product development', 'product director',
+  'operations', 'supply chain',
+  'procurement', 'purchasing',
+  'business development',
+  'r&d', 'research and development',
+  'general manager', 'branch manager',
+];
+
+// Post-filter: remove roles that are never relevant to CWT outreach
 const SKIP_TITLES = [
-  'marketing', 'finance', 'accounting', 'warehouse', 'intern', 'co-op',
-  'sales representative', 'inside sales', 'territory', 'logistics', 'driver',
-  'receptionist', 'administrator', 'dispatch', 'associate', 'human resources',
+  'sales representative', 'sales rep', 'account executive', 'account manager',
+  'regional sales manager', 'territory manager', 'territory sales',
+  'inside sales', 'outside sales', 'sales associate',
+  'warehouse', 'driver', 'delivery', 'forklift',
+  'receptionist', 'administrator', 'administrative', 'dispatcher',
+  'human resources', 'recruiter', 'talent acquisition',
+  'finance manager', 'accounting', 'payroll', 'bookkeeper',
+  'marketing coordinator', 'marketing specialist',
+  'intern', 'co-op',
 ];
 
 const SIGNATURE = `<div dir="ltr"><div dir="ltr" style="color:rgb(34,34,34)"><div dir="ltr"><div dir="ltr"><div dir="ltr"><div><div><div><b>Samir Chibane</b><br></div>Chief Marketing Officer<br><span style="font-size:12.8px">Canopus Water Technologies Inc.<br></span><img data-aii="CiExTVJyMFlBWUJMUFVUVnpJbXFpUjZSNWZWM1prcHRHdy0" src="https://ci3.googleusercontent.com/mail-sig/AIorK4wNPew27ctjfDTJcQYws2TfSh4sKVvrD3PBrJ5siii-INAgjHySmu-F9hNHWt3AnQd56yLC3-VNni5l" data-os="https://lh3.googleusercontent.com/d/1MRr0YAYBLPUTVzImqiR6R5fV3ZkptGw-"><br></div><div>Mobile: (617) 653-7033</div></div>Email: <a href="mailto:samir@canopuswatertechnologies.com" style="color:rgb(17,85,204)" target="_blank">samir@canopuswatertechnologies.com</a></div><div dir="ltr"><font size="2">Website: <a href="http://canopuswater.co" style="color:rgb(17,85,204)" target="_blank">canopuswater.co</a></font><a href="http://linkedin.com/company/canopus-water-tech" title="" style="color:rgb(17,85,204);font-family:ARIAL;font-size:13.3333px" target="_blank"><img src="https://ci3.googleusercontent.com/meips/ADKq_NbJ5G4vDTIjULf2Brm-nHPca2_m1oqvxln5IPslZieOOvuq9FdIqfiqRqWLkSKeaMlFn2jsgSv_rSpc2kKIAU4SPhLCkvif1CCc7QG2bQybLglFt84YRPTa8sXUn8pOBvvqOIQu5C5pAA=s0-d-e1-ft#https://media2.thegranitegroup.com/TGG_Email_Signatures/whitebackround/LinkedIn.png" border="0" alt="linkedin.com/company/canopus-water-tech"></a></div><div dir="ltr"><br></div></div></div></div><div dir="ltr" style="color:rgb(34,34,34)"><div>The information contained in this communication from the sender is confidential. It is intended solely for use by the recipient and others authorized to receive it. If you are not the recipient, you are hereby notified that any disclosure, copying, distribution or taking action in relation of the contents of this information is strictly prohibited and may be unlawful.</div></div></div>`;
@@ -98,14 +118,36 @@ async function apolloFindOrg(name) {
   return (data.organizations || [])[0] || null;
 }
 
-async function apolloSearch(orgId, page = 1) {
-  const res = await fetch('https://api.apollo.io/v1/mixed_people/api_search', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Api-Key': APOLLO_KEY },
-    body: JSON.stringify({ organization_ids: [orgId], person_seniorities: SENIORITIES, page, per_page: 25 }),
-  });
-  if (!res.ok) throw new Error(`Apollo search ${res.status}: ${await res.text()}`);
-  return res.json();
+async function apolloSearchPass(orgId, filters, label) {
+  const seen = new Map();
+  for (let page = 1; page <= 20; page++) {
+    const res = await fetch('https://api.apollo.io/v1/mixed_people/api_search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Api-Key': APOLLO_KEY },
+      body: JSON.stringify({ organization_ids: [orgId], ...filters, page, per_page: 25 }),
+    });
+    if (!res.ok) throw new Error(`Apollo search ${res.status}: ${await res.text()}`);
+    const data = await res.json();
+    if (data.error) { console.error(`  Apollo error (${label}):`, data.error); break; }
+    const people = data.people || [];
+    people.forEach(p => seen.set(p.id, p));
+    process.stdout.write(`  [${label}] page ${page}: ${people.length} results\n`);
+    if (people.length < 25) break;
+    await new Promise(r => setTimeout(r, 300));
+  }
+  return [...seen.values()];
+}
+
+async function apolloSearchAll(orgId) {
+  // Pass 1: all leadership — presidents, VPs, C-suite, directors (any function)
+  const leadership = await apolloSearchPass(orgId, { person_seniorities: LEADERSHIP_SENIORITIES }, 'leadership');
+  await new Promise(r => setTimeout(r, 400));
+  // Pass 2: specific roles at any level — engineers, product, ops, procurement, biz dev
+  const roles = await apolloSearchPass(orgId, { person_titles: ROLE_TITLES }, 'roles');
+  // Merge and dedup by Apollo person ID
+  const merged = new Map();
+  [...leadership, ...roles].forEach(p => merged.set(p.id, p));
+  return [...merged.values()];
 }
 
 async function apolloEnrich(personId) {
@@ -283,24 +325,15 @@ if (!org) {
 }
 console.log(`✓ ${org.name} (${org.id})\n`);
 
-// Phase 1b: Search contacts
-console.log('Phase 2: Searching contacts by seniority...\n');
-let allPeople = [];
-for (let page = 1; page <= 3; page++) {
-  const data = await apolloSearch(org.id, page);
-  if (data.error) { console.error('  Apollo error:', data.error); break; }
-  const people = data.people || [];
-  allPeople = allPeople.concat(people);
-  console.log(`  Page ${page}: ${people.length} results`);
-  if (people.length < 25) break;
-  await new Promise(r => setTimeout(r, 300));
-}
-console.log(`  Total: ${allPeople.length} people`);
+// Phase 1b: Search contacts (dual pass — leadership + role-specific)
+console.log('Phase 2: Searching Apollo (leadership pass + role-titles pass)...\n');
+const allPeople = await apolloSearchAll(org.id);
+console.log(`\n  Total unique from Apollo: ${allPeople.length} people`);
 
 const relevant = allPeople
   .filter(p => p.first_name && !SKIP_TITLES.some(s => (p.title || '').toLowerCase().includes(s)))
-  .slice(0, LIMIT);
-console.log(`  After role filter (cap ${LIMIT}): ${relevant.length} to enrich\n`);
+  .slice(0, LIMIT === 0 ? Infinity : LIMIT);
+console.log(`  After role filter${LIMIT > 0 ? ` (cap ${LIMIT})` : ''}: ${relevant.length} to enrich\n`);
 
 if (relevant.length === 0) {
   const titles = allPeople.map(p => p.title).filter(Boolean).slice(0, 10);
