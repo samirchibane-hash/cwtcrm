@@ -519,7 +519,12 @@ const CompanyPage = () => {
                             </button>
                           </td>
                           <td className="px-6 py-4">
-                            <p className="font-medium text-sm">{contact.name}</p>
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium text-sm">{contact.name}</p>
+                              {contact.emailed && (
+                                <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" title="Emailed" />
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4">
                             <p className="text-sm text-muted-foreground">{contact.role || '—'}</p>
