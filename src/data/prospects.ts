@@ -7,7 +7,6 @@ export interface Contact {
   linkedIn?: string;
   isChampion?: boolean;
   emailVerified?: boolean;
-  emailed?: boolean;
 }
 
 export const REPS = [

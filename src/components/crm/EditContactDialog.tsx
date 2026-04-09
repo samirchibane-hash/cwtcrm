@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Pencil, User, Trash2, CheckCircle } from 'lucide-react';
+import { Pencil, User, Trash2 } from 'lucide-react';
 import { Contact } from '@/data/prospects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,7 +35,6 @@ const contactSchema = z.object({
   email: z.string().trim().email('Invalid email address').max(255, 'Email must be less than 255 characters').optional().or(z.literal('')),
   phone: z.string().trim().max(30, 'Phone must be less than 30 characters').optional(),
   linkedIn: z.string().trim().max(500, 'LinkedIn URL must be less than 500 characters').optional(),
-  emailed: z.boolean().optional(),
 });
 
 type ContactFormData = z.infer<typeof contactSchema>;
@@ -55,8 +54,6 @@ const EditContactDialog = ({ contact, onUpdateContact, onDeleteContact, trigger 
     register,
     handleSubmit,
     reset,
-    watch,
-    setValue,
     formState: { errors, isSubmitting },
   } = useForm<ContactFormData>({
     resolver: zodResolver(contactSchema),
@@ -66,7 +63,6 @@ const EditContactDialog = ({ contact, onUpdateContact, onDeleteContact, trigger 
       email: contact.email || '',
       phone: contact.phone || '',
       linkedIn: contact.linkedIn || '',
-      emailed: contact.emailed ?? false,
     },
   });
 
@@ -79,20 +75,18 @@ const EditContactDialog = ({ contact, onUpdateContact, onDeleteContact, trigger 
         email: contact.email || '',
         phone: contact.phone || '',
         linkedIn: contact.linkedIn || '',
-        emailed: contact.emailed ?? false,
       });
     }
   }, [contact, open, reset]);
 
   const onSubmit = (data: ContactFormData) => {
     const updatedContact: Contact = {
-      ...contact,
+      id: contact.id,
       name: data.name,
       role: data.role || undefined,
       email: data.email || undefined,
       phone: data.phone || undefined,
       linkedIn: data.linkedIn || undefined,
-      emailed: data.emailed ?? false,
     };
     
     onUpdateContact(updatedContact);
@@ -121,7 +115,6 @@ const EditContactDialog = ({ contact, onUpdateContact, onDeleteContact, trigger 
         email: contact.email || '',
         phone: contact.phone || '',
         linkedIn: contact.linkedIn || '',
-        emailed: contact.emailed ?? false,
       });
     }
   };
@@ -215,21 +208,6 @@ const EditContactDialog = ({ contact, onUpdateContact, onDeleteContact, trigger 
             {errors.linkedIn && (
               <p className="text-xs text-destructive">{errors.linkedIn.message}</p>
             )}
-          </div>
-
-          <div className="flex items-center gap-2 pt-1">
-            <button
-              type="button"
-              onClick={() => setValue('emailed', !watch('emailed'))}
-              className={`w-5 h-5 rounded-md border-2 flex items-center justify-center transition-colors ${
-                watch('emailed') ? 'bg-green-500 border-green-500' : 'border-border hover:border-green-400'
-              }`}
-            >
-              {watch('emailed') && <CheckCircle className="w-3.5 h-3.5 text-white" />}
-            </button>
-            <Label htmlFor="emailed" className="cursor-pointer" onClick={() => setValue('emailed', !watch('emailed'))}>
-              Emailed
-            </Label>
           </div>
 
           <DialogFooter className="pt-4 flex justify-between">
