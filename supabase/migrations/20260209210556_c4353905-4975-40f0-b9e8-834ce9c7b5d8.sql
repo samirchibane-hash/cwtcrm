@@ -1,1 +1,0 @@
-ALTER TABLE public.prospects ADD COLUMN country text DEFAULT '';

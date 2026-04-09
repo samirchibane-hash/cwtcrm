@@ -1,1 +1,0 @@
-ALTER TABLE public.prospects ADD COLUMN google_maps_url text DEFAULT '';
