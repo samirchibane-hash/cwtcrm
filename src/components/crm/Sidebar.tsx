@@ -1,4 +1,4 @@
-import { Users, FileText, Droplets, ShoppingCart, LogOut, BarChart2 } from 'lucide-react';
+import { Users, FileText, ShoppingCart, LogOut, BarChart2 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -29,11 +29,11 @@ const Sidebar = ({ activeView, onViewChange }: SidebarProps) => {
       {/* Logo */}
       <div className="p-6">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-accent flex items-center justify-center">
-            <Droplets className="w-5 h-5 text-accent-foreground" />
+          <div className="w-10 h-10 rounded-xl overflow-hidden flex items-center justify-center">
+            <img src="/canopus-logo.png" alt="Canopus" className="w-10 h-10 object-cover" />
           </div>
           <div>
-            <h1 className="font-semibold text-lg tracking-tight">AquaCRM</h1>
+            <h1 className="font-semibold text-lg tracking-tight">Canopus</h1>
             <p className="text-xs text-muted-foreground">Pipeline Manager</p>
           </div>
         </div>
