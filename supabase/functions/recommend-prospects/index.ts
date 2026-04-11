@@ -12,10 +12,10 @@ serve(async (req) => {
 
   try {
     const { prospects, targetVertical, disqualifiedCompanies } = await req.json();
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+    const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
+
+    if (!ANTHROPIC_API_KEY) {
+      throw new Error("ANTHROPIC_API_KEY is not configured");
     }
 
     // Build a summary of existing prospects for the AI to analyze
@@ -27,7 +27,7 @@ serve(async (req) => {
       notes: p.engagementNotes,
     }));
 
-    const systemPrompt = `You are an expert B2B sales analyst specializing in the water treatment, beverage dispensing, and related equipment industries. 
+    const systemPrompt = `You are an expert B2B sales analyst specializing in the water treatment, beverage dispensing, and related equipment industries.
 
 Analyze the provided list of existing prospects and recommend NEW companies that would be good potential customers based on the patterns you observe.
 
@@ -58,62 +58,57 @@ Based on this prospect list, recommend 5-8 NEW companies or types of companies w
 4. Estimated product vertical (Water Coolers, Ice Machines, Beverage Dispensers, Water Filtration, Spas & Hot Tubs, Fountains, Industrial, Residential, Commercial)
 5. Business model (OEM, Distributor, or eCommerce)`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt },
-        ],
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages: [{ role: "user", content: userPrompt }],
         tools: [
           {
-            type: "function",
-            function: {
-              name: "recommend_prospects",
-              description: "Return structured prospect recommendations",
-              parameters: {
-                type: "object",
-                properties: {
-                  recommendations: {
-                    type: "array",
-                    items: {
-                      type: "object",
-                      properties: {
-                        companyName: { type: "string", description: "Company name or type description" },
-                        reason: { type: "string", description: "Why they're a good fit" },
-                        approach: { type: "string", description: "Suggested approach for contact" },
-                        marketType: { 
-                          type: "string", 
-                          enum: ["Water Coolers", "Ice Machines", "Beverage Dispensers", "Water Filtration", "Spas & Hot Tubs", "Fountains", "Industrial", "Residential", "Commercial"]
-                        },
-                        companyType: { 
-                          type: "string", 
-                          enum: ["OEM", "Distributor", "eCommerce"]
-                        },
-                        website: { type: "string", description: "Company website if known" },
-                        linkedIn: { type: "string", description: "LinkedIn URL if known" },
+            name: "recommend_prospects",
+            description: "Return structured prospect recommendations",
+            input_schema: {
+              type: "object",
+              properties: {
+                recommendations: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      companyName: { type: "string", description: "Company name or type description" },
+                      reason: { type: "string", description: "Why they're a good fit" },
+                      approach: { type: "string", description: "Suggested approach for contact" },
+                      marketType: {
+                        type: "string",
+                        enum: ["Water Coolers", "Ice Machines", "Beverage Dispensers", "Water Filtration", "Spas & Hot Tubs", "Fountains", "Industrial", "Residential", "Commercial"],
                       },
-                      required: ["companyName", "reason", "approach", "marketType", "companyType"],
-                      additionalProperties: false,
+                      companyType: {
+                        type: "string",
+                        enum: ["OEM", "Distributor", "eCommerce"],
+                      },
+                      website: { type: "string", description: "Company website if known" },
+                      linkedIn: { type: "string", description: "LinkedIn URL if known" },
                     },
-                  },
-                  insights: {
-                    type: "string",
-                    description: "Overall insights about the prospect list and market opportunities",
+                    required: ["companyName", "reason", "approach", "marketType", "companyType"],
                   },
                 },
-                required: ["recommendations", "insights"],
-                additionalProperties: false,
+                insights: {
+                  type: "string",
+                  description: "Overall insights about the prospect list and market opportunities",
+                },
               },
+              required: ["recommendations", "insights"],
             },
           },
         ],
-        tool_choice: { type: "function", function: { name: "recommend_prospects" } },
+        tool_choice: { type: "tool", name: "recommend_prospects" },
       }),
     });
 
@@ -124,27 +119,19 @@ Based on this prospect list, recommend 5-8 NEW companies or types of companies w
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ error: "AI credits exhausted. Please add credits to continue." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      console.error("Anthropic API error:", response.status, errorText);
+      throw new Error(`Anthropic API error: ${response.status}`);
     }
 
     const data = await response.json();
-    const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
-    
-    if (!toolCall?.function?.arguments) {
+    const toolUse = data.content?.find((block: any) => block.type === "tool_use");
+
+    if (!toolUse?.input) {
       throw new Error("Invalid response from AI");
     }
 
-    const result = JSON.parse(toolCall.function.arguments);
-
-    return new Response(JSON.stringify(result), {
+    return new Response(JSON.stringify(toolUse.input), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
