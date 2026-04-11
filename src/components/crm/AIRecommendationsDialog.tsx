@@ -4,13 +4,15 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Sparkles, Plus, ExternalLink, Loader2 } from "lucide-react";
+import { Sparkles, Plus, ExternalLink, Loader2, Ban, Trash2 } from "lucide-react";
 import { useProspects } from "@/context/ProspectsContext";
 import { useProductVerticals } from "@/hooks/useProductVerticals";
 import TypeBadge from "./TypeBadge";
 import MarketTypeBadge from "./MarketTypeBadge";
 import { toast } from "sonner";
 import type { CompanyType, MarketType } from "@/data/prospects";
+
+const DISQUALIFIED_KEY = "disqualified_recommendations";
 
 interface Recommendation {
   companyName: string;
@@ -32,12 +34,21 @@ export function AIRecommendationsDialog() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<AIResponse | null>(null);
   const [selectedVertical, setSelectedVertical] = useState<string>("all");
+  const [addedCompanies, setAddedCompanies] = useState<Set<string>>(new Set());
+  const [disqualified, setDisqualified] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem(DISQUALIFIED_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  });
   const { prospects, addProspect } = useProspects();
   const { allVerticals } = useProductVerticals();
 
   const fetchRecommendations = async () => {
     setLoading(true);
     setResult(null);
+    setAddedCompanies(new Set());
 
     try {
       const response = await fetch(
@@ -48,7 +59,11 @@ export function AIRecommendationsDialog() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
           },
-          body: JSON.stringify({ prospects, targetVertical: selectedVertical !== "all" ? selectedVertical : undefined }),
+          body: JSON.stringify({
+            prospects,
+            targetVertical: selectedVertical !== "all" ? selectedVertical : undefined,
+            disqualifiedCompanies: disqualified.length > 0 ? disqualified : undefined,
+          }),
         }
       );
 
@@ -86,10 +101,30 @@ export function AIRecommendationsDialog() {
         engagements: [],
         lastContact: "",
       });
+      setAddedCompanies(prev => new Set(prev).add(rec.companyName));
       toast.success(`Added ${rec.companyName} to prospects`);
     } catch (error) {
       toast.error("Failed to add prospect");
     }
+  };
+
+  const handleDisqualify = (companyName: string) => {
+    const updated = [...disqualified, companyName];
+    setDisqualified(updated);
+    localStorage.setItem(DISQUALIFIED_KEY, JSON.stringify(updated));
+    if (result) {
+      setResult({
+        ...result,
+        recommendations: result.recommendations.filter(r => r.companyName !== companyName),
+      });
+    }
+    toast.info(`${companyName} won't appear in future recommendations`);
+  };
+
+  const clearDisqualified = () => {
+    setDisqualified([]);
+    localStorage.removeItem(DISQUALIFIED_KEY);
+    toast.success("Disqualified list cleared");
   };
 
   return (
@@ -102,10 +137,23 @@ export function AIRecommendationsDialog() {
       </DialogTrigger>
       <DialogContent className="max-w-3xl max-h-[85vh]">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            AI-Powered Prospect Recommendations
-          </DialogTitle>
+          <div className="flex items-start justify-between">
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              AI-Powered Prospect Recommendations
+            </DialogTitle>
+            {disqualified.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1.5 text-muted-foreground hover:text-destructive shrink-0"
+                onClick={clearDisqualified}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Clear {disqualified.length} disqualified
+              </Button>
+            )}
+          </div>
         </DialogHeader>
 
         {!result && !loading && (
@@ -171,15 +219,27 @@ export function AIRecommendationsDialog() {
                             <MarketTypeBadge marketType={rec.marketType} />
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="gap-1 shrink-0"
-                          onClick={() => handleAddProspect(rec)}
-                        >
-                          <Plus className="h-3 w-3" />
-                          Add
-                        </Button>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1"
+                            onClick={() => handleAddProspect(rec)}
+                            disabled={addedCompanies.has(rec.companyName)}
+                          >
+                            <Plus className="h-3 w-3" />
+                            {addedCompanies.has(rec.companyName) ? "Added" : "Add"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="gap-1 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                            title="Do not recommend this company"
+                            onClick={() => handleDisqualify(rec.companyName)}
+                          >
+                            <Ban className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                     </CardHeader>
                     <CardContent className="space-y-2">

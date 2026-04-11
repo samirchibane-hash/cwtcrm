@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prospects, targetVertical } = await req.json();
+    const { prospects, targetVertical, disqualifiedCompanies } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
@@ -43,11 +43,15 @@ Provide actionable recommendations with real company names when possible, or des
       ? `\n\nIMPORTANT: Focus your recommendations specifically on the "${targetVertical}" product vertical. All recommended companies should be relevant to ${targetVertical}.`
       : '';
 
+    const exclusionInstruction = disqualifiedCompanies?.length
+      ? `\n\nDo NOT recommend any of the following companies — they have been explicitly disqualified: ${disqualifiedCompanies.join(", ")}.`
+      : '';
+
     const userPrompt = `Here are our current prospects:
 
 ${JSON.stringify(prospectSummary, null, 2)}
 
-Based on this prospect list, recommend 5-8 NEW companies or types of companies we should pursue.${verticalInstruction} For each recommendation, provide:
+Based on this prospect list, recommend 5-8 NEW companies or types of companies we should pursue.${verticalInstruction}${exclusionInstruction} For each recommendation, provide:
 1. Company name (real companies if you know them, or descriptive type)
 2. Why they're a good fit
 3. Suggested approach for initial contact
