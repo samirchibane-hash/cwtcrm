@@ -39,24 +39,32 @@ Consider:
 
 Provide actionable recommendations with real company names when possible, or describe the type of company to target.`;
 
+    const existingNames = prospects.map((p: any) => p.companyName).filter(Boolean);
+
     const verticalInstruction = targetVertical
       ? `\n\nIMPORTANT: Focus your recommendations specifically on the "${targetVertical}" product vertical. All recommended companies should be relevant to ${targetVertical}.`
       : '';
 
-    const exclusionInstruction = disqualifiedCompanies?.length
-      ? `\n\nDo NOT recommend any of the following companies — they have been explicitly disqualified: ${disqualifiedCompanies.join(", ")}.`
+    const existingExclusion = existingNames.length
+      ? `\n\nDo NOT recommend any company that is the same as or similar in name to our existing prospects. For example, if we have "Oasis" do not recommend "Oasis International" or any other Oasis variant. Existing prospect names to avoid: ${existingNames.join(", ")}.`
+      : '';
+
+    const disqualifiedExclusion = disqualifiedCompanies?.length
+      ? `\n\nAlso do NOT recommend any of the following explicitly disqualified companies: ${disqualifiedCompanies.join(", ")}.`
       : '';
 
     const userPrompt = `Here are our current prospects:
 
 ${JSON.stringify(prospectSummary, null, 2)}
 
-Based on this prospect list, recommend 5-8 NEW companies or types of companies we should pursue.${verticalInstruction}${exclusionInstruction} For each recommendation, provide:
+Based on this prospect list, recommend 5-8 NEW companies or types of companies we should pursue.${verticalInstruction}${existingExclusion}${disqualifiedExclusion} For each recommendation, provide:
 1. Company name (real companies if you know them, or descriptive type)
 2. Why they're a good fit
 3. Suggested approach for initial contact
 4. Estimated product vertical (Water Coolers, Ice Machines, Beverage Dispensers, Water Filtration, Spas & Hot Tubs, Fountains, Industrial, Residential, Commercial)
-5. Business model (OEM, Distributor, or eCommerce)`;
+5. Business model (OEM, Distributor, or eCommerce)
+6. Their website URL (required — look up the real URL if you know the company)
+7. Their LinkedIn company page URL (required — use https://www.linkedin.com/company/[slug] format)`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -93,10 +101,10 @@ Based on this prospect list, recommend 5-8 NEW companies or types of companies w
                         type: "string",
                         enum: ["OEM", "Distributor", "eCommerce"],
                       },
-                      website: { type: "string", description: "Company website if known" },
-                      linkedIn: { type: "string", description: "LinkedIn URL if known" },
+                      website: { type: "string", description: "Company website URL" },
+                      linkedIn: { type: "string", description: "LinkedIn company page URL (https://www.linkedin.com/company/[slug])" },
                     },
-                    required: ["companyName", "reason", "approach", "marketType", "companyType"],
+                    required: ["companyName", "reason", "approach", "marketType", "companyType", "website", "linkedIn"],
                   },
                 },
                 insights: {
