@@ -18,56 +18,65 @@ serve(async (req) => {
       throw new Error("ANTHROPIC_API_KEY is not configured");
     }
 
-    // Build a summary of existing prospects for the AI to analyze
+    // Build a rich summary of existing prospects for the AI to analyze
     const prospectSummary = prospects.map((p: any) => ({
       company: p.companyName,
       type: p.type,
       marketType: p.marketType,
       state: p.state,
+      website: p.website,
       notes: p.engagementNotes,
     }));
 
-    const systemPrompt = `You are an expert B2B sales analyst specializing in the water treatment, beverage dispensing, and related equipment industries.
+    const systemPrompt = `You are a senior B2B sales strategist for Canopus Water Technologies, a manufacturer of UV water disinfection and filtration components sold to OEMs, national distributors, and eCommerce retailers.
 
-Analyze the provided list of existing prospects and recommend NEW companies that would be good potential customers based on the patterns you observe.
+Your job is to identify high-value NEW prospects — established, commercially significant companies that manufacture, distribute, or sell water treatment, beverage dispensing, ice, spa/hot tub, or related equipment at scale.
 
-Consider:
-- Product verticals (water coolers, ice machines, beverage dispensers, water filtration, spas/hot tubs, fountains, industrial, commercial, residential)
-- Business models (OEM manufacturers, Distributors, eCommerce)
-- Geographic patterns
-- The types of products these companies likely need (UV systems, filtration, etc.)
+## STRICT QUALITY RULES — every recommendation MUST pass all of these:
 
-Provide actionable recommendations with real company names when possible, or describe the type of company to target.`;
+1. **No local or regional service businesses.** Do NOT recommend local plumbers, HVAC technicians, water softener service companies, local water dealers, or any company whose primary revenue comes from installation or service contracts rather than product sales.
+
+2. **No small dealers or franchisees.** Do NOT recommend individual franchise locations, small dealerships, or local retail stores. Only recommend the parent brand/manufacturer/national distributor — not their local operators.
+
+3. **Established companies only.** Every recommendation must be a real, named company that is well-known in their industry, has a national or significant regional footprint, and manufactures or distributes products at meaningful scale (typically $10M+ revenue).
+
+4. **Correct business model classification.** Only classify as OEM if the company manufactures finished equipment. Only classify as Distributor if they wholesale to dealers/contractors at scale. Only classify as eCommerce if they sell direct-to-consumer or B2B online at scale.
+
+5. **Directly relevant verticals only.** Focus on companies that sell, manufacture, or distribute products where UV disinfection or inline filtration is a natural component: water coolers, point-of-use/point-of-entry water filtration, ice machines, beverage dispensers, spas & hot tubs, decorative fountains, commercial water systems, industrial process water.
+
+6. **Real URLs required.** Only provide website and LinkedIn URLs you are confident are correct for the specific company named.`;
 
     const existingNames = prospects.map((p: any) => p.companyName).filter(Boolean);
 
     const verticalInstruction = targetVertical
-      ? `\n\nIMPORTANT: Focus your recommendations specifically on the "${targetVertical}" product vertical. All recommended companies should be relevant to ${targetVertical}.`
+      ? `\n\nFocus your recommendations on companies in the **"${targetVertical}"** vertical. All ${count} recommendations must be relevant to ${targetVertical}.`
       : '';
 
     const existingExclusion = existingNames.length
-      ? `\n\nDo NOT recommend any company that is the same as or similar in name to our existing prospects. For example, if we have "Oasis" do not recommend "Oasis International" or any other Oasis variant. Existing prospect names to avoid: ${existingNames.join(", ")}.`
+      ? `\n\nDo NOT recommend any company that is the same as or closely related to our existing prospects. Existing names to avoid (including close variants): ${existingNames.join(", ")}.`
       : '';
 
     const disqualifiedExclusion = disqualifiedCompanies?.length
-      ? `\n\nAlso do NOT recommend any of the following explicitly disqualified companies: ${disqualifiedCompanies.join(", ")}.`
+      ? `\n\nAlso exclude these explicitly disqualified companies: ${disqualifiedCompanies.join(", ")}.`
       : '';
 
-    const userPrompt = `Here are our current prospects:
+    const userPrompt = `Here is our current prospect database — analyze the types, verticals, and business models we already target to identify the most valuable gaps:
 
 ${JSON.stringify(prospectSummary, null, 2)}
 
-Based on this prospect list, recommend exactly ${count} NEW companies or types of companies we should pursue.${verticalInstruction}${existingExclusion}${disqualifiedExclusion} For each recommendation, provide:
-1. Company name (real companies if you know them, or descriptive type)
-2. Why they're a good fit
-3. Suggested approach for initial contact
-4. Estimated product vertical (Water Coolers, Ice Machines, Beverage Dispensers, Water Filtration, Spas & Hot Tubs, Fountains, Industrial, Residential, Commercial)
+Based on this analysis, recommend exactly ${count} NEW companies we should pursue.${verticalInstruction}${existingExclusion}${disqualifiedExclusion}
+
+Requirements for each recommendation:
+1. Real company name — a specific, established, nationally or regionally significant company
+2. Why they are a strong fit for UV/filtration components (be specific to their product line)
+3. Suggested first outreach approach (role to contact and opening angle)
+4. Primary product vertical
 5. Business model (OEM, Distributor, or eCommerce)
-6. Their website URL (required — look up the real URL if you know the company)
-7. Their LinkedIn company page URL (required — use https://www.linkedin.com/company/[slug] format)
-8. Estimated company size (Small: <50 employees, Mid-market: 50–500, Enterprise: 500+)
-9. Priority level (High, Medium, or Low) based on estimated deal potential and fit
-10. Geography (primary US region or state they operate in, e.g. "Southwest US", "Texas", "National")`;
+6. Website URL
+7. LinkedIn company page URL
+8. Estimated size (Small <50, Mid-market 50–500, Enterprise 500+)
+9. Priority (High / Medium / Low) — based on volume potential and strategic fit
+10. Geography (their primary US market footprint)`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -77,7 +86,7 @@ Based on this prospect list, recommend exactly ${count} NEW companies or types o
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        model: "claude-sonnet-4-6",
         max_tokens: 4096,
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
