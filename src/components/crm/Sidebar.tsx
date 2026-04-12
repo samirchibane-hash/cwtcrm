@@ -1,4 +1,4 @@
-import { Users, FileText, ShoppingCart, LogOut, BarChart2 } from 'lucide-react';
+import { Users, FileText, ShoppingCart, LogOut, BarChart2, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -19,6 +19,7 @@ const Sidebar = ({ activeView, onViewChange }: SidebarProps) => {
 
   const navItems = [
     { id: 'pipeline', label: 'Pipeline', icon: Users },
+    { id: 'prospects', label: 'Prospects', icon: Sparkles },
     { id: 'orders', label: 'Orders', icon: ShoppingCart },
     { id: 'reports', label: 'Reports', icon: FileText },
     { id: 'activity', label: 'Activity', icon: BarChart2 },

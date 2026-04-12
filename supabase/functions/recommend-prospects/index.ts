@@ -11,7 +11,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prospects, targetVertical, disqualifiedCompanies } = await req.json();
+    const { prospects, targetVertical, disqualifiedCompanies, count = 10 } = await req.json();
     const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
 
     if (!ANTHROPIC_API_KEY) {
@@ -57,14 +57,17 @@ Provide actionable recommendations with real company names when possible, or des
 
 ${JSON.stringify(prospectSummary, null, 2)}
 
-Based on this prospect list, recommend 5-8 NEW companies or types of companies we should pursue.${verticalInstruction}${existingExclusion}${disqualifiedExclusion} For each recommendation, provide:
+Based on this prospect list, recommend exactly ${count} NEW companies or types of companies we should pursue.${verticalInstruction}${existingExclusion}${disqualifiedExclusion} For each recommendation, provide:
 1. Company name (real companies if you know them, or descriptive type)
 2. Why they're a good fit
 3. Suggested approach for initial contact
 4. Estimated product vertical (Water Coolers, Ice Machines, Beverage Dispensers, Water Filtration, Spas & Hot Tubs, Fountains, Industrial, Residential, Commercial)
 5. Business model (OEM, Distributor, or eCommerce)
 6. Their website URL (required — look up the real URL if you know the company)
-7. Their LinkedIn company page URL (required — use https://www.linkedin.com/company/[slug] format)`;
+7. Their LinkedIn company page URL (required — use https://www.linkedin.com/company/[slug] format)
+8. Estimated company size (Small: <50 employees, Mid-market: 50–500, Enterprise: 500+)
+9. Priority level (High, Medium, or Low) based on estimated deal potential and fit
+10. Geography (primary US region or state they operate in, e.g. "Southwest US", "Texas", "National")`;
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -103,8 +106,11 @@ Based on this prospect list, recommend 5-8 NEW companies or types of companies w
                       },
                       website: { type: "string", description: "Company website URL" },
                       linkedIn: { type: "string", description: "LinkedIn company page URL (https://www.linkedin.com/company/[slug])" },
+                      estimatedSize: { type: "string", description: "Estimated company size: 'Small (<50 employees)', 'Mid-market (50–500)', or 'Enterprise (500+)'" },
+                      priority: { type: "string", enum: ["High", "Medium", "Low"], description: "Priority level based on estimated deal potential and fit" },
+                      geography: { type: "string", description: "Primary US region or state they operate in, e.g. 'Southwest US', 'Texas', 'National'" },
                     },
-                    required: ["companyName", "reason", "approach", "marketType", "companyType", "website", "linkedIn"],
+                    required: ["companyName", "reason", "approach", "marketType", "companyType", "website", "linkedIn", "estimatedSize", "priority", "geography"],
                   },
                 },
                 insights: {

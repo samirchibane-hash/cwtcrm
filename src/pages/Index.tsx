@@ -7,6 +7,7 @@ import ProspectsTable from '@/components/crm/ProspectsTable';
 import OrdersReportingDashboard from '@/components/crm/OrdersReportingDashboard';
 import OrdersTable from '@/components/crm/OrdersTable';
 import ActivityDashboard from '@/components/crm/ActivityDashboard';
+import { AIRecommendationsPage } from '@/components/crm/AIRecommendationsPage';
 import { Prospect } from '@/data/prospects';
 
 const Index = () => {
@@ -17,7 +18,7 @@ const Index = () => {
   // Handle view query parameter (e.g., /?view=orders)
   useEffect(() => {
     const viewParam = searchParams.get('view');
-    if (viewParam && ['pipeline', 'orders', 'reports', 'activity'].includes(viewParam)) {
+    if (viewParam && ['pipeline', 'prospects', 'orders', 'reports', 'activity'].includes(viewParam)) {
       setActiveView(viewParam);
     }
     // Support legacy params
@@ -34,6 +35,8 @@ const Index = () => {
     switch (activeView) {
       case 'pipeline':
         return <ProspectsTable onSelectProspect={handleSelectProspect} />;
+      case 'prospects':
+        return <AIRecommendationsPage />;
       case 'orders':
         return <OrdersTable />;
       case 'reports':
@@ -48,6 +51,7 @@ const Index = () => {
   const getViewTitle = () => {
     switch (activeView) {
       case 'pipeline': return 'Pipeline';
+      case 'prospects': return 'AI Prospects';
       case 'orders': return 'Orders';
       case 'reports': return 'Reports';
       case 'activity': return 'Activity Tracker';
@@ -58,6 +62,7 @@ const Index = () => {
   const getViewSubtitle = () => {
     switch (activeView) {
       case 'pipeline': return 'Manage and track all your prospects and customers';
+      case 'prospects': return 'AI-recommended companies based on your existing pipeline';
       case 'orders': return 'Track all customer orders and shipments';
       case 'reports': return 'Revenue analytics and business insights';
       case 'activity': return 'Aggregate call and email activity across all companies';

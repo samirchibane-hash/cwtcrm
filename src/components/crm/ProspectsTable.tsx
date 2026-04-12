@@ -18,7 +18,6 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import AddProspectDialog from './AddProspectDialog';
-import { AIRecommendationsDialog } from './AIRecommendationsDialog';
 
 interface ProspectsTableProps {
   onSelectProspect: (prospect: Prospect) => void;
@@ -557,7 +556,6 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
           </Popover>
 
           <ExportColumnsPopover data={filteredAndSortedProspects} />
-          <AIRecommendationsDialog />
           <AddProspectDialog />
         </div>
       </div>
