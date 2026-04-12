@@ -4,8 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import {
-  Sparkles, Plus, ExternalLink, Loader2, Ban, Trash2,
-  RefreshCw, Linkedin, Globe, MapPin, Building2, TrendingUp,
+  Sparkles, Plus, Loader2, Ban, Trash2,
+  RefreshCw, Linkedin, Globe, MapPin, Building2,
 } from "lucide-react";
 import { useProspects } from "@/context/ProspectsContext";
 import { useProductVerticals } from "@/hooks/useProductVerticals";
@@ -259,19 +259,6 @@ export function AIRecommendationsPage() {
       {/* Results */}
       {!loading && result && (
         <div className="space-y-5">
-          {/* Market Insights */}
-          <Card className="bg-primary/5 border-primary/20">
-            <CardHeader className="pb-2 pt-4 px-5">
-              <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-primary" />
-                Market Insights
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-5 pb-4">
-              <p className="text-sm text-muted-foreground leading-relaxed">{result.insights}</p>
-            </CardContent>
-          </Card>
-
           {/* Count summary */}
           <p className="text-sm font-medium text-muted-foreground">
             {result.recommendations.length} recommended {result.recommendations.length === 1 ? "company" : "companies"}
