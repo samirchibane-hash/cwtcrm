@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 /**
- * Discover companies similar to our prospects (excluding Installers) via Apollo.
+ * Apollo Prospect Search Agent
+ *
+ * Discovers new water industry prospect companies not yet in our CRM.
  *
  * Strategy:
  *   1. Search Apollo people by water/UV-specific job title keywords → extract unique company names.
@@ -10,9 +12,9 @@
  *   5. Output: company name, domain, LinkedIn URL.
  *
  * Usage:
- *   node scripts/apollo-discover-similar.mjs
- *   node scripts/apollo-discover-similar.mjs --pages 5      # pages per title search (default 3)
- *   node scripts/apollo-discover-similar.mjs --max 50       # cap company lookups (default 75)
+ *   node scripts/apollo-prospect-search.mjs
+ *   node scripts/apollo-prospect-search.mjs --pages 5      # pages per title search (default 3)
+ *   node scripts/apollo-prospect-search.mjs --max 50       # cap company lookups (default 75)
  */
 
 import { readFileSync } from 'fs';
@@ -191,7 +193,7 @@ const TITLE_SEARCHES = [
 // ---------------------------------------------------------------------------
 // Phase 1: People searches → collect unique company names
 // ---------------------------------------------------------------------------
-console.log('\n=== Apollo Similar Company Discovery ===');
+console.log('\n=== Apollo Prospect Search Agent ===');
 console.log(`People title searches: ${TITLE_SEARCHES.length} queries × ${PAGES_PER_QUERY} pages\n`);
 
 console.log('--- Phase 1: People title searches → company names ---\n');
