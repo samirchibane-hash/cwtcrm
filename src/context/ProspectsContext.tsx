@@ -39,6 +39,7 @@ const mapRowToProspect = (row: any): Prospect => ({
   linkedIn: row.linkedin || '',
   website: row.website || '',
   googleMapsUrl: row.google_maps_url || '',
+  phone: row.phone || '',
   contacts: (row.contacts as unknown as Contact[]) || [],
   engagements: (row.engagements as unknown as Engagement[]) || [],
 });
@@ -99,6 +100,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
         linkedin: prospect.linkedIn,
         website: prospect.website || '',
         google_maps_url: prospect.googleMapsUrl || '',
+        phone: prospect.phone || '',
         contacts: JSON.parse(JSON.stringify(prospect.contacts)),
         engagements: JSON.parse(JSON.stringify(prospect.engagements)),
       }));
@@ -139,6 +141,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
           linkedin: updatedProspect.linkedIn,
           website: updatedProspect.website || '',
           google_maps_url: updatedProspect.googleMapsUrl || '',
+          phone: updatedProspect.phone || '',
           contacts: JSON.parse(JSON.stringify(updatedProspect.contacts)),
           engagements: JSON.parse(JSON.stringify(updatedProspect.engagements)),
           starred: false,
@@ -198,6 +201,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
           linkedin: prospectData.linkedIn,
           website: prospectData.website || '',
           google_maps_url: prospectData.googleMapsUrl || '',
+          phone: prospectData.phone || '',
           contacts: JSON.parse(JSON.stringify(prospectData.contacts)),
           engagements: JSON.parse(JSON.stringify(prospectData.engagements)),
         })

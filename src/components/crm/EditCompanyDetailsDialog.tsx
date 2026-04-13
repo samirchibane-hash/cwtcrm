@@ -38,6 +38,7 @@ interface CompanyDetails {
   linkedIn: string;
   website?: string;
   googleMapsUrl?: string;
+  phone?: string;
 }
 
 interface EditCompanyDetailsDialogProps {
@@ -392,6 +393,18 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
               value={details.website || ''}
               onChange={(e) => updateField('website', e.target.value)}
               placeholder="https://example.com"
+              className="rounded-xl"
+            />
+          </div>
+
+          {/* Phone */}
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone</Label>
+            <Input
+              id="phone"
+              value={details.phone || ''}
+              onChange={(e) => updateField('phone', e.target.value)}
+              placeholder="(555) 123-4567"
               className="rounded-xl"
             />
           </div>

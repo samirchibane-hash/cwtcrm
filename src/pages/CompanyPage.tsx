@@ -30,8 +30,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { useProspectActivityLog } from '@/hooks/useActivityLog';
 
 const CompanyPage = () => {
   const { id } = useParams();
@@ -58,11 +59,32 @@ const CompanyPage = () => {
   const [linkedIn, setLinkedIn] = useState('');
   const [website, setWebsite] = useState('');
   const [googleMapsUrl, setGoogleMapsUrl] = useState('');
+  const [phone, setPhone] = useState('');
   const [lastContact, setLastContact] = useState('');
   const [engagementNotes, setEngagementNotes] = useState('');
   
   const prospect = id ? getProspectById(id) : null;
   const { prospects } = useProspects();
+  const { entries: activityLogEntries } = useProspectActivityLog(id);
+
+  // Merge activity_log entries (from scripts) with JSONB engagements, deduplicated by id, sorted by date
+  const allEngagements = useMemo(() => {
+    const logAsEngagements: Engagement[] = activityLogEntries.map(e => ({
+      id: `alog-${e.id}`,
+      date: e.date,
+      type: (e.emails > 0 ? 'email' : e.calls > 0 ? 'call' : 'note') as Engagement['type'],
+      summary: e.note || `${e.emails > 0 ? `${e.emails} email${e.emails !== 1 ? 's' : ''}` : ''}${e.calls > 0 ? `${e.calls} call${e.calls !== 1 ? 's' : ''}` : ''}`,
+      details: e.note || undefined,
+      loggedBy: e.loggedBy,
+      activity: { calls: e.calls || undefined, emails: e.emails || undefined },
+    }));
+    const merged = [...engagements, ...logAsEngagements];
+    // Deduplicate by id and sort descending by date
+    const seen = new Set<string>();
+    return merged
+      .filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; })
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [engagements, activityLogEntries]);
   
   // Use passed prospect IDs from navigation state (sorted/filtered order) or fallback to default
   const prospectIds: string[] = (location.state as { prospectIds?: string[] } | null)?.prospectIds 
@@ -97,6 +119,7 @@ const CompanyPage = () => {
       setLinkedIn(prospect.linkedIn);
       setWebsite(prospect.website || '');
       setGoogleMapsUrl(prospect.googleMapsUrl || '');
+      setPhone(prospect.phone || '');
       setLastContact(prospect.lastContact);
       setEngagementNotes(prospect.engagementNotes);
     }
@@ -140,6 +163,7 @@ const CompanyPage = () => {
     linkedIn: string;
     website: string;
     googleMapsUrl: string;
+    phone: string;
   }>) => {
     const updatedEngagements = updates.engagements ?? engagements;
     let derivedLastContact = lastContact;
@@ -170,6 +194,7 @@ const CompanyPage = () => {
       linkedIn: updates.linkedIn ?? linkedIn,
       website: updates.website ?? website,
       googleMapsUrl: updates.googleMapsUrl ?? googleMapsUrl,
+      phone: updates.phone ?? phone,
       lastContact: derivedLastContact,
       engagementNotes: engagementNotes,
     });
@@ -287,6 +312,7 @@ const CompanyPage = () => {
     linkedIn: string;
     website?: string;
     googleMapsUrl?: string;
+    phone?: string;
   }) => {
     setCompanyName(details.companyName);
     setCompanyType(details.companyType);
@@ -301,6 +327,7 @@ const CompanyPage = () => {
     setLinkedIn(details.linkedIn);
     setWebsite(details.website || '');
     setGoogleMapsUrl(details.googleMapsUrl || '');
+    setPhone(details.phone || '');
     saveProspect(details);
   };
 
@@ -380,6 +407,15 @@ const CompanyPage = () => {
                        Last contact: <span className="font-medium text-foreground">{getProspectLastContactLabel(prospect)}</span>
                      </span>
                    )}
+                  {phone && (
+                    <a
+                      href={`tel:${phone}`}
+                      className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                    >
+                      <Phone className="w-3 h-3" />
+                      {phone}
+                    </a>
+                  )}
                   {website && (
                     <a
                       href={website.startsWith('http') ? website : `https://${website}`}
@@ -411,6 +447,7 @@ const CompanyPage = () => {
                   linkedIn,
                   website,
                   googleMapsUrl,
+                  phone,
                 }}
                 onSave={handleUpdateCompanyDetails}
               />
@@ -676,14 +713,14 @@ const CompanyPage = () => {
               <h2 className="section-header mb-0">Recent Engagements</h2>
             </div>
             
-            {engagements.length > 0 ? (
+            {allEngagements.length > 0 ? (
               <div className="divide-y divide-border">
-                {engagements.map((engagement) => (
-                  <EngagementCard 
-                    key={engagement.id} 
+                {allEngagements.map((engagement) => (
+                  <EngagementCard
+                    key={engagement.id}
                     engagement={engagement}
-                    onEdit={handleEditNote}
-                    onDelete={handleDeleteNote}
+                    onEdit={engagement.id.startsWith('alog-') ? undefined : handleEditNote}
+                    onDelete={engagement.id.startsWith('alog-') ? undefined : handleDeleteNote}
                   />
                 ))}
               </div>
@@ -917,8 +954,8 @@ const ContactCard = ({ contact }: { contact: Contact }) => {
 
 interface EngagementCardProps {
   engagement: Engagement;
-  onEdit: (id: string, details: string, activity?: { calls?: number; emails?: number }, loggedBy?: string) => void;
-  onDelete: (id: string) => void;
+  onEdit?: (id: string, details: string, activity?: { calls?: number; emails?: number }, loggedBy?: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) => {
@@ -964,13 +1001,15 @@ const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) =
               <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
                 {(() => { const d = parseDateLoose(engagement.date); return d ? formatMmDdYyyy(d) : engagement.date; })()}
               </span>
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                <EditNoteDialog
-                  engagement={engagement}
-                  onSave={onEdit}
-                  onDelete={onDelete}
-                />
-              </div>
+              {onEdit && onDelete && (
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
+                  <EditNoteDialog
+                    engagement={engagement}
+                    onSave={onEdit}
+                    onDelete={onDelete}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -40,6 +40,7 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [linkedIn, setLinkedIn] = useState('');
   const [website, setWebsite] = useState('');
+  const [phone, setPhone] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showNewVerticalInput, setShowNewVerticalInput] = useState(false);
   const [newVertical, setNewVertical] = useState('');
@@ -83,6 +84,7 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
       engagementNotes: '',
       linkedIn: linkedIn.trim(),
       website: website.trim(),
+      phone: phone.trim(),
       contacts: [],
       engagements: [],
     });
@@ -101,6 +103,7 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
       setSelectedStages([]);
       setLinkedIn('');
       setWebsite('');
+      setPhone('');
       setOpen(false);
     }
   };
@@ -288,6 +291,15 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
               value={website}
               onChange={(e) => setWebsite(e.target.value)}
               placeholder="https://example.com"
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="phone">Phone</Label>
+            <Input
+              id="phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="(555) 123-4567"
             />
           </div>
         </div>

@@ -82,6 +82,7 @@ export interface Prospect {
   linkedIn: string;
   website?: string;
   googleMapsUrl?: string;
+  phone?: string;
   engagements: Engagement[];
 }
 
