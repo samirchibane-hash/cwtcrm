@@ -8,6 +8,7 @@ export interface ActivityLogEntry {
   calls: number;
   emails: number;
   note?: string;
+  prospectId?: string;
   createdAt: string;
 }
 
@@ -18,6 +19,7 @@ const mapRow = (row: any): ActivityLogEntry => ({
   calls: row.calls,
   emails: row.emails,
   note: row.note || undefined,
+  prospectId: row.prospect_id || undefined,
   createdAt: row.created_at,
 });
 
@@ -45,6 +47,7 @@ export const useActivityLog = () => {
         calls: entry.calls,
         emails: entry.emails,
         note: entry.note || null,
+        prospect_id: entry.prospectId || null,
       })
       .select()
       .single();
@@ -60,4 +63,24 @@ export const useActivityLog = () => {
   };
 
   return { entries, isLoading, addEntry, deleteEntry };
+};
+
+export const useProspectActivityLog = (prospectId: string | undefined) => {
+  const [entries, setEntries] = useState<ActivityLogEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!prospectId) { setIsLoading(false); return; }
+    const { data, error } = await supabase
+      .from('activity_log')
+      .select('*')
+      .eq('prospect_id', prospectId)
+      .order('date', { ascending: false });
+    if (!error && data) setEntries(data.map(mapRow));
+    setIsLoading(false);
+  }, [prospectId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return { entries, isLoading };
 };
