@@ -173,7 +173,6 @@ export const getProspectById = (id: string): Prospect | undefined => {
 };
 
 export const PIPELINE_STAGES = [
-  'New Lead',
   'Contact Made',
   'Disco Call',
   'Sample Req',
