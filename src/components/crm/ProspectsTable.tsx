@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown, Download, X, CalendarIcon, ChevronRight } from 'lucide-react';
+import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown, Download, X, CalendarIcon, ChevronRight, Bookmark } from 'lucide-react';
 import { Calendar } from '@/components/ui/calendar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
@@ -18,6 +18,16 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
 import AddProspectDialog from './AddProspectDialog';
+
+interface FilterPreset {
+  id: string;
+  name: string;
+  params: Record<string, string>;
+  lastContactFrom?: string;
+  lastContactTo?: string;
+}
+
+const FILTER_PRESETS_KEY = 'cwt_prospect_filter_presets';
 
 interface ProspectsTableProps {
   onSelectProspect: (prospect: Prospect) => void;
@@ -270,6 +280,59 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     if (dir === 'asc' || dir === 'desc') return dir;
     return null;
   });
+
+  const [savedPresets, setSavedPresets] = useState<FilterPreset[]>(() => {
+    try { return JSON.parse(localStorage.getItem(FILTER_PRESETS_KEY) || '[]'); }
+    catch { return []; }
+  });
+  const [savePresetName, setSavePresetName] = useState('');
+  const [showSaveInput, setShowSaveInput] = useState(false);
+
+  const savePreset = () => {
+    if (!savePresetName.trim()) return;
+    const preset: FilterPreset = {
+      id: Date.now().toString(),
+      name: savePresetName.trim(),
+      params: {
+        ...(searchQuery && { q: searchQuery }),
+        ...(typeFilter.length && { type: typeFilter.join(',') }),
+        ...(stageFilter.length && { stage: stageFilter.join(',') }),
+        ...(leadTierFilter.length && { tier: leadTierFilter.join(',') }),
+        ...(verticalFilter.length && { vertical: verticalFilter.join(',') }),
+        ...(typeFilterMode === 'exclude' && { typeMode: 'exclude' }),
+        ...(stageFilterMode === 'exclude' && { stageMode: 'exclude' }),
+        ...(leadTierFilterMode === 'exclude' && { tierMode: 'exclude' }),
+        ...(verticalFilterMode === 'exclude' && { verticalMode: 'exclude' }),
+      },
+      ...(lastContactFrom && { lastContactFrom: lastContactFrom.toISOString() }),
+      ...(lastContactTo && { lastContactTo: lastContactTo.toISOString() }),
+    };
+    const updated = [...savedPresets, preset];
+    setSavedPresets(updated);
+    localStorage.setItem(FILTER_PRESETS_KEY, JSON.stringify(updated));
+    setSavePresetName('');
+    setShowSaveInput(false);
+  };
+
+  const loadPreset = (preset: FilterPreset) => {
+    setSearchQuery(preset.params.q || '');
+    setTypeFilter(preset.params.type ? preset.params.type.split(',') : []);
+    setStageFilter(preset.params.stage ? preset.params.stage.split(',') : []);
+    setLeadTierFilter(preset.params.tier ? preset.params.tier.split(',') : []);
+    setVerticalFilter(preset.params.vertical ? preset.params.vertical.split(',') : []);
+    setTypeFilterMode(preset.params.typeMode === 'exclude' ? 'exclude' : 'include');
+    setStageFilterMode(preset.params.stageMode === 'exclude' ? 'exclude' : 'include');
+    setLeadTierFilterMode(preset.params.tierMode === 'exclude' ? 'exclude' : 'include');
+    setVerticalFilterMode(preset.params.verticalMode === 'exclude' ? 'exclude' : 'include');
+    setLastContactFrom(preset.lastContactFrom ? new Date(preset.lastContactFrom) : undefined);
+    setLastContactTo(preset.lastContactTo ? new Date(preset.lastContactTo) : undefined);
+  };
+
+  const deletePreset = (id: string) => {
+    const updated = savedPresets.filter(p => p.id !== id);
+    setSavedPresets(updated);
+    localStorage.setItem(FILTER_PRESETS_KEY, JSON.stringify(updated));
+  };
 
   useEffect(() => {
     const currentView = searchParams.get('view');
@@ -551,6 +614,60 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   setLastContactCalendarOpen={setLastContactCalendarOpen}
                   hasLastContactFilter={hasLastContactFilter}
                 />
+              </div>
+              {/* Saved Presets Footer */}
+              <div className="border-t border-border p-3 space-y-2">
+                {savedPresets.length > 0 && (
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Saved Presets</span>
+                    <div className="flex flex-wrap gap-1">
+                      {savedPresets.map(preset => (
+                        <div key={preset.id} className="flex items-center gap-0.5 bg-muted rounded-lg px-2 py-1">
+                          <button
+                            onClick={() => loadPreset(preset)}
+                            className="text-xs text-foreground hover:text-primary transition-colors"
+                          >
+                            {preset.name}
+                          </button>
+                          <button
+                            onClick={() => deletePreset(preset.id)}
+                            className="ml-1 text-muted-foreground hover:text-destructive transition-colors"
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {showSaveInput ? (
+                  <div className="flex gap-1.5">
+                    <Input
+                      autoFocus
+                      placeholder="Preset name..."
+                      value={savePresetName}
+                      onChange={e => setSavePresetName(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') savePreset();
+                        if (e.key === 'Escape') { setShowSaveInput(false); setSavePresetName(''); }
+                      }}
+                      className="h-7 text-xs flex-1"
+                    />
+                    <Button size="sm" className="h-7 px-2 text-xs" onClick={savePreset} disabled={!savePresetName.trim()}>Save</Button>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setShowSaveInput(false); setSavePresetName(''); }}>✕</Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-7 text-xs gap-1.5"
+                    onClick={() => setShowSaveInput(true)}
+                    disabled={totalActiveFilters === 0}
+                  >
+                    <Bookmark className="h-3 w-3" />
+                    Save current filters as preset
+                  </Button>
+                )}
               </div>
             </PopoverContent>
           </Popover>
