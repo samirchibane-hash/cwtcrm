@@ -3,11 +3,24 @@
  * Unified outreach agent — Apollo search → Clearout verify → Supabase import → Gmail drafts → engagement log
  *
  * Usage:
- *   node scripts/outreach-agent.mjs "Company Name" [--auto] [--dry-run] [--limit N]
+ *   node scripts/outreach-agent.mjs "Company Name" \
+ *     --prospect-id <uuid> --market-type "<market>" --type "<OEM|Distributor|...>" \
+ *     [--contacts <base64-json>] [--engagements <base64-json>] \
+ *     [--auto] [--dry-run] [--limit N] [--template standard|wqa]
  *
- *   --auto      Skip confirmation prompt (fully hands-free)
- *   --dry-run   Phase 1 only — discover contacts, print table, write nothing
- *   --limit N   Cap enrichment at N contacts (default 50, 0 = unlimited)
+ *   Prospect data must be provided via flags (looked up by the caller via Supabase MCP).
+ *   --prospect-id   UUID of the prospect in Supabase
+ *   --market-type   Market type string (e.g. "Water Filtration")
+ *   --type          Company type (e.g. "OEM")
+ *   --contacts      Base64-encoded JSON array of existing contacts (for dedup)
+ *   --engagements   Base64-encoded JSON array of existing engagements
+ *   --auto          Skip confirmation prompt (fully hands-free)
+ *   --dry-run       Phase 1 only — discover contacts, print table, write nothing
+ *   --limit N       Cap enrichment at N contacts (default 50, 0 = unlimited)
+ *   --template standard Use standard intro email (default)
+ *   --template wqa      Use WQA event intro email
+ *   --broad-search  Skip Apollo-side filters; pull all pages and score/filter client-side.
+ *                   Use when Apollo has no seniority data for the org (passes return 0).
  */
 
 import { readFileSync } from 'fs';
@@ -26,19 +39,23 @@ const env = Object.fromEntries(
 // --- CLI args ---
 const args = process.argv.slice(2);
 const companyArg = args.find(a => !a.startsWith('--'));
-const AUTO      = args.includes('--auto');
-const DRY_RUN   = args.includes('--dry-run');
+const AUTO          = args.includes('--auto');
+const DRY_RUN       = args.includes('--dry-run');
+const BROAD_SEARCH  = !args.includes('--no-broad-search');
 const limitIdx  = args.indexOf('--limit');
-const LIMIT     = limitIdx !== -1 ? parseInt(args[limitIdx + 1]) : 50;
+const LIMIT     = limitIdx !== -1 ? parseInt(args[limitIdx + 1]) : 0; // 0 = unlimited
 
-// Optional flags to bypass CRM lookup (used when service role key is unavailable)
 const getFlag = (flag) => { const i = args.indexOf(flag); return i !== -1 ? args[i + 1] : null; };
 const PROSPECT_ID_FLAG  = getFlag('--prospect-id');
 const MARKET_TYPE_FLAG  = getFlag('--market-type');
 const COMPANY_TYPE_FLAG = getFlag('--type');
+const CONTACTS_FLAG     = getFlag('--contacts');    // base64-encoded JSON array
+const ENGAGEMENTS_FLAG  = getFlag('--engagements'); // base64-encoded JSON array
+const TEMPLATE          = getFlag('--template') || 'standard'; // 'standard' | 'wqa'
+const SUBJECT_OVERRIDE  = getFlag('--subject'); // optional subject line override
 
-if (!companyArg) {
-  console.error('Usage: node scripts/outreach-agent.mjs "Company Name" [--auto] [--dry-run] [--limit N]');
+if (!companyArg || !PROSPECT_ID_FLAG || !MARKET_TYPE_FLAG) {
+  console.error('Usage: node scripts/outreach-agent.mjs "Company Name" --prospect-id <uuid> --market-type "<market>" --type "<type>" [--contacts <b64>] [--engagements <b64>] [--auto] [--dry-run] [--limit N]');
   process.exit(1);
 }
 
@@ -54,7 +71,6 @@ const CLEAROUT_KEY = env.CLEAROUT_API_KEY;
 const SUPABASE_URL = env.VITE_SUPABASE_URL || `https://${env.VITE_SUPABASE_PROJECT_ID}.supabase.co`;
 const SB_KEY       = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const FROM         = 'samir@canopuswatertechnologies.com';
-const SUBJECT      = 'LED UVs at the WQA in Miami';
 const DRIVE_LINK   = 'https://drive.google.com/drive/folders/1Pb8pPqPLei7VxoSe3FWT7IQZ93-dnT3q?usp=sharing';
 
 // Pass 1: catch all leadership (president, VP, C-suite, director) regardless of function
@@ -120,7 +136,7 @@ async function apolloFindOrg(name) {
 
 async function apolloSearchPass(orgId, filters, label) {
   const seen = new Map();
-  for (let page = 1; page <= 20; page++) {
+  for (let page = 1; page <= 50; page++) {
     const res = await fetch('https://api.apollo.io/v1/mixed_people/api_search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Api-Key': APOLLO_KEY },
@@ -138,13 +154,64 @@ async function apolloSearchPass(orgId, filters, label) {
   return [...seen.values()];
 }
 
+// Scoring keywords for client-side ranking in broad-search mode.
+// Contacts must score >= 1 to be enriched. Higher score = ranked first.
+const BROAD_KEEP = [
+  // C-suite / Leadership (score heavily — always relevant)
+  'president', 'owner', 'founder', 'ceo', 'coo', 'cto', 'cfo', 'chief',
+  'vp', 'vice president',
+  'director', 'general manager',
+  // Engineering / Technical / R&D / Quality
+  'engineer', 'engineering', 'technical', 'technician',
+  'r&d', 'research', 'research and development', 'development',
+  'quality', 'quality control', 'quality assurance', 'manufacturing',
+  // Service
+  'service manager', 'service tech', 'service director', 'service coordinator',
+  'service', 'warranty manager', 'warranty',
+  // Product
+  'product manager', 'product development', 'product director', 'product',
+  // Water-related (any title mentioning water is highly relevant)
+  'water', 'water treatment', 'water filtration', 'water quality', 'water systems',
+  'spa', 'hot tub', 'aquatic',
+  // Procurement / Operations / Supply chain
+  'procurement', 'purchasing', 'buyer', 'supply chain', 'operations', 'inventory',
+  // Business development (relevant for partnerships)
+  'business development',
+];
+const BROAD_SKIP = [
+  // Sales roles (not decision-makers for components)
+  'sales representative', 'sales rep', 'field sales', 'inside sales', 'outside sales',
+  'account executive', 'territory manager', 'territory sales', 'territory',
+  'salesperson', 'sales consultant', 'sales associate', 'sales professional',
+  'regional sales manager', 'brand ambassador', 'appointment setter', 'referral',
+  'dealer support', 'dealer development', 'dealer representative',
+  // Marketing roles
+  'marketing manager', 'marketing coordinator', 'marketing specialist',
+  'marketing representative', 'marketing agent', 'marketing content',
+  'graphic designer', 'graphic design',
+  // Admin / ops non-relevant
+  'warehouse', 'driver', 'delivery', 'forklift', 'installer', 'installation technician',
+  'receptionist', 'administrative assistant', 'dispatcher', 'schedule planner',
+  'human resources', 'hr ', 'recruiter', 'talent acquisition',
+  'payroll', 'bookkeeper', 'accounts payable', 'accounts receivable', 'accounting clerk',
+  'controller', 'finance', 'accountant',
+  'intern', 'co-op', 'apprentice', 'laborer', 'labourer',
+  'crane operator', 'shipper', 'yard', 'woodshop',
+  'retail', 'store manager', 'store associate',
+];
+
 async function apolloSearchAll(orgId) {
-  // Pass 1: all leadership — presidents, VPs, C-suite, directors (any function)
+  if (BROAD_SEARCH) {
+    // Broad mode: no Apollo-side filters — pull everything, score client-side
+    const all = await apolloSearchPass(orgId, {}, 'broad');
+    console.log(`\n  Titles found (${all.length} total):`);
+    all.forEach(p => console.log(`    ${p.first_name} ${p.last_name_obfuscated || ''} | ${p.title || '(no title)'}`));
+    return all;
+  }
+  // Standard mode: dual pass — leadership seniority + role titles
   const leadership = await apolloSearchPass(orgId, { person_seniorities: LEADERSHIP_SENIORITIES }, 'leadership');
   await new Promise(r => setTimeout(r, 400));
-  // Pass 2: specific roles at any level — engineers, product, ops, procurement, biz dev
   const roles = await apolloSearchPass(orgId, { person_titles: ROLE_TITLES }, 'roles');
-  // Merge and dedup by Apollo person ID
   const merged = new Map();
   [...leadership, ...roles].forEach(p => merged.set(p.id, p));
   return [...merged.values()];
@@ -178,15 +245,7 @@ async function verifyEmail(email) {
 }
 
 // --- Supabase ---
-async function getProspect(name) {
-  const encoded = encodeURIComponent(`*${name}*`);
-  const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/prospects?company_name=ilike.${encoded}&select=id,company_name,market_type,type,contacts,engagements`,
-    { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }
-  );
-  const rows = await res.json();
-  return Array.isArray(rows) ? rows[0] || null : null;
-}
+// Note: reads are handled by the caller (Claude via Supabase MCP) and passed in via flags.
 
 const HAS_SERVICE_KEY = !!env.SUPABASE_SERVICE_ROLE_KEY;
 const pendingSQL = [];
@@ -207,7 +266,8 @@ async function saveContacts(prospectId, contacts) {
 }
 
 async function logEngagement(prospectId, existing, companyName, draftCount) {
-  const today = new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const entry = {
     id: `eng-agent-${Date.now()}`,
     date: today,
@@ -248,19 +308,49 @@ async function getGmailToken() {
   return data.access_token;
 }
 
-function buildEmail(firstName, hook, companyName) {
-  return `<div dir="ltr">
-Hey ${firstName},<br><br>
-Will you or your team be at the upcoming WQA in Miami?<br><br>
-${hook} Most importantly, the external maintenance only takes seconds.<br><br>
-Refer to our brochure and tech sheets here: <a href="${DRIVE_LINK}">${DRIVE_LINK}</a><br><br>
-If not, we can schedule a time next week for a technical discussion on how we can best support your applications at ${companyName}.<br><br>
-${SIGNATURE}
-</div>`;
+// Returns the plain-text-friendly body lines (no signature, no wrapping div).
+// Used for terminal preview before confirmation.
+function buildEmailBody(firstName, hook, companyName) {
+  if (TEMPLATE === 'wqa') {
+    return [
+      `Hey ${firstName},`,
+      ``,
+      `Will you or your team be at the upcoming WQA in Miami?`,
+      ``,
+      `${hook} Most importantly, the external maintenance only takes seconds.`,
+      ``,
+      `Refer to our brochure and tech sheets here: ${DRIVE_LINK}`,
+      ``,
+      `If not, we can schedule a time next week for a technical discussion on how we can best support your applications at ${companyName}.`,
+    ].join('\n');
+  }
+  return [
+    `Hey ${firstName},`,
+    ``,
+    `${hook}`,
+    ``,
+    `You can find our brochure and tech sheets here: ${DRIVE_LINK}`,
+    ``,
+    `Let me know your availability this week or the next for a technical discussion on how we can best support your applications at ${companyName}.`,
+  ].join('\n');
 }
 
-function makeMime(to, htmlBody) {
-  const raw = [`From: ${FROM}`, `To: ${to}`, `Subject: ${SUBJECT}`, `MIME-Version: 1.0`,
+// Returns the full HTML email with signature appended. Used for Gmail drafts.
+function buildEmail(firstName, hook, companyName) {
+  const body = buildEmailBody(firstName, hook, companyName)
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+  return `<div dir="ltr">\n${body}<br><br>\n${SIGNATURE}\n</div>`;
+}
+
+function getSubject(companyName) {
+  if (SUBJECT_OVERRIDE) return SUBJECT_OVERRIDE;
+  if (TEMPLATE === 'wqa') return 'LED UVs at the WQA in Miami';
+  return `LED UVs for ${companyName}`;
+}
+
+function makeMime(to, htmlBody, subject) {
+  const raw = [`From: ${FROM}`, `To: ${to}`, `Subject: ${subject}`, `MIME-Version: 1.0`,
                 `Content-Type: text/html; charset=UTF-8`, ``, htmlBody].join('\r\n');
   return Buffer.from(raw).toString('base64url');
 }
@@ -284,30 +374,18 @@ function confirm(question) {
 }
 
 // ===== MAIN =====
-console.log(`\n🚀 Outreach Agent — "${companyArg}"${DRY_RUN ? ' [DRY RUN]' : ''}${AUTO ? ' [AUTO]' : ''}\n`);
+console.log(`\n🚀 Outreach Agent — "${companyArg}"${DRY_RUN ? ' [DRY RUN]' : ''}${AUTO ? ' [AUTO]' : ''}${BROAD_SEARCH ? ' [BROAD]' : ''} [template: ${TEMPLATE}]\n`);
 
-// Phase 0: Look up prospect in CRM
-let prospect;
-if (PROSPECT_ID_FLAG && MARKET_TYPE_FLAG) {
-  // Bypass DB lookup — data provided via flags
-  prospect = {
-    id: PROSPECT_ID_FLAG,
-    company_name: companyArg,
-    market_type: MARKET_TYPE_FLAG,
-    type: COMPANY_TYPE_FLAG || '',
-    contacts: [],
-    engagements: [],
-  };
-  console.log(`Phase 0: Using provided prospect ID — ${companyArg} (${prospect.type} / ${prospect.market_type})`);
-} else {
-  process.stdout.write('Phase 0: Looking up prospect in Supabase... ');
-  prospect = await getProspect(companyArg);
-  if (!prospect) {
-    console.error(`\n  ✗ "${companyArg}" not found in CRM. Add it first via the UI.`);
-    process.exit(1);
-  }
-  console.log(`✓ ${prospect.company_name} (${prospect.type} / ${prospect.market_type})`);
-}
+// Phase 0: Load prospect data from flags (looked up by caller via Supabase MCP)
+const prospect = {
+  id: PROSPECT_ID_FLAG,
+  company_name: companyArg,
+  market_type: MARKET_TYPE_FLAG,
+  type: COMPANY_TYPE_FLAG || '',
+  contacts:    CONTACTS_FLAG    ? JSON.parse(Buffer.from(CONTACTS_FLAG,    'base64').toString('utf8')) : [],
+  engagements: ENGAGEMENTS_FLAG ? JSON.parse(Buffer.from(ENGAGEMENTS_FLAG, 'base64').toString('utf8')) : [],
+};
+console.log(`Phase 0: ${prospect.company_name} (${prospect.type} / ${prospect.market_type}) — ${prospect.contacts.length} existing contact(s)`);
 
 const hook = selectHook(prospect);
 const existingIds = new Set([
@@ -325,15 +403,34 @@ if (!org) {
 }
 console.log(`✓ ${org.name} (${org.id})\n`);
 
-// Phase 1b: Search contacts (dual pass — leadership + role-specific)
-console.log('Phase 2: Searching Apollo (leadership pass + role-titles pass)...\n');
+// Phase 1b: Search contacts
+console.log(`Phase 2: Searching Apollo (${BROAD_SEARCH ? 'broad — no filters, client-side scoring' : 'leadership pass + role-titles pass'})...\n`);
 const allPeople = await apolloSearchAll(org.id);
 console.log(`\n  Total unique from Apollo: ${allPeople.length} people`);
 
-const relevant = allPeople
-  .filter(p => p.first_name && !SKIP_TITLES.some(s => (p.title || '').toLowerCase().includes(s)))
-  .slice(0, LIMIT === 0 ? Infinity : LIMIT);
-console.log(`  After role filter${LIMIT > 0 ? ` (cap ${LIMIT})` : ''}: ${relevant.length} to enrich\n`);
+let relevant;
+if (BROAD_SEARCH) {
+  // Score each contact; skip irrelevant titles; sort by score desc; take top LIMIT
+  const scored = allPeople
+    .filter(p => p.first_name)
+    .filter(p => !BROAD_SKIP.some(s => (p.title || '').toLowerCase().includes(s)))
+    .map(p => {
+      const t = (p.title || '').toLowerCase();
+      const score = BROAD_KEEP.reduce((n, k) => n + (t.includes(k) ? 1 : 0), 0);
+      return { ...p, _score: score };
+    })
+    .filter(p => p._score >= 1)  // require at least one relevant keyword match
+    .sort((a, b) => b._score - a._score);
+  relevant = scored.slice(0, LIMIT === 0 ? Infinity : LIMIT);
+  console.log(`  After broad filter + scoring (${LIMIT === 0 ? 'unlimited' : `cap ${LIMIT}`}): ${relevant.length} to enrich`);
+  relevant.forEach(p => console.log(`    [score ${p._score}] ${p.first_name} ${p.last_name_obfuscated || ''} — ${p.title || 'no title'}`));
+  console.log();
+} else {
+  relevant = allPeople
+    .filter(p => p.first_name && !SKIP_TITLES.some(s => (p.title || '').toLowerCase().includes(s)))
+    .slice(0, LIMIT === 0 ? Infinity : LIMIT);
+  console.log(`  After role filter${LIMIT > 0 ? ` (cap ${LIMIT})` : ''}: ${relevant.length} to enrich\n`);
+}
 
 if (relevant.length === 0) {
   const titles = allPeople.map(p => p.title).filter(Boolean).slice(0, 10);
@@ -470,17 +567,31 @@ if (toAdd.length === 0) { console.log('No new contacts to process. Exiting.'); p
 
 if (DRY_RUN) { console.log('[DRY RUN] Exiting before writes.'); process.exit(0); }
 
+// ── Confirmation 1: contact list ─────────────────────────────────────────────
+console.log('--- NEW CONTACTS TO ADD ---\n');
+const nameW  = Math.max(20, ...toAdd.map(r => r.name.length));
+const roleW  = Math.max(30, ...toAdd.map(r => (r.title || '').length));
+const emailW = Math.max(35, ...toAdd.map(r => (r.email || '').length));
+const header = `  ${'#'.padEnd(3)} ${'Name'.padEnd(nameW)} ${'Role'.padEnd(roleW)} ${'Email'.padEnd(emailW)} Verified`;
+console.log(header);
+console.log('  ' + '-'.repeat(header.length - 2));
+toAdd.forEach((r, i) => {
+  const verified = r.verified ? '✅ valid' : r.catchAll ? '⚠️  catch-all' : '❌ invalid';
+  console.log(`  ${String(i + 1).padEnd(3)} ${r.name.padEnd(nameW)} ${(r.title || '').padEnd(roleW)} ${(r.email || '').padEnd(emailW)} ${verified}`);
+});
+console.log();
+
 if (!AUTO) {
-  const go = await confirm('Proceed with saving contacts + creating Gmail drafts? (y/N): ');
-  if (!go) { console.log('Aborted.'); process.exit(0); }
+  const goContacts = await confirm(`Add these ${toAdd.length} contact(s) to CRM? (y/N): `);
+  if (!goContacts) { console.log('Aborted.'); process.exit(0); }
 }
 
-// Phase 2a: Validate Gmail token before any writes
+// Phase 5: Validate Gmail token before any writes
 console.log('\nPhase 5: Validating Gmail token...');
 const gmailToken = await getGmailToken();
 console.log('  ✓ Token OK\n');
 
-// Phase 2b: Save contacts to Supabase
+// Phase 6: Save contacts to Supabase
 console.log('Phase 6: Saving contacts to Supabase...\n');
 const newContacts = toAdd.map(r => ({
   id: `contact-apollo-${r.apolloId}`,
@@ -489,20 +600,40 @@ const newContacts = toAdd.map(r => ({
   email: r.email,
   phone: '',
   linkedIn: r.linkedIn,
-  ...(r.verified ? { emailVerified: true } : {}),
+  emailVerified: r.verified,
 }));
-const merged = [...(prospect.contacts || []), ...newContacts];
-await saveContacts(prospect.id, merged);
+const mergedContacts = [...(prospect.contacts || []), ...newContacts];
+await saveContacts(prospect.id, mergedContacts);
 console.log(`  ✓ Saved ${newContacts.length} new contact(s)\n`);
 
-// Phase 2c: Create Gmail drafts
-console.log('Phase 7: Creating Gmail drafts...\n');
+// ── Confirmation 2: email preview ────────────────────────────────────────────
+const subject    = getSubject(prospect.company_name);
 const draftTargets = newContacts.filter(c => c.email);
+// Use first contact's first name as a representative preview
+const previewFirst = draftTargets.length > 0 ? draftTargets[0].name.split(' ')[0] : 'there';
+const previewBody  = buildEmailBody(previewFirst, hook, prospect.company_name);
+
+console.log('--- EMAIL PREVIEW ---\n');
+console.log(`  Subject : ${subject}\n`);
+console.log('  Body (signature appended after confirmation):\n');
+previewBody.split('\n').forEach(line => console.log(`  ${line}`));
+console.log();
+console.log(`  Recipients (${draftTargets.length}):`);
+draftTargets.forEach(c => console.log(`    · ${c.name} <${c.email}>`));
+console.log();
+
+if (!AUTO) {
+  const goDrafts = await confirm(`Create ${draftTargets.length} Gmail draft(s) with this email? (y/N): `);
+  if (!goDrafts) { console.log('Aborted.'); process.exit(0); }
+}
+
+// Phase 7: Create Gmail drafts
+console.log('\nPhase 7: Creating Gmail drafts...\n');
 let draftCount = 0;
 for (const c of draftTargets) {
   const firstName = c.name.split(' ')[0];
   const html = buildEmail(firstName, hook, prospect.company_name);
-  const raw  = makeMime(c.email, html);
+  const raw  = makeMime(c.email, html, subject);
   try {
     await createDraft(gmailToken, raw);
     console.log(`  ✓ ${firstName} <${c.email}>`);
