@@ -34,10 +34,9 @@
  *   --broad-search  Skip Apollo-side filters; pull all pages and score/filter client-side.
  */
 
-import { readFileSync, writeFileSync } from 'fs';
+import { readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { tmpdir } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const env = Object.fromEntries(
@@ -56,8 +55,7 @@ const limitIdx  = args.indexOf('--limit');
 const LIMIT     = limitIdx !== -1 ? parseInt(args[limitIdx + 1]) : 0; // 0 = unlimited
 
 const getFlag = (flag) => { const i = args.indexOf(flag); return i !== -1 ? args[i + 1] : null; };
-const PHASE             = parseInt(getFlag('--phase') || '1');
-const STATE_FILE        = getFlag('--state-file');
+const SESSION_ID        = getFlag('--session');      // execute an approved session from CRM
 const PROSPECT_ID_FLAG  = getFlag('--prospect-id');
 const MARKET_TYPE_FLAG  = getFlag('--market-type');
 const COMPANY_TYPE_FLAG = getFlag('--type');
@@ -66,14 +64,10 @@ const ENGAGEMENTS_FLAG  = getFlag('--engagements'); // base64-encoded JSON array
 const TEMPLATE          = getFlag('--template') || 'standard'; // 'standard' | 'wqa'
 const SUBJECT_OVERRIDE  = getFlag('--subject'); // optional subject line override
 
-// Phases 2 & 3 load state from file; phase 1 needs company + prospect flags
-if (PHASE >= 2) {
-  if (!STATE_FILE) {
-    console.error('Phases 2 and 3 require --state-file <path>');
-    process.exit(1);
-  }
-} else if (!companyArg || !PROSPECT_ID_FLAG || !MARKET_TYPE_FLAG) {
-  console.error('Usage: node scripts/outreach-agent.mjs "Company Name" --prospect-id <uuid> --market-type "<market>" --type "<type>" [--contacts <b64>] [--engagements <b64>] [--limit N] [--template standard|wqa]');
+if (!SESSION_ID && (!companyArg || !PROSPECT_ID_FLAG || !MARKET_TYPE_FLAG)) {
+  console.error('Usage:');
+  console.error('  Discovery: node scripts/outreach-agent.mjs "Company Name" --prospect-id <uuid> --market-type "<market>" --type "<type>" [--contacts <b64>] [--engagements <b64>]');
+  console.error('  Execute:   node scripts/outreach-agent.mjs --session <session-id>');
   process.exit(1);
 }
 
@@ -383,10 +377,173 @@ async function createDraft(token, raw) {
   return res.json();
 }
 
+// ── Supabase session helpers ─────────────────────────────────────────────────
+
+async function saveSession(session) {
+  const url = `${SUPABASE_URL}/rest/v1/outreach_sessions`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      apikey: SB_KEY,
+      Authorization: `Bearer ${SB_KEY}`,
+      'Content-Type': 'application/json',
+      Prefer: 'return=representation',
+    },
+    body: JSON.stringify(session),
+  });
+  if (!res.ok) throw new Error(`Supabase session insert failed ${res.status}: ${await res.text()}`);
+  const rows = await res.json();
+  return rows[0];
+}
+
+async function getSession(id) {
+  const url = `${SUPABASE_URL}/rest/v1/outreach_sessions?id=eq.${id}&select=*`;
+  const res = await fetch(url, {
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+  });
+  if (!res.ok) throw new Error(`Supabase session fetch failed ${res.status}`);
+  const rows = await res.json();
+  return rows[0] || null;
+}
+
+async function updateSession(id, fields) {
+  const url = `${SUPABASE_URL}/rest/v1/outreach_sessions?id=eq.${id}`;
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      apikey: SB_KEY,
+      Authorization: `Bearer ${SB_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ ...fields, updated_at: new Date().toISOString() }),
+  });
+  if (!res.ok) throw new Error(`Supabase session update failed ${res.status}: ${await res.text()}`);
+}
+
 // ===== MAIN =====
 
-// ── Phase 2: Import contacts to CRM + email preview ──────────────────────────
-if (PHASE === 2) {
+// ── Execute an approved session from the CRM ─────────────────────────────────
+if (SESSION_ID) {
+  console.log(`\n📤 Executing approved session: ${SESSION_ID}\n`);
+
+  const session = await getSession(SESSION_ID);
+  if (!session) { console.error('Session not found.'); process.exit(1); }
+  if (session.status !== 'approved') {
+    console.error(`Session status is "${session.status}" — must be "approved" to execute.`);
+    process.exit(1);
+  }
+
+  const approvedImportIds  = new Set(session.approved_import_ids || []);
+  const approvedEmailIds   = new Set(session.approved_email_ids  || []);
+  const contacts           = session.discovered_contacts || [];
+  const companyName        = session.prospect_name;
+  const prospectId         = session.prospect_id;
+  const bodyTemplate       = session.email_body || session.body_template;
+  const subject            = session.email_subject || `LED UVs for ${companyName}`;
+  const mode               = session.email_mode || 'draft';
+
+  const toImport = contacts.filter(c => approvedImportIds.has(c.apolloId));
+  const toEmail  = contacts.filter(c => approvedEmailIds.has(c.apolloId) && c.email);
+
+  console.log(`  Prospect:  ${companyName}`);
+  console.log(`  Importing: ${toImport.length} contact(s)`);
+  console.log(`  Emailing:  ${toEmail.length} contact(s) [${mode}]`);
+  console.log(`  Subject:   ${subject}\n`);
+
+  // 1. Import contacts to prospects table
+  if (toImport.length > 0 && prospectId) {
+    const newContacts = toImport.map(c => ({
+      id: `contact-apollo-${c.apolloId}`,
+      name: c.name,
+      role: c.title,
+      email: c.email,
+      phone: '',
+      linkedIn: c.linkedIn,
+      emailVerified: c.verified,
+    }));
+
+    // Fetch current contacts from Supabase
+    const prospectRes = await fetch(`${SUPABASE_URL}/rest/v1/prospects?id=eq.${prospectId}&select=contacts,engagements`, {
+      headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
+    });
+    const [prospectRow] = await prospectRes.json();
+    const existingContacts = prospectRow?.contacts || [];
+    const existingEngagements = prospectRow?.engagements || [];
+    const merged = [...existingContacts, ...newContacts];
+
+    await saveContacts(prospectId, merged);
+    console.log(`  ✓ Imported ${newContacts.length} contact(s) to CRM\n`);
+
+    // Log engagement after emailing
+    if (toEmail.length > 0) {
+      await logEngagement(prospectId, existingEngagements, companyName, toEmail.length);
+      console.log(`  ✓ Engagement logged\n`);
+    }
+  }
+
+  // 2. Create Gmail drafts or send
+  if (toEmail.length > 0) {
+    process.stdout.write('Validating Gmail token... ');
+    const gmailToken = await getGmailToken();
+    console.log('✓\n');
+
+    // Build a TEMPLATE-aware body: replace placeholders
+    function personalizeBody(template, firstName, cName) {
+      return template
+        .replace(/\{firstName\}/g, firstName)
+        .replace(/\{companyName\}/g, cName);
+    }
+
+    let count = 0;
+    for (const c of toEmail) {
+      const firstName = c.name.split(' ')[0];
+      // If body has placeholders, personalize; otherwise use old buildEmail
+      let html;
+      if (bodyTemplate && bodyTemplate.includes('{firstName}')) {
+        const personalized = personalizeBody(bodyTemplate, firstName, companyName)
+          .replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
+        html = `<div dir="ltr">\n${personalized}<br><br>\n${SIGNATURE}\n</div>`;
+      } else {
+        html = buildEmail(firstName, session.hook || selectHook({ market_type: '', type: '' }), companyName);
+      }
+      const raw = makeMime(c.email, html, subject);
+      try {
+        if (mode === 'send') {
+          const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${gmailToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ raw }),
+          });
+          if (!res.ok) throw new Error(JSON.stringify(await res.json()));
+        } else {
+          await createDraft(gmailToken, raw);
+        }
+        console.log(`  ✓ ${firstName} <${c.email}>`);
+        count++;
+      } catch (e) {
+        console.error(`  ✗ ${c.email}: ${e.message}`);
+      }
+    }
+    console.log(`\n  ${count} message(s) ${mode === 'send' ? 'sent' : 'drafted'}\n`);
+  }
+
+  // 3. Mark session completed
+  await updateSession(SESSION_ID, { status: 'completed' });
+
+  console.log('--- DONE ---');
+  console.log(`  Session ${SESSION_ID} marked completed.`);
+  if (session.email_mode !== 'send') console.log('  Check your Gmail Drafts folder.\n');
+
+  if (pendingSQL.length > 0) {
+    console.log('--- PENDING SQL (run via Supabase MCP) ---\n');
+    pendingSQL.forEach(q => console.log(q + '\n'));
+  }
+  process.exit(0);
+}
+
+// ── Phase 2 (legacy state-file path, kept for --auto) ────────────────────────
+if (false) {
+  // removed — replaced by session-based flow
   const state = JSON.parse(readFileSync(STATE_FILE, 'utf8'));
   const { prospect, toAdd, hook, template, subjectOverride } = state;
   const resolvedTemplate = template || 'standard';
@@ -670,32 +827,93 @@ console.log(`
 
 if (toAdd.length === 0) { console.log('No new contacts to process. Exiting.'); process.exit(0); }
 
-// ── Print contact table for approval ────────────────────────────────────────
-console.log('--- NEW CONTACTS TO ADD ---\n');
+// ── Print contact table ──────────────────────────────────────────────────────
+console.log('--- CONTACTS DISCOVERED ---\n');
 const nameW  = Math.max(20, ...toAdd.map(r => r.name.length));
 const roleW  = Math.max(30, ...toAdd.map(r => (r.title || '').length));
 const emailW = Math.max(35, ...toAdd.map(r => (r.email || '').length));
-const header = `  ${'#'.padEnd(3)} ${'Name'.padEnd(nameW)} ${'Role'.padEnd(roleW)} ${'Email'.padEnd(emailW)} Verified`;
+const header = `  ${'#'.padEnd(3)} ${'Name'.padEnd(nameW)} ${'Role'.padEnd(roleW)} ${'Email'.padEnd(emailW)} Status`;
 console.log(header);
 console.log('  ' + '-'.repeat(header.length - 2));
 toAdd.forEach((r, i) => {
-  const verified = r.verified ? 'valid' : r.catchAll ? 'catch-all' : 'unverified';
-  console.log(`  ${String(i + 1).padEnd(3)} ${r.name.padEnd(nameW)} ${(r.title || '').padEnd(roleW)} ${(r.email || '').padEnd(emailW)} ${verified}`);
+  const status = r.verified ? 'valid' : r.catchAll ? 'catch-all' : 'unverified';
+  console.log(`  ${String(i + 1).padEnd(3)} ${r.name.padEnd(nameW)} ${(r.title || '').padEnd(roleW)} ${(r.email || '').padEnd(emailW)} ${status}`);
 });
 console.log();
 
 if (!AUTO) {
-  // Save state and pause for human approval
-  const stateFile = resolve(tmpdir(), `cwt-outreach-${prospect.id}.json`);
-  writeFileSync(stateFile, JSON.stringify({
-    prospect, toAdd, hook,
-    template: TEMPLATE,
-    subjectOverride: SUBJECT_OVERRIDE || null,
+  // Save session to Supabase for CRM review
+  const DRIVE_LINK = 'https://drive.google.com/drive/folders/1Pb8pPqPLei7VxoSe3FWT7IQZ93-dnT3q?usp=sharing';
+  const bodyTemplate = [
+    `Hey {firstName},`,
+    ``,
+    hook,
+    ``,
+    `You can find our brochure and tech sheets here: ${DRIVE_LINK}`,
+    ``,
+    `Let me know your availability this week or the next for a technical discussion on how we can best support your applications at {companyName}.`,
+  ].join('\n');
+  const wqaBodyTemplate = [
+    `Hey {firstName},`,
+    ``,
+    `Will you or your team be at the upcoming WQA in Miami?`,
+    ``,
+    `${hook} Most importantly, the external maintenance only takes seconds.`,
+    ``,
+    `Refer to our brochure and tech sheets here: ${DRIVE_LINK}`,
+    ``,
+    `If not, we can schedule a time next week for a technical discussion on how we can best support your applications at {companyName}.`,
+  ].join('\n');
+
+  // Mark all as alreadyInCrm = false (these are all new, we pre-filtered dupes)
+  const sessionContacts = toAdd.map(r => ({
+    apolloId: r.apolloId,
+    name: r.name,
+    title: r.title,
+    email: r.email,
+    emailStatus: r.verified ? 'valid' : r.catchAll ? 'catch-all' : 'unverified',
+    verified: r.verified,
+    catchAll: r.catchAll,
+    linkedIn: r.linkedIn,
+    alreadyInCrm: false,
   }));
-  console.log('--- AWAITING APPROVAL ---');
-  console.log(`  Review the ${toAdd.length} contact(s) above.`);
-  console.log(`  To import contacts and preview the email template, run Phase 2:`);
-  console.log(`  node scripts/outreach-agent.mjs --phase 2 --state-file ${stateFile}\n`);
+
+  // Also include already-in-CRM contacts so the UI can show them greyed out
+  const crmContacts = (prospect.contacts || []).map(c => ({
+    apolloId: c.id?.replace('contact-apollo-', '') || c.id,
+    name: c.name,
+    title: c.role || '',
+    email: c.email || '',
+    emailStatus: c.emailVerified ? 'valid' : 'unverified',
+    verified: !!c.emailVerified,
+    catchAll: false,
+    linkedIn: c.linkedIn || '',
+    alreadyInCrm: true,
+  }));
+
+  process.stdout.write('\nSaving session to Supabase... ');
+  const session = await saveSession({
+    prospect_id: prospect.id,
+    prospect_name: prospect.company_name,
+    discovered_contacts: [...crmContacts, ...sessionContacts],
+    hook,
+    body_template: bodyTemplate,
+    wqa_body_template: wqaBodyTemplate,
+    email_subject: SUBJECT_OVERRIDE || `LED UVs for ${prospect.company_name}`,
+    email_body: TEMPLATE === 'wqa' ? wqaBodyTemplate : bodyTemplate,
+    email_mode: 'draft',
+    status: 'pending',
+    approved_import_ids: [],
+    approved_email_ids: [],
+  });
+  console.log(`✓ Session ID: ${session.id}\n`);
+
+  console.log('--- AWAITING CRM APPROVAL ---');
+  console.log(`  ${toAdd.length} contact(s) staged for review.`);
+  console.log(`  Open the CRM → Claude Agent tab to review and approve.`);
+  console.log(`  Session ID: ${session.id}`);
+  console.log(`\n  Once approved, run:`);
+  console.log(`  node scripts/outreach-agent.mjs --session ${session.id}\n`);
   process.exit(0);
 }
 
