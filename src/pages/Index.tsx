@@ -8,6 +8,7 @@ import OrdersReportingDashboard from '@/components/crm/OrdersReportingDashboard'
 import OrdersTable from '@/components/crm/OrdersTable';
 import ActivityDashboard from '@/components/crm/ActivityDashboard';
 import { AIRecommendationsPage } from '@/components/crm/AIRecommendationsPage';
+import { OutreachAgentPage } from '@/components/crm/OutreachAgentPage';
 import { Prospect } from '@/data/prospects';
 
 const Index = () => {
@@ -18,7 +19,7 @@ const Index = () => {
   // Handle view query parameter (e.g., /?view=orders)
   useEffect(() => {
     const viewParam = searchParams.get('view');
-    if (viewParam && ['pipeline', 'prospects', 'orders', 'reports', 'activity'].includes(viewParam)) {
+    if (viewParam && ['pipeline', 'prospects', 'agent', 'orders', 'reports', 'activity'].includes(viewParam)) {
       setActiveView(viewParam);
     }
     // Support legacy params
@@ -37,6 +38,8 @@ const Index = () => {
         return <ProspectsTable onSelectProspect={handleSelectProspect} />;
       case 'prospects':
         return <AIRecommendationsPage />;
+      case 'agent':
+        return <OutreachAgentPage />;
       case 'orders':
         return <OrdersTable />;
       case 'reports':
@@ -52,6 +55,7 @@ const Index = () => {
     switch (activeView) {
       case 'pipeline': return 'Pipeline';
       case 'prospects': return 'AI Prospects';
+      case 'agent': return 'Claude Agent';
       case 'orders': return 'Orders';
       case 'reports': return 'Reports';
       case 'activity': return 'Activity Tracker';
@@ -63,6 +67,7 @@ const Index = () => {
     switch (activeView) {
       case 'pipeline': return 'Manage and track all your prospects and customers';
       case 'prospects': return 'AI-recommended companies based on your existing pipeline';
+      case 'agent': return 'Discover contacts, review, and launch outreach campaigns';
       case 'orders': return 'Track all customer orders and shipments';
       case 'reports': return 'Revenue analytics and business insights';
       case 'activity': return 'Aggregate call and email activity across all companies';
