@@ -594,46 +594,7 @@ if (false) {
   process.exit(0);
 }
 
-// ── Phase 3: Create Gmail drafts + log engagement ────────────────────────────
-if (PHASE === 3) {
-  const state = JSON.parse(readFileSync(STATE_FILE, 'utf8'));
-  const { prospect, toAdd, newContacts, draftTargets, hook, subject, gmailToken: savedToken } = state;
-
-  console.log(`\n📤 Phase 3 — Creating Gmail drafts: ${prospect.company_name}\n`);
-
-  const gmailToken = savedToken || await getGmailToken();
-
-  console.log('Creating Gmail drafts...\n');
-  let draftCount = 0;
-  for (const c of draftTargets) {
-    const firstName = c.name.split(' ')[0];
-    const html = buildEmail(firstName, hook, prospect.company_name);
-    const raw  = makeMime(c.email, html, subject);
-    try {
-      await createDraft(gmailToken, raw);
-      console.log(`  ✓ ${firstName} <${c.email}>`);
-      draftCount++;
-    } catch (e) {
-      console.error(`  ✗ ${c.email}: ${e.message}`);
-    }
-  }
-  console.log(`\n  ${draftCount} draft(s) created\n`);
-
-  // Log engagement
-  console.log('Logging engagement...\n');
-  await logEngagement(prospect.id, prospect.engagements, prospect.company_name, draftCount);
-  console.log(`  ✓ Engagement logged (${draftCount} emails, stage → contacted)\n`);
-
-  console.log('--- DONE ---');
-  console.log(`  Gmail drafts:  ${draftCount}`);
-  console.log(`  Check your drafts folder.\n`);
-
-  if (pendingSQL.length > 0) {
-    console.log('--- PENDING SQL (run via Supabase MCP) ---\n');
-    pendingSQL.forEach(q => console.log(q + '\n'));
-  }
-  process.exit(0);
-}
+// (Phase 3 removed — replaced by --session execution path above)
 
 // ── Phase 1: Contact discovery ───────────────────────────────────────────────
 console.log(`\n🚀 Outreach Agent — "${companyArg}"${AUTO ? ' [AUTO]' : ''}${BROAD_SEARCH ? ' [BROAD]' : ''} [template: ${TEMPLATE}] [phase 1]\n`);
