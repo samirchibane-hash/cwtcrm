@@ -2,31 +2,42 @@
 /**
  * Unified outreach agent — Apollo search → Clearout verify → Supabase import → Gmail drafts → engagement log
  *
+ * Three-phase flow (Claude mediates approvals between phases):
+ *   Phase 1 — Discover contacts, print table, save state file, exit for approval.
+ *   Phase 2 — Import approved contacts to CRM, print email preview, exit for approval.
+ *   Phase 3 — Create Gmail drafts, log engagement, output pending SQL.
+ *
  * Usage:
+ *   # Phase 1: discover (run first)
  *   node scripts/outreach-agent.mjs "Company Name" \
  *     --prospect-id <uuid> --market-type "<market>" --type "<OEM|Distributor|...>" \
  *     [--contacts <base64-json>] [--engagements <base64-json>] \
- *     [--auto] [--dry-run] [--limit N] [--template standard|wqa]
+ *     [--limit N] [--template standard|wqa]
  *
- *   Prospect data must be provided via flags (looked up by the caller via Supabase MCP).
+ *   # Phase 2: import contacts + preview email (after user approves contact list)
+ *   node scripts/outreach-agent.mjs --phase 2 --state-file <path>
+ *
+ *   # Phase 3: create drafts + log engagement (after user approves email template)
+ *   node scripts/outreach-agent.mjs --phase 3 --state-file <path>
+ *
+ *   # Legacy: fully hands-free (skips all approval steps)
+ *   node scripts/outreach-agent.mjs "Company Name" ... --auto
+ *
  *   --prospect-id   UUID of the prospect in Supabase
  *   --market-type   Market type string (e.g. "Water Filtration")
  *   --type          Company type (e.g. "OEM")
  *   --contacts      Base64-encoded JSON array of existing contacts (for dedup)
  *   --engagements   Base64-encoded JSON array of existing engagements
- *   --auto          Skip confirmation prompt (fully hands-free)
- *   --dry-run       Phase 1 only — discover contacts, print table, write nothing
- *   --limit N       Cap enrichment at N contacts (default 50, 0 = unlimited)
+ *   --limit N       Cap enrichment at N contacts (0 = unlimited, default)
  *   --template standard Use standard intro email (default)
  *   --template wqa      Use WQA event intro email
  *   --broad-search  Skip Apollo-side filters; pull all pages and score/filter client-side.
- *                   Use when Apollo has no seniority data for the org (passes return 0).
  */
 
-import { readFileSync } from 'fs';
-import { createInterface } from 'readline';
+import { readFileSync, writeFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { tmpdir } from 'os';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const env = Object.fromEntries(
@@ -40,12 +51,13 @@ const env = Object.fromEntries(
 const args = process.argv.slice(2);
 const companyArg = args.find(a => !a.startsWith('--'));
 const AUTO          = args.includes('--auto');
-const DRY_RUN       = args.includes('--dry-run');
 const BROAD_SEARCH  = !args.includes('--no-broad-search');
 const limitIdx  = args.indexOf('--limit');
 const LIMIT     = limitIdx !== -1 ? parseInt(args[limitIdx + 1]) : 0; // 0 = unlimited
 
 const getFlag = (flag) => { const i = args.indexOf(flag); return i !== -1 ? args[i + 1] : null; };
+const PHASE             = parseInt(getFlag('--phase') || '1');
+const STATE_FILE        = getFlag('--state-file');
 const PROSPECT_ID_FLAG  = getFlag('--prospect-id');
 const MARKET_TYPE_FLAG  = getFlag('--market-type');
 const COMPANY_TYPE_FLAG = getFlag('--type');
@@ -54,8 +66,14 @@ const ENGAGEMENTS_FLAG  = getFlag('--engagements'); // base64-encoded JSON array
 const TEMPLATE          = getFlag('--template') || 'standard'; // 'standard' | 'wqa'
 const SUBJECT_OVERRIDE  = getFlag('--subject'); // optional subject line override
 
-if (!companyArg || !PROSPECT_ID_FLAG || !MARKET_TYPE_FLAG) {
-  console.error('Usage: node scripts/outreach-agent.mjs "Company Name" --prospect-id <uuid> --market-type "<market>" --type "<type>" [--contacts <b64>] [--engagements <b64>] [--auto] [--dry-run] [--limit N]');
+// Phases 2 & 3 load state from file; phase 1 needs company + prospect flags
+if (PHASE >= 2) {
+  if (!STATE_FILE) {
+    console.error('Phases 2 and 3 require --state-file <path>');
+    process.exit(1);
+  }
+} else if (!companyArg || !PROSPECT_ID_FLAG || !MARKET_TYPE_FLAG) {
+  console.error('Usage: node scripts/outreach-agent.mjs "Company Name" --prospect-id <uuid> --market-type "<market>" --type "<type>" [--contacts <b64>] [--engagements <b64>] [--limit N] [--template standard|wqa]');
   process.exit(1);
 }
 
@@ -365,18 +383,105 @@ async function createDraft(token, raw) {
   return res.json();
 }
 
-// --- Prompt helper ---
-function confirm(question) {
-  return new Promise(resolve => {
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
-    rl.question(question, ans => { rl.close(); resolve(ans.trim().toLowerCase() === 'y'); });
-  });
+// ===== MAIN =====
+
+// ── Phase 2: Import contacts to CRM + email preview ──────────────────────────
+if (PHASE === 2) {
+  const state = JSON.parse(readFileSync(STATE_FILE, 'utf8'));
+  const { prospect, toAdd, hook, template, subjectOverride } = state;
+  const resolvedTemplate = template || 'standard';
+  const subject = subjectOverride || getSubject(prospect.company_name);
+
+  console.log(`\n📋 Phase 2 — Importing contacts to CRM: ${prospect.company_name}\n`);
+
+  // Validate Gmail token before writes
+  process.stdout.write('Validating Gmail token... ');
+  const gmailToken = await getGmailToken();
+  console.log('✓\n');
+
+  // Save contacts to Supabase
+  console.log(`Saving ${toAdd.length} contact(s) to Supabase...\n`);
+  const newContacts = toAdd.map(r => ({
+    id: `contact-apollo-${r.apolloId}`,
+    name: r.name,
+    role: r.title,
+    email: r.email,
+    phone: '',
+    linkedIn: r.linkedIn,
+    emailVerified: r.verified,
+  }));
+  const mergedContacts = [...(prospect.contacts || []), ...newContacts];
+  await saveContacts(prospect.id, mergedContacts);
+  console.log(`  ✓ Saved ${newContacts.length} new contact(s)\n`);
+
+  // Email preview
+  const draftTargets = newContacts.filter(c => c.email);
+  const previewFirst = draftTargets.length > 0 ? draftTargets[0].name.split(' ')[0] : 'there';
+  const previewBody  = buildEmailBody(previewFirst, hook, prospect.company_name);
+
+  console.log('--- EMAIL PREVIEW ---\n');
+  console.log(`  Subject : ${subject}\n`);
+  console.log('  Body:\n');
+  previewBody.split('\n').forEach(line => console.log(`  ${line}`));
+  console.log();
+  console.log(`  Recipients (${draftTargets.length}):`);
+  draftTargets.forEach(c => console.log(`    · ${c.name} <${c.email}>`));
+  console.log();
+
+  // Save updated state for phase 3
+  writeFileSync(STATE_FILE, JSON.stringify({ ...state, newContacts, draftTargets, subject, gmailToken }));
+  console.log(`\n--- AWAITING APPROVAL ---`);
+  console.log(`  Review the email preview above.`);
+  console.log(`  To create ${draftTargets.length} Gmail draft(s), run Phase 3:`);
+  console.log(`  node scripts/outreach-agent.mjs --phase 3 --state-file ${STATE_FILE}\n`);
+  process.exit(0);
 }
 
-// ===== MAIN =====
-console.log(`\n🚀 Outreach Agent — "${companyArg}"${DRY_RUN ? ' [DRY RUN]' : ''}${AUTO ? ' [AUTO]' : ''}${BROAD_SEARCH ? ' [BROAD]' : ''} [template: ${TEMPLATE}]\n`);
+// ── Phase 3: Create Gmail drafts + log engagement ────────────────────────────
+if (PHASE === 3) {
+  const state = JSON.parse(readFileSync(STATE_FILE, 'utf8'));
+  const { prospect, toAdd, newContacts, draftTargets, hook, subject, gmailToken: savedToken } = state;
 
-// Phase 0: Load prospect data from flags (looked up by caller via Supabase MCP)
+  console.log(`\n📤 Phase 3 — Creating Gmail drafts: ${prospect.company_name}\n`);
+
+  const gmailToken = savedToken || await getGmailToken();
+
+  console.log('Creating Gmail drafts...\n');
+  let draftCount = 0;
+  for (const c of draftTargets) {
+    const firstName = c.name.split(' ')[0];
+    const html = buildEmail(firstName, hook, prospect.company_name);
+    const raw  = makeMime(c.email, html, subject);
+    try {
+      await createDraft(gmailToken, raw);
+      console.log(`  ✓ ${firstName} <${c.email}>`);
+      draftCount++;
+    } catch (e) {
+      console.error(`  ✗ ${c.email}: ${e.message}`);
+    }
+  }
+  console.log(`\n  ${draftCount} draft(s) created\n`);
+
+  // Log engagement
+  console.log('Logging engagement...\n');
+  await logEngagement(prospect.id, prospect.engagements, prospect.company_name, draftCount);
+  console.log(`  ✓ Engagement logged (${draftCount} emails, stage → contacted)\n`);
+
+  console.log('--- DONE ---');
+  console.log(`  Gmail drafts:  ${draftCount}`);
+  console.log(`  Check your drafts folder.\n`);
+
+  if (pendingSQL.length > 0) {
+    console.log('--- PENDING SQL (run via Supabase MCP) ---\n');
+    pendingSQL.forEach(q => console.log(q + '\n'));
+  }
+  process.exit(0);
+}
+
+// ── Phase 1: Contact discovery ───────────────────────────────────────────────
+console.log(`\n🚀 Outreach Agent — "${companyArg}"${AUTO ? ' [AUTO]' : ''}${BROAD_SEARCH ? ' [BROAD]' : ''} [template: ${TEMPLATE}] [phase 1]\n`);
+
+// Load prospect data from flags (looked up by caller via Supabase MCP)
 const prospect = {
   id: PROSPECT_ID_FLAG,
   company_name: companyArg,
@@ -565,9 +670,7 @@ console.log(`
 
 if (toAdd.length === 0) { console.log('No new contacts to process. Exiting.'); process.exit(0); }
 
-if (DRY_RUN) { console.log('[DRY RUN] Exiting before writes.'); process.exit(0); }
-
-// ── Confirmation 1: contact list ─────────────────────────────────────────────
+// ── Print contact table for approval ────────────────────────────────────────
 console.log('--- NEW CONTACTS TO ADD ---\n');
 const nameW  = Math.max(20, ...toAdd.map(r => r.name.length));
 const roleW  = Math.max(30, ...toAdd.map(r => (r.title || '').length));
@@ -576,23 +679,32 @@ const header = `  ${'#'.padEnd(3)} ${'Name'.padEnd(nameW)} ${'Role'.padEnd(roleW
 console.log(header);
 console.log('  ' + '-'.repeat(header.length - 2));
 toAdd.forEach((r, i) => {
-  const verified = r.verified ? '✅ valid' : r.catchAll ? '⚠️  catch-all' : '❌ invalid';
+  const verified = r.verified ? 'valid' : r.catchAll ? 'catch-all' : 'unverified';
   console.log(`  ${String(i + 1).padEnd(3)} ${r.name.padEnd(nameW)} ${(r.title || '').padEnd(roleW)} ${(r.email || '').padEnd(emailW)} ${verified}`);
 });
 console.log();
 
 if (!AUTO) {
-  const goContacts = await confirm(`Add these ${toAdd.length} contact(s) to CRM? (y/N): `);
-  if (!goContacts) { console.log('Aborted.'); process.exit(0); }
+  // Save state and pause for human approval
+  const stateFile = resolve(tmpdir(), `cwt-outreach-${prospect.id}.json`);
+  writeFileSync(stateFile, JSON.stringify({
+    prospect, toAdd, hook,
+    template: TEMPLATE,
+    subjectOverride: SUBJECT_OVERRIDE || null,
+  }));
+  console.log('--- AWAITING APPROVAL ---');
+  console.log(`  Review the ${toAdd.length} contact(s) above.`);
+  console.log(`  To import contacts and preview the email template, run Phase 2:`);
+  console.log(`  node scripts/outreach-agent.mjs --phase 2 --state-file ${stateFile}\n`);
+  process.exit(0);
 }
 
-// Phase 5: Validate Gmail token before any writes
-console.log('\nPhase 5: Validating Gmail token...');
+// ── AUTO mode: continue directly through phases 2 and 3 ─────────────────────
+process.stdout.write('\nValidating Gmail token... ');
 const gmailToken = await getGmailToken();
-console.log('  ✓ Token OK\n');
+console.log('✓\n');
 
-// Phase 6: Save contacts to Supabase
-console.log('Phase 6: Saving contacts to Supabase...\n');
+console.log(`Saving ${toAdd.length} contact(s) to Supabase...\n`);
 const newContacts = toAdd.map(r => ({
   id: `contact-apollo-${r.apolloId}`,
   name: r.name,
@@ -606,29 +718,10 @@ const mergedContacts = [...(prospect.contacts || []), ...newContacts];
 await saveContacts(prospect.id, mergedContacts);
 console.log(`  ✓ Saved ${newContacts.length} new contact(s)\n`);
 
-// ── Confirmation 2: email preview ────────────────────────────────────────────
-const subject    = getSubject(prospect.company_name);
+const subject      = SUBJECT_OVERRIDE || getSubject(prospect.company_name);
 const draftTargets = newContacts.filter(c => c.email);
-// Use first contact's first name as a representative preview
-const previewFirst = draftTargets.length > 0 ? draftTargets[0].name.split(' ')[0] : 'there';
-const previewBody  = buildEmailBody(previewFirst, hook, prospect.company_name);
 
-console.log('--- EMAIL PREVIEW ---\n');
-console.log(`  Subject : ${subject}\n`);
-console.log('  Body (signature appended after confirmation):\n');
-previewBody.split('\n').forEach(line => console.log(`  ${line}`));
-console.log();
-console.log(`  Recipients (${draftTargets.length}):`);
-draftTargets.forEach(c => console.log(`    · ${c.name} <${c.email}>`));
-console.log();
-
-if (!AUTO) {
-  const goDrafts = await confirm(`Create ${draftTargets.length} Gmail draft(s) with this email? (y/N): `);
-  if (!goDrafts) { console.log('Aborted.'); process.exit(0); }
-}
-
-// Phase 7: Create Gmail drafts
-console.log('\nPhase 7: Creating Gmail drafts...\n');
+console.log('Creating Gmail drafts...\n');
 let draftCount = 0;
 for (const c of draftTargets) {
   const firstName = c.name.split(' ')[0];
@@ -644,8 +737,7 @@ for (const c of draftTargets) {
 }
 console.log(`\n  ${draftCount} draft(s) created\n`);
 
-// Phase 2d: Log engagement
-console.log('Phase 8: Logging engagement...\n');
+console.log('Logging engagement...\n');
 await logEngagement(prospect.id, prospect.engagements, prospect.company_name, draftCount);
 console.log(`  ✓ Engagement logged (${draftCount} emails, stage → contacted)\n`);
 
