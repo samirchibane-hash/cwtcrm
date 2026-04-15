@@ -241,19 +241,28 @@ async function apolloEnrich(personId) {
 }
 
 // --- Clearout ---
-async function verifyEmail(email) {
-  const res = await fetch('https://api.clearout.io/v2/email_verify/instant', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer:${CLEAROUT_KEY}` },
-    body: JSON.stringify({ email }),
-  });
-  if (!res.ok) return { status: 'error', verified: false, catchAll: false };
-  const data = await res.json();
-  return {
-    status: data.data?.status || 'unknown',
-    verified: data.data?.status === 'valid' || data.data?.safe_to_send === 'yes',
-    catchAll: data.data?.is_catch_all === 'yes',
-  };
+async function verifyEmail(email, retries = 4) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch('https://api.clearout.io/v2/email_verify/instant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer:${CLEAROUT_KEY}` },
+      body: JSON.stringify({ email }),
+    });
+    if (res.status === 429 || res.status === 503) {
+      const wait = (attempt + 1) * 3000;
+      process.stdout.write(` [rate-limited, retrying in ${wait / 1000}s]`);
+      await new Promise(r => setTimeout(r, wait));
+      continue;
+    }
+    if (!res.ok) return { status: 'error', verified: false, catchAll: false };
+    const data = await res.json();
+    return {
+      status: data.data?.status || 'unknown',
+      verified: data.data?.status === 'valid' || data.data?.safe_to_send === 'yes',
+      catchAll: data.data?.is_catch_all === 'yes',
+    };
+  }
+  return { status: 'rate-limited', verified: false, catchAll: false };
 }
 
 // --- Supabase ---
@@ -644,15 +653,17 @@ if (BROAD_SEARCH) {
     })
     .filter(p => p._score >= 1)  // require at least one relevant keyword match
     .sort((a, b) => b._score - a._score);
-  relevant = scored.slice(0, LIMIT === 0 ? Infinity : LIMIT);
-  console.log(`  After broad filter + scoring (${LIMIT === 0 ? 'unlimited' : `cap ${LIMIT}`}): ${relevant.length} to enrich`);
+  const cap = LIMIT === 0 ? 25 : LIMIT;  // default cap: top 25 by score
+  relevant = scored.slice(0, cap);
+  console.log(`  After broad filter + scoring (top ${cap} by relevance score): ${relevant.length} to enrich`);
   relevant.forEach(p => console.log(`    [score ${p._score}] ${p.first_name} ${p.last_name_obfuscated || ''} — ${p.title || 'no title'}`));
   console.log();
 } else {
+  const cap = LIMIT === 0 ? 25 : LIMIT;
   relevant = allPeople
     .filter(p => p.first_name && !SKIP_TITLES.some(s => (p.title || '').toLowerCase().includes(s)))
-    .slice(0, LIMIT === 0 ? Infinity : LIMIT);
-  console.log(`  After role filter${LIMIT > 0 ? ` (cap ${LIMIT})` : ''}: ${relevant.length} to enrich\n`);
+    .slice(0, cap);
+  console.log(`  After role filter (top ${cap}): ${relevant.length} to enrich\n`);
 }
 
 if (relevant.length === 0) {
@@ -717,57 +728,87 @@ function generateEmail(name, format, domain) {
   }
 }
 
-const withEmails    = enriched.filter(c => c.email);
-const withoutEmails = enriched.filter(c => !c.email);
+// Phase 3b + 4: For each contact, find and verify the best email via priority chain:
+//   1. Apollo-suggested email
+//   2. Detected company format
+//   3. All other format variations
+// Only keep contacts where a verified or catch-all email is found.
 
-if (withoutEmails.length > 0 && withEmails.length > 0) {
-  // Infer domain and format from known emails
-  const knownDomain = withEmails[0].email.split('@')[1];
-  const format = detectEmailFormat(withEmails, knownDomain);
-  if (format) {
-    console.log(`Phase 3b: Guessing emails (format: ${format} @${knownDomain})...\n`);
-    for (const contact of withoutEmails) {
-      const guess = generateEmail(contact.name, format, knownDomain);
-      if (guess) {
-        process.stdout.write(`  ${contact.name.padEnd(25)} → ${guess} → `);
-        const v = await verifyEmail(guess);
-        if (v.verified || v.catchAll) {
-          contact.email = guess;
-          console.log(`${v.status}${v.catchAll ? ' (catch-all)' : ''} ✓`);
-        } else {
-          console.log(`${v.status} — skipped`);
-        }
-        await new Promise(r => setTimeout(r, 300));
-      }
-    }
-    console.log();
-  } else {
-    console.log('Phase 3b: Could not detect email format from known contacts — skipping guesses.\n');
-  }
-}
+const ALL_FORMATS = ['flast', 'first.last', 'firstlast', 'f.last', 'last.first', 'lastf', 'first'];
 
-// Phase 1d: Verify emails
-console.log('Phase 4: Verifying emails with Clearout...\n');
+// Detect company email format from contacts that already have emails
+const knownEmailContacts = enriched.filter(c => c.email);
+const knownDomain = knownEmailContacts.length > 0
+  ? knownEmailContacts[0].email.split('@')[1]
+  : null;
+const detectedFormat = knownDomain ? detectEmailFormat(knownEmailContacts, knownDomain) : null;
+const fallbackFormats = detectedFormat
+  ? ALL_FORMATS.filter(f => f !== detectedFormat)
+  : ALL_FORMATS;
+
+console.log(`Phase 3b+4: Verifying emails for ${enriched.length} contacts (this may take a while)...\n`);
+if (detectedFormat) console.log(`  Detected company format: ${detectedFormat} @${knownDomain}\n`);
+
 const results = [];
 for (const contact of enriched) {
-  if (!contact.email) {
-    results.push({ ...contact, emailStatus: 'no_email', verified: false, catchAll: false });
-    console.log(`  ${contact.name.padEnd(25)} → no email`);
+  process.stdout.write(`  ${contact.name.padEnd(28)}`);
+
+  // Build candidate list in priority order
+  const candidates = [];
+
+  // 1. Apollo-suggested email (highest priority)
+  if (contact.email) candidates.push({ email: contact.email, source: 'apollo' });
+
+  // 2. Detected company format (only if different from Apollo email)
+  if (knownDomain && detectedFormat) {
+    const guess = generateEmail(contact.name, detectedFormat, knownDomain);
+    if (guess && guess !== contact.email) candidates.push({ email: guess, source: `fmt:${detectedFormat}` });
+  }
+
+  // 3. All remaining format variations
+  if (knownDomain) {
+    for (const fmt of fallbackFormats) {
+      const guess = generateEmail(contact.name, fmt, knownDomain);
+      if (guess && !candidates.some(c => c.email === guess)) {
+        candidates.push({ email: guess, source: `fmt:${fmt}` });
+      }
+    }
+  }
+
+  if (candidates.length === 0) {
+    console.log(` → no email candidates`);
+    results.push({ ...contact, email: null, emailStatus: 'no_email', verified: false, catchAll: false });
     continue;
   }
-  process.stdout.write(`  ${contact.email.padEnd(45)} → `);
-  const v = await verifyEmail(contact.email);
-  results.push({ ...contact, emailStatus: v.status, verified: v.verified, catchAll: v.catchAll });
-  console.log(`${v.status}${v.catchAll ? ' (catch-all)' : ''}`);
-  await new Promise(r => setTimeout(r, 200));
+
+  let found = false;
+  for (const { email, source } of candidates) {
+    process.stdout.write(` [${source}] ${email}`);
+    const v = await verifyEmail(email);
+    await new Promise(r => setTimeout(r, 600));
+    if (v.verified || v.catchAll) {
+      contact.email = email;
+      console.log(` → ${v.status}${v.catchAll ? ' (catch-all)' : ''} ✓`);
+      results.push({ ...contact, emailStatus: v.status, verified: v.verified, catchAll: v.catchAll });
+      found = true;
+      break;
+    }
+    process.stdout.write(` (${v.status})`);
+  }
+  if (!found) {
+    console.log(` → none verified`);
+    results.push({ ...contact, email: null, emailStatus: 'no_email', verified: false, catchAll: false });
+  }
 }
+console.log();
 
-// Dedup against existing
-const toAdd = results
-  .filter(r => r.email)
-  .filter(r => !existingIds.has(`contact-apollo-${r.apolloId}`) && !existingIds.has(r.linkedIn));
+// Dedup against existing, and only keep verified/catch-all emails
+const allWithEmail = results.filter(r => r.email);
+const newContacts  = allWithEmail.filter(r => !existingIds.has(`contact-apollo-${r.apolloId}`) && !existingIds.has(r.linkedIn));
+const toAdd        = newContacts.filter(r => r.verified || r.catchAll);
+const unverified   = newContacts.filter(r => !r.verified && !r.catchAll);
 
-const dupeCount = results.filter(r => r.email).length - toAdd.length;
+const dupeCount = allWithEmail.length - newContacts.length;
 
 // Summary table
 const valid    = results.filter(r => r.verified);
@@ -779,28 +820,37 @@ console.log(`
   Company:  ${prospect.company_name}
   Hook:     "${hook.slice(0, 70)}..."
 
-  ✅ Valid emails:    ${valid.length}
-  ⚠️  Catch-all:      ${catchAll.length}
-  ❌ No email:       ${noEmail.length}
-  ⏭️  Already in CRM: ${dupeCount}
-  📬 New to add:     ${toAdd.length}
+  ✅ Valid emails:      ${valid.length}
+  ⚠️  Catch-all:        ${catchAll.length}
+  ❌ No email:         ${noEmail.length}
+  🚫 Unverified (skip): ${unverified.length}
+  ⏭️  Already in CRM:  ${dupeCount}
+  📬 New to add:       ${toAdd.length}
 `);
 
 if (toAdd.length === 0) { console.log('No new contacts to process. Exiting.'); process.exit(0); }
 
 // ── Print contact table ──────────────────────────────────────────────────────
-console.log('--- CONTACTS DISCOVERED ---\n');
-const nameW  = Math.max(20, ...toAdd.map(r => r.name.length));
-const roleW  = Math.max(30, ...toAdd.map(r => (r.title || '').length));
-const emailW = Math.max(35, ...toAdd.map(r => (r.email || '').length));
-const header = `  ${'#'.padEnd(3)} ${'Name'.padEnd(nameW)} ${'Role'.padEnd(roleW)} ${'Email'.padEnd(emailW)} Status`;
-console.log(header);
-console.log('  ' + '-'.repeat(header.length - 2));
-toAdd.forEach((r, i) => {
-  const status = r.verified ? 'valid' : r.catchAll ? 'catch-all' : 'unverified';
-  console.log(`  ${String(i + 1).padEnd(3)} ${r.name.padEnd(nameW)} ${(r.title || '').padEnd(roleW)} ${(r.email || '').padEnd(emailW)} ${status}`);
-});
-console.log();
+if (toAdd.length > 0) {
+  console.log('--- CONTACTS APPROVED FOR OUTREACH ---\n');
+  const nameW  = Math.max(20, ...toAdd.map(r => r.name.length));
+  const roleW  = Math.max(30, ...toAdd.map(r => (r.title || '').length));
+  const emailW = Math.max(35, ...toAdd.map(r => (r.email || '').length));
+  const header = `  ${'#'.padEnd(3)} ${'Name'.padEnd(nameW)} ${'Role'.padEnd(roleW)} ${'Email'.padEnd(emailW)} Status`;
+  console.log(header);
+  console.log('  ' + '-'.repeat(header.length - 2));
+  toAdd.forEach((r, i) => {
+    const status = r.verified ? 'valid' : 'catch-all';
+    console.log(`  ${String(i + 1).padEnd(3)} ${r.name.padEnd(nameW)} ${(r.title || '').padEnd(roleW)} ${(r.email || '').padEnd(emailW)} ${status}`);
+  });
+  console.log();
+}
+
+if (unverified.length > 0) {
+  console.log(`--- SKIPPED (unverified emails — ${unverified.length}) ---\n`);
+  unverified.forEach(r => console.log(`  · ${r.name.padEnd(25)} ${r.email}  [${r.emailStatus}]`));
+  console.log();
+}
 
 if (!AUTO) {
   // Save session to Supabase for CRM review
@@ -884,7 +934,7 @@ const gmailToken = await getGmailToken();
 console.log('✓\n');
 
 console.log(`Saving ${toAdd.length} contact(s) to Supabase...\n`);
-const newContacts = toAdd.map(r => ({
+const autoNewContacts = toAdd.map(r => ({
   id: `contact-apollo-${r.apolloId}`,
   name: r.name,
   role: r.title,
@@ -893,12 +943,12 @@ const newContacts = toAdd.map(r => ({
   linkedIn: r.linkedIn,
   emailVerified: r.verified,
 }));
-const mergedContacts = [...(prospect.contacts || []), ...newContacts];
+const mergedContacts = [...(prospect.contacts || []), ...autoNewContacts];
 await saveContacts(prospect.id, mergedContacts);
-console.log(`  ✓ Saved ${newContacts.length} new contact(s)\n`);
+console.log(`  ✓ Saved ${autoNewContacts.length} new contact(s)\n`);
 
 const subject      = SUBJECT_OVERRIDE || getSubject(prospect.company_name);
-const draftTargets = newContacts.filter(c => c.email);
+const draftTargets = autoNewContacts.filter(c => c.email);
 
 console.log('Creating Gmail drafts...\n');
 let draftCount = 0;
