@@ -744,7 +744,7 @@ export function OutreachAgentPage() {
                 <span>·</span>
                 <button onClick={() => { setImportIds(new Set()); setEmailIds(new Set()); }} className="text-accent hover:underline">Import none</button>
                 <span>·</span>
-                <button onClick={() => setEmailIds(new Set(newContacts.filter(c => c.email && c.emailStatus !== 'no_email').map(c => c.apolloId)))} className="text-accent hover:underline">Email all</button>
+                <button onClick={() => setEmailIds(new Set(contacts.filter(c => c.email && c.emailStatus !== 'no_email').map(c => c.apolloId)))} className="text-accent hover:underline">Email all</button>
                 <span>·</span>
                 <button onClick={() => setEmailIds(new Set())} className="text-accent hover:underline">Email none</button>
               </div>
@@ -769,7 +769,7 @@ export function OutreachAgentPage() {
                   const isImported = importIds.has(c.apolloId);
                   const isEmailed = emailIds.has(c.apolloId);
                   return (
-                    <tr key={c.apolloId} className={`transition-colors ${c.alreadyInCrm ? 'opacity-40' : 'hover:bg-muted/20'}`}>
+                    <tr key={c.apolloId} className={`transition-colors ${c.alreadyInCrm && !isEmailed ? 'opacity-40' : 'hover:bg-muted/20'}`}>
                       {!isReadOnly && (
                         <td className="px-3 py-2">
                           <Checkbox
@@ -784,7 +784,7 @@ export function OutreachAgentPage() {
                           <Checkbox
                             checked={isEmailed}
                             onCheckedChange={() => toggleEmail(c.apolloId, c)}
-                            disabled={!c.email || c.emailStatus === 'no_email' || c.alreadyInCrm}
+                            disabled={!c.email || c.emailStatus === 'no_email'}
                           />
                         </td>
                       )}
