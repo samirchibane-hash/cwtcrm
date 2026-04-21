@@ -154,7 +154,11 @@ function ProspectSuggestionsPage() {
       .select('*')
       .order('created_at', { ascending: false });
     if (error) toast.error('Failed to load suggestions');
-    else setSuggestions((data || []) as ProspectSuggestion[]);
+    else setSuggestions(
+      ((data || []) as ProspectSuggestion[]).filter(
+        s => !((s.discovered_companies ?? [])[0] as any)?.googleMapsUrl
+      )
+    );
     setLoading(false);
   };
 
@@ -520,10 +524,318 @@ function ProspectSuggestionsPage() {
   );
 }
 
+// ── Local Dealer Suggestions component (Apify Google Maps) ───────────────────
+
+function LocalDealerSuggestionsPage() {
+  const [suggestions, setSuggestions] = useState<ProspectSuggestion[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<ProspectSuggestion | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [decisions, setDecisions] = useState<Record<string, 'approved' | 'declined'>>({});
+  const [declineReasons, setDeclineReasons] = useState<Record<string, string>>({});
+
+  const loadSuggestions = async () => {
+    setLoading(true);
+    const { data, error } = await (supabase as any)
+      .from('prospect_suggestions')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) toast.error('Failed to load suggestions');
+    else setSuggestions(
+      ((data || []) as ProspectSuggestion[]).filter(
+        s => !!((s.discovered_companies ?? [])[0] as any)?.googleMapsUrl
+      )
+    );
+    setLoading(false);
+  };
+
+  useEffect(() => { loadSuggestions(); }, []);
+
+  const openSuggestion = (s: ProspectSuggestion) => {
+    setSelected(s);
+    const d: Record<string, 'approved' | 'declined'> = {};
+    const hasSaved = (s.approved_company_ids?.length ?? 0) > 0 || (s.declined_company_ids?.length ?? 0) > 0;
+    if (hasSaved) {
+      s.discovered_companies.forEach(c => {
+        d[c.apolloId] = s.declined_company_ids?.includes(c.apolloId) ? 'declined' : 'approved';
+      });
+    }
+    setDecisions(d);
+    setDeclineReasons(s.decline_reasons ?? {});
+  };
+
+  const setDecision = (id: string, decision: 'approved' | 'declined') =>
+    setDecisions(prev => ({ ...prev, [id]: decision }));
+
+  const handleSave = async () => {
+    if (!selected) return;
+    setSaving(true);
+    const companies = selected.discovered_companies;
+    const approvedIds = companies.filter(c => decisions[c.apolloId] !== 'declined').map(c => c.apolloId);
+    const declinedIds = companies.filter(c => decisions[c.apolloId] === 'declined').map(c => c.apolloId);
+
+    const { error } = await (supabase as any)
+      .from('prospect_suggestions')
+      .update({
+        status: 'approved',
+        approved_company_ids: approvedIds,
+        declined_company_ids: declinedIds,
+        decline_reasons: declineReasons,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', selected.id);
+
+    if (error) {
+      toast.error('Failed to save review');
+    } else {
+      toast.success(`Saved — ${approvedIds.length} approved, ${declinedIds.length} declined`);
+      await loadSuggestions();
+      setSelected(null);
+    }
+    setSaving(false);
+  };
+
+  const isReadOnly = selected?.status === 'added_to_crm';
+
+  // ── List view ────────────────────────────────────────────────────────────────
+  if (!selected) {
+    return (
+      <div className="max-w-2xl space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center">
+              <MapPin className="w-5 h-5 text-accent" />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Run <code className="bg-muted px-1 rounded text-xs">/scrape-residential-water</code> then review results here
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={loadSuggestions} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : suggestions.length === 0 ? (
+          <div className="border rounded-xl p-10 text-center space-y-3 bg-card">
+            <MapPin className="w-10 h-10 text-muted-foreground/40 mx-auto" />
+            <p className="font-medium text-muted-foreground">No dealer scrapes yet</p>
+            <p className="text-sm text-muted-foreground">Start a scrape in Claude Code:</p>
+            <code className="block text-xs bg-muted rounded-lg px-4 py-3 text-left mt-2">
+              /scrape-residential-water Arizona
+            </code>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {suggestions.map(s => {
+              const total    = s.discovered_companies.length;
+              const approved = s.approved_company_ids?.length ?? 0;
+              const isApproved = s.status === 'approved';
+              const isAdded    = s.status === 'added_to_crm';
+              const date = new Date(s.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => openSuggestion(s)}
+                  className="w-full text-left border rounded-xl p-4 bg-card hover:bg-muted/30 transition-colors flex items-center justify-between gap-4"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                      isAdded ? 'bg-green-100' : isApproved ? 'bg-blue-100' : 'bg-amber-100'
+                    }`}>
+                      {isAdded
+                        ? <CheckCircle2 className="w-5 h-5 text-green-600" />
+                        : isApproved
+                        ? <CheckCircle2 className="w-5 h-5 text-blue-600" />
+                        : <Clock className="w-5 h-5 text-amber-600" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{s.run_label || 'Dealer scrape'}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {isApproved || isAdded ? `${approved} approved` : `${total} dealers`} · {date}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge
+                    variant="outline"
+                    className={`shrink-0 text-xs capitalize ${
+                      isAdded    ? 'border-green-300 text-green-700' :
+                      isApproved ? 'border-blue-300 text-blue-700' :
+                                   'border-amber-300 text-amber-700'
+                    }`}
+                  >
+                    {s.status.replace('_', ' ')}
+                  </Badge>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ── Detail view ──────────────────────────────────────────────────────────────
+  const companies = selected.discovered_companies;
+
+  return (
+    <div className="space-y-5 max-w-4xl">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="sm" onClick={() => setSelected(null)} className="-ml-2">
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Local Dealers
+        </Button>
+        <span className="text-muted-foreground">/</span>
+        <span className="font-medium">{selected.run_label || 'Dealer scrape'}</span>
+        <Badge variant="outline" className={`capitalize text-xs ml-1 ${
+          selected.status === 'added_to_crm' ? 'border-green-300 text-green-700' :
+          selected.status === 'approved'     ? 'border-blue-300 text-blue-700' :
+                                               'border-amber-300 text-amber-700'
+        }`}>
+          {selected.status.replace('_', ' ')}
+        </Badge>
+      </div>
+
+      {isReadOnly && (
+        <div className="border border-green-200 bg-green-50 rounded-lg px-4 py-3 text-sm text-green-700">
+          These dealers have been imported to GHL.
+        </div>
+      )}
+
+      {/* Summary row */}
+      {!isReadOnly && (
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <span>
+            {companies.filter(c => decisions[c.apolloId] !== 'declined').length} approved ·{' '}
+            {companies.filter(c => decisions[c.apolloId] === 'declined').length} declined ·{' '}
+            {companies.length} total
+          </span>
+          <div className="flex gap-2">
+            <button onClick={() => setDecisions(Object.fromEntries(companies.map(c => [c.apolloId, 'approved'])))} className="text-accent hover:underline">Approve all</button>
+            <span>·</span>
+            <button onClick={() => setDecisions(Object.fromEntries(companies.map(c => [c.apolloId, 'declined'])))} className="text-accent hover:underline">Decline all</button>
+          </div>
+        </div>
+      )}
+
+      {/* Table */}
+      <div className="border rounded-lg overflow-hidden bg-card">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/40">
+              {!isReadOnly && <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs w-36">Decision</th>}
+              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">Company</th>
+              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs hidden md:table-cell">Website</th>
+              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs hidden md:table-cell">Maps</th>
+              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">Reviews</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y">
+            {companies.map(c => {
+              const decision          = decisions[c.apolloId];
+              const isDeclined        = decision === 'declined';
+              const isApprovedDecision = decision === 'approved';
+              const domain = c.website ? c.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : null;
+              const dimRow = isReadOnly && selected.declined_company_ids?.includes(c.apolloId);
+
+              return (
+                <tr key={c.apolloId} className={`transition-colors ${dimRow ? 'opacity-40' : 'hover:bg-muted/20'}`}>
+                  {!isReadOnly && (
+                    <td className="px-3 py-2.5 align-top">
+                      <div className="flex gap-1">
+                        <button
+                          onClick={() => setDecision(c.apolloId, 'approved')}
+                          className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                            isApprovedDecision ? 'bg-green-100 text-green-700 ring-1 ring-green-300' : 'text-muted-foreground hover:bg-muted'
+                          }`}
+                        >
+                          <CheckCircle2 className="w-3 h-3" /> Add
+                        </button>
+                        <button
+                          onClick={() => setDecision(c.apolloId, 'declined')}
+                          className={`flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
+                            isDeclined ? 'bg-red-100 text-red-700 ring-1 ring-red-300' : 'text-muted-foreground hover:bg-muted'
+                          }`}
+                        >
+                          <Ban className="w-3 h-3" /> Skip
+                        </button>
+                      </div>
+                      {isDeclined && (
+                        <input
+                          type="text"
+                          placeholder="Reason (optional)"
+                          value={declineReasons[c.apolloId] ?? ''}
+                          onChange={e => setDeclineReasons(prev => ({ ...prev, [c.apolloId]: e.target.value }))}
+                          className="mt-1.5 w-full text-xs px-2 py-1 rounded border border-red-200 bg-red-50 placeholder:text-red-300 text-red-800 outline-none focus:ring-1 focus:ring-red-300"
+                        />
+                      )}
+                    </td>
+                  )}
+                  <td className={`px-3 py-2.5 align-top ${isDeclined && !isReadOnly ? 'opacity-50' : ''}`}>
+                    <p className="font-medium leading-snug">{c.name}</p>
+                    {(c.city || c.state) && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{[c.city, c.state].filter(Boolean).join(', ')}</p>
+                    )}
+                  </td>
+                  <td className={`px-3 py-2.5 hidden md:table-cell align-top ${isDeclined && !isReadOnly ? 'opacity-50' : ''}`}>
+                    {domain ? (
+                      <a href={c.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline text-xs">
+                        {domain} <ExternalLink className="w-3 h-3 shrink-0" />
+                      </a>
+                    ) : <span className="text-muted-foreground text-xs">—</span>}
+                  </td>
+                  <td className={`px-3 py-2.5 hidden md:table-cell align-top ${isDeclined && !isReadOnly ? 'opacity-50' : ''}`}>
+                    {(c as any).googleMapsUrl ? (
+                      <a href={(c as any).googleMapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline text-xs">
+                        <MapPin className="w-3 h-3 shrink-0" /> View
+                      </a>
+                    ) : <span className="text-muted-foreground text-xs">—</span>}
+                  </td>
+                  <td className={`px-3 py-2.5 align-top ${isDeclined && !isReadOnly ? 'opacity-50' : ''}`}>
+                    {(c as any).reviews > 0 ? (
+                      <span className="flex items-center gap-1 text-xs">
+                        <Star className="w-3 h-3 text-yellow-500 shrink-0" />
+                        {(c as any).reviews?.toLocaleString()}
+                        {(c as any).rating ? <span className="text-muted-foreground ml-0.5">({(c as any).rating})</span> : null}
+                      </span>
+                    ) : <span className="text-muted-foreground text-xs">—</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {!isReadOnly && (
+        <div className="flex items-center gap-3">
+          <Button onClick={handleSave} disabled={saving} className="w-44">
+            {saving
+              ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
+              : <><CheckCircle2 className="w-4 h-4 mr-2" />Save review</>
+            }
+          </Button>
+        </div>
+      )}
+
+      {selected.status === 'approved' && (
+        <div className="border border-blue-200 bg-blue-50 rounded-lg px-4 py-3 text-xs text-blue-700 space-y-1">
+          <p className="font-medium">Review saved — ready to import to GHL</p>
+          <p>Tell Claude: <span className="italic">"Import approved companies from suggestion {selected.id} to GHL"</span></p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function OutreachAgentPage() {
-  const [activeTab, setActiveTab] = useState<'outreach' | 'suggestions'>('outreach');
+  const [activeTab, setActiveTab] = useState<'outreach' | 'suggestions' | 'dealers'>('outreach');
   const [sessions, setSessions] = useState<OutreachSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<OutreachSession | null>(null);
@@ -674,6 +986,16 @@ export function OutreachAgentPage() {
       >
         Company Suggestions
       </button>
+      <button
+        onClick={() => setActiveTab('dealers')}
+        className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
+          activeTab === 'dealers'
+            ? 'border-accent text-accent'
+            : 'border-transparent text-muted-foreground hover:text-foreground'
+        }`}
+      >
+        Local Dealer Suggestions
+      </button>
     </div>
   );
 
@@ -682,6 +1004,15 @@ export function OutreachAgentPage() {
       <div>
         {tabBar}
         <ProspectSuggestionsPage />
+      </div>
+    );
+  }
+
+  if (activeTab === 'dealers') {
+    return (
+      <div>
+        {tabBar}
+        <LocalDealerSuggestionsPage />
       </div>
     );
   }

@@ -78,6 +78,54 @@ function isIndustrial(name, categories) {
 }
 
 // ---------------------------------------------------------------------------
+// Relevance check — must be water filtration / softening / treatment related
+// ---------------------------------------------------------------------------
+const WATER_KW = [
+  'water softener','water softening','water filter','water filtration',
+  'water treatment','water purif','water condition','water quality',
+  'reverse osmosis','water system','well water','drinking water',
+  'water heater','water service','water solution','water technolog',
+  'water specialist','h2o','aqua','culligan','kinetico','ecowater',
+  'rainsoft','pelican water','water right','water care','pure water',
+  'clean water','soft water',
+];
+
+// Google Maps category strings that indicate water treatment businesses
+const WATER_CATEGORIES = [
+  'water softening equipment supplier',
+  'water treatment supplier',
+  'water filter supplier',
+  'water purification company',
+  'water testing service',
+  'well drilling contractor',
+];
+
+// ---------------------------------------------------------------------------
+// Plumbing-first exclusion — skip companies whose primary business is plumbing
+// ---------------------------------------------------------------------------
+const PLUMBING_KW = [
+  'plumbing','plumber','rooter','drain','sewer','heating','hvac',
+  'mechanical','pipe','pipework','septic','excavat',
+];
+
+function isPlumbingFirst(name, categories) {
+  const nameLower = name.toLowerCase();
+  // If name leads with a plumbing keyword before any water keyword, skip it
+  if (PLUMBING_KW.some(kw => nameLower.includes(kw))) return true;
+  const catText = (categories || []).join(' ').toLowerCase();
+  if (catText.includes('plumber') || catText.includes('plumbing')) return true;
+  return false;
+}
+
+function isWaterRelated(name, categories) {
+  const nameLower = name.toLowerCase();
+  if (WATER_KW.some(kw => nameLower.includes(kw))) return true;
+  const catText = (categories || []).join(' ').toLowerCase();
+  if (WATER_CATEGORIES.some(c => catText.includes(c))) return true;
+  return false;
+}
+
+// ---------------------------------------------------------------------------
 // Normalize name for dedup
 // ---------------------------------------------------------------------------
 function normalize(name) {
@@ -103,7 +151,7 @@ async function runGoogleMaps(stateName) {
   console.log(`\nStarting Apify Google Maps Scraper (${queries.length} queries)...`);
 
   const r = await fetch(
-    `https://api.apify.com/v2/acts/apify~google-maps-scraper/runs?token=${APIFY_TOKEN}`,
+    `https://api.apify.com/v2/acts/compass~crawler-google-places/runs?token=${APIFY_TOKEN}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -111,7 +159,8 @@ async function runGoogleMaps(stateName) {
         searchStringsArray:        queries,
         maxCrawledPlacesPerSearch: 25,
         language:                  'en',
-        countryCode:               'US',
+        countryCode:               'us',
+        state:                     stateName,
       }),
     }
   );
@@ -177,6 +226,8 @@ function filterPlaces(places) {
     }
 
     if (isIndustrial(name, categories)) continue;
+    if (!isWaterRelated(name, categories)) continue;
+    if (isPlumbingFirst(name, categories)) continue;
 
     // Dedup by normalized name
     const key = normalize(name);
