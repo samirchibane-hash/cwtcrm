@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import {
   Bot, Loader2, CheckCircle2, Clock, Mail, FilePen,
   Send, Eye, EyeOff, ChevronLeft, RefreshCw, MailCheck,
-  AlertCircle, Ban, Users, Building2, ExternalLink, Linkedin,
+  AlertCircle, Ban, Users, Building2, ExternalLink, Linkedin, MapPin, Star, Phone,
 } from 'lucide-react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -58,6 +58,12 @@ interface DiscoveredCompany {
   shortDescription: string;
   score: number;
   matchLabel: string;
+  // Google Maps fields (present for scraper-sourced suggestions)
+  googleMapsUrl?: string;
+  phone?: string;
+  address?: string;
+  reviews?: number;
+  rating?: number | null;
 }
 
 interface ProspectSuggestion {
@@ -293,6 +299,7 @@ function ProspectSuggestionsPage() {
 
   // ── Detail view ─────────────────────────────────────────────────────────────
   const companies = selected.discovered_companies;
+  const isMapsScrape = companies.length > 0 && !!(companies[0] as any).googleMapsUrl;
 
   return (
     <div className="space-y-5 max-w-5xl">
@@ -352,10 +359,20 @@ function ProspectSuggestionsPage() {
             <tr className="border-b bg-muted/40">
               {!isReadOnly && <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs w-36">Decision</th>}
               <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs">Company</th>
-              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs hidden md:table-cell">Domain</th>
-              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs hidden lg:table-cell">LinkedIn</th>
-              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs hidden lg:table-cell">Employees</th>
-              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs hidden xl:table-cell">Industry</th>
+              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs hidden md:table-cell">Website</th>
+              {isMapsScrape ? (
+                <>
+                  <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs hidden lg:table-cell">Maps</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs hidden lg:table-cell">Phone</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs hidden xl:table-cell">Reviews</th>
+                </>
+              ) : (
+                <>
+                  <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs hidden lg:table-cell">LinkedIn</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs hidden lg:table-cell">Employees</th>
+                  <th className="text-left px-3 py-2.5 font-medium text-muted-foreground text-xs hidden xl:table-cell">Industry</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -364,8 +381,6 @@ function ProspectSuggestionsPage() {
               const isDeclined = decision === 'declined';
               const isApprovedDecision = decision === 'approved';
               const domain = c.website ? c.website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : null;
-
-              // Read-only: dim declined companies
               const dimRow = isReadOnly && selected.declined_company_ids?.includes(c.apolloId);
 
               return (
@@ -410,6 +425,9 @@ function ProspectSuggestionsPage() {
                     {c.shortDescription && (
                       <p className="text-xs text-muted-foreground mt-0.5 max-w-xs truncate">{c.shortDescription}</p>
                     )}
+                    {isMapsScrape && (c.city || c.state) && (
+                      <p className="text-xs text-muted-foreground mt-0.5">{[c.city, c.state].filter(Boolean).join(', ')}</p>
+                    )}
                   </td>
                   <td className={`px-3 py-2.5 hidden md:table-cell align-top ${isDeclined && !isReadOnly ? 'opacity-50' : ''}`}>
                     {domain ? (
@@ -419,20 +437,49 @@ function ProspectSuggestionsPage() {
                       </a>
                     ) : <span className="text-muted-foreground text-xs">—</span>}
                   </td>
-                  <td className={`px-3 py-2.5 hidden lg:table-cell align-top ${isDeclined && !isReadOnly ? 'opacity-50' : ''}`}>
-                    {c.linkedin ? (
-                      <a href={c.linkedin} target="_blank" rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-accent hover:underline text-xs">
-                        <Linkedin className="w-3 h-3 shrink-0" /> Profile
-                      </a>
-                    ) : <span className="text-muted-foreground text-xs">—</span>}
-                  </td>
-                  <td className={`px-3 py-2.5 hidden lg:table-cell align-top text-xs text-muted-foreground ${isDeclined && !isReadOnly ? 'opacity-50' : ''}`}>
-                    {c.employees || '—'}
-                  </td>
-                  <td className={`px-3 py-2.5 hidden xl:table-cell align-top text-xs text-muted-foreground max-w-[160px] truncate ${isDeclined && !isReadOnly ? 'opacity-50' : ''}`}>
-                    {c.industry || '—'}
-                  </td>
+                  {isMapsScrape ? (
+                    <>
+                      <td className={`px-3 py-2.5 hidden lg:table-cell align-top ${isDeclined && !isReadOnly ? 'opacity-50' : ''}`}>
+                        {c.googleMapsUrl ? (
+                          <a href={c.googleMapsUrl} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-accent hover:underline text-xs">
+                            <MapPin className="w-3 h-3 shrink-0" /> Maps
+                          </a>
+                        ) : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+                      <td className={`px-3 py-2.5 hidden lg:table-cell align-top text-xs text-muted-foreground ${isDeclined && !isReadOnly ? 'opacity-50' : ''}`}>
+                        {c.phone ? (
+                          <span className="flex items-center gap-1"><Phone className="w-3 h-3 shrink-0" />{c.phone}</span>
+                        ) : '—'}
+                      </td>
+                      <td className={`px-3 py-2.5 hidden xl:table-cell align-top ${isDeclined && !isReadOnly ? 'opacity-50' : ''}`}>
+                        {(c.reviews ?? 0) > 0 ? (
+                          <span className="flex items-center gap-1 text-xs">
+                            <Star className="w-3 h-3 text-yellow-500 shrink-0" />
+                            {c.reviews?.toLocaleString()}
+                            {c.rating ? <span className="text-muted-foreground ml-0.5">({c.rating})</span> : null}
+                          </span>
+                        ) : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className={`px-3 py-2.5 hidden lg:table-cell align-top ${isDeclined && !isReadOnly ? 'opacity-50' : ''}`}>
+                        {c.linkedin ? (
+                          <a href={c.linkedin} target="_blank" rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-accent hover:underline text-xs">
+                            <Linkedin className="w-3 h-3 shrink-0" /> Profile
+                          </a>
+                        ) : <span className="text-muted-foreground text-xs">—</span>}
+                      </td>
+                      <td className={`px-3 py-2.5 hidden lg:table-cell align-top text-xs text-muted-foreground ${isDeclined && !isReadOnly ? 'opacity-50' : ''}`}>
+                        {c.employees || '—'}
+                      </td>
+                      <td className={`px-3 py-2.5 hidden xl:table-cell align-top text-xs text-muted-foreground max-w-[160px] truncate ${isDeclined && !isReadOnly ? 'opacity-50' : ''}`}>
+                        {c.industry || '—'}
+                      </td>
+                    </>
+                  )}
                 </tr>
               );
             })}
@@ -462,8 +509,11 @@ function ProspectSuggestionsPage() {
 
       {selected.status === 'approved' && (
         <div className="border border-blue-200 bg-blue-50 rounded-lg px-4 py-3 text-xs text-blue-700 space-y-1">
-          <p className="font-medium">Review saved — ready to add to CRM</p>
-          <p>Tell Claude: <span className="italic">"Add the approved companies from suggestion {selected.id} to the CRM"</span></p>
+          <p className="font-medium">Review saved — ready to import</p>
+          {isMapsScrape
+            ? <p>Tell Claude: <span className="italic">"Import approved companies from suggestion {selected.id} to GHL"</span></p>
+            : <p>Tell Claude: <span className="italic">"Add the approved companies from suggestion {selected.id} to the CRM"</span></p>
+          }
         </div>
       )}
     </div>
