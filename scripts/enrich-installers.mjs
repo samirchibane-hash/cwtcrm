@@ -135,7 +135,8 @@ const companies = allCompanies.slice(0, LIMIT);
 console.error(`Loaded ${companies.length} companies.`);
 
 const toEnrich = companies.filter(c =>
-  !c.website || !c.phone || !c.linkedin || !c.google_maps_url
+  !c.website || !c.phone || !c.linkedin || !c.google_maps_url ||
+  (c.google_maps_url && (c.google_maps_url.includes('/search?') || c.google_maps_url.includes('place_id:')))
 );
 console.error(`${toEnrich.length} need enrichment.`);
 
@@ -180,9 +181,11 @@ for (const company of toEnrich) {
   const setParts = [];
   if (!company.website      && item.website)  setParts.push(`website = '${esc(item.website)}'`);
   if (!company.phone        && item.phone)    setParts.push(`phone = '${esc(item.phone)}'`);
-  const placeId = item.placeId || (item.url && new URL(item.url).searchParams?.get('query_place_id'));
-  const mapsUrl = placeId ? `https://www.google.com/maps/place/?q=place_id:${placeId}` : item.url;
-  if (!company.google_maps_url && mapsUrl)    setParts.push(`google_maps_url = '${esc(mapsUrl)}'`);
+  const mapsUrl = item.cid
+    ? `https://maps.google.com/?cid=${item.cid}`
+    : (item.url && !item.url.includes('/search?') ? item.url : null);
+  const hasBrokenUrl = company.google_maps_url && (company.google_maps_url.includes('/search?') || company.google_maps_url.includes('place_id:'));
+  if ((!company.google_maps_url || hasBrokenUrl) && mapsUrl) setParts.push(`google_maps_url = '${esc(mapsUrl)}'`);
   if (!company.linkedin     && linkedin)      setParts.push(`linkedin = '${esc(linkedin)}'`);
 
   if (setParts.length === 0) {
