@@ -180,7 +180,9 @@ for (const company of toEnrich) {
   const setParts = [];
   if (!company.website      && item.website)  setParts.push(`website = '${esc(item.website)}'`);
   if (!company.phone        && item.phone)    setParts.push(`phone = '${esc(item.phone)}'`);
-  if (!company.google_maps_url && item.url)   setParts.push(`google_maps_url = '${esc(item.url)}'`);
+  const placeId = item.placeId || (item.url && new URL(item.url).searchParams?.get('query_place_id'));
+  const mapsUrl = placeId ? `https://www.google.com/maps/place/?q=place_id:${placeId}` : item.url;
+  if (!company.google_maps_url && mapsUrl)    setParts.push(`google_maps_url = '${esc(mapsUrl)}'`);
   if (!company.linkedin     && linkedin)      setParts.push(`linkedin = '${esc(linkedin)}'`);
 
   if (setParts.length === 0) {
