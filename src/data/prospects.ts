@@ -177,7 +177,6 @@ export const PIPELINE_STAGES = [
   'Disco Call',
   'Sample Req',
   'Quotes',
-  'Negotiation',
   'Closed Won',
   'No Current Interest',
   'Longterm',
@@ -191,7 +190,6 @@ export const getStageColor = (stage: string): { bg: string; text: string } => {
   if (stageLower === 'closed won' || stageLower === 'closed') return { bg: 'bg-stage-closed', text: 'text-stage-closed-foreground' };
   if (stageLower === 'sample req') return { bg: 'bg-stage-sample', text: 'text-stage-sample-foreground' };
   if (stageLower === 'disco call') return { bg: 'bg-stage-disco', text: 'text-stage-disco-foreground' };
-  if (stageLower === 'negotiation') return { bg: 'bg-stage-negotiation', text: 'text-stage-negotiation-foreground' };
   if (stageLower === 'new lead') return { bg: 'bg-stage-new', text: 'text-stage-new-foreground' };
   if (stageLower === 'longterm') return { bg: 'bg-stage-longterm', text: 'text-stage-longterm-foreground' };
   return { bg: 'bg-stage-new', text: 'text-stage-new-foreground' };
