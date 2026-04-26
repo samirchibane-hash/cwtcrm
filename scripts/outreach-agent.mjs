@@ -63,6 +63,7 @@ const CONTACTS_FLAG     = getFlag('--contacts');    // base64-encoded JSON array
 const ENGAGEMENTS_FLAG  = getFlag('--engagements'); // base64-encoded JSON array
 const TEMPLATE          = getFlag('--template') || 'standard'; // 'standard' | 'wqa'
 const SUBJECT_OVERRIDE  = getFlag('--subject'); // optional subject line override
+const APOLLO_ORG_ID     = getFlag('--apollo-org-id'); // bypass org search with known org ID
 
 if (!SESSION_ID && (!companyArg || !PROSPECT_ID_FLAG || !MARKET_TYPE_FLAG)) {
   console.error('Usage:');
@@ -259,7 +260,7 @@ async function verifyEmail(email, retries = 4) {
     return {
       status: data.data?.status || 'unknown',
       verified: data.data?.status === 'valid' || data.data?.safe_to_send === 'yes',
-      catchAll: data.data?.is_catch_all === 'yes',
+      catchAll: data.data?.is_catch_all === 'yes' || data.data?.status === 'catch_all',
     };
   }
   return { status: 'rate-limited', verified: false, catchAll: false };
@@ -300,13 +301,13 @@ async function logEngagement(prospectId, existing, companyName, draftCount) {
   const engagements = [...(existing || []), entry];
   if (!HAS_SERVICE_KEY) {
     const ej = JSON.stringify(engagements).replace(/'/g, "''");
-    pendingSQL.push(`UPDATE prospects SET engagements = '${ej}'::jsonb, last_contact = '${today}', stage = 'contacted', updated_at = NOW() WHERE id = '${prospectId}';`);
+    pendingSQL.push(`UPDATE prospects SET engagements = '${ej}'::jsonb, last_contact = '${today}', updated_at = NOW() WHERE id = '${prospectId}';`);
     return;
   }
   const res = await fetch(`${SUPABASE_URL}/rest/v1/prospects?id=eq.${prospectId}`, {
     method: 'PATCH',
     headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=representation' },
-    body: JSON.stringify({ engagements, last_contact: today, stage: 'contacted', updated_at: new Date().toISOString() }),
+    body: JSON.stringify({ engagements, last_contact: today, updated_at: new Date().toISOString() }),
   });
   if (!res.ok) throw new Error(`Supabase engagement update failed ${res.status}: ${await res.text()}`);
   return res.json();
@@ -628,7 +629,9 @@ console.log(`  Hook: "${hook.slice(0, 80)}..."\n`);
 
 // Phase 1a: Find Apollo org
 process.stdout.write('Phase 1: Finding Apollo org... ');
-const org = await apolloFindOrg(companyArg);
+const org = APOLLO_ORG_ID
+  ? { id: APOLLO_ORG_ID, name: companyArg }
+  : await apolloFindOrg(companyArg);
 if (!org) {
   console.error(`\n  ✗ "${companyArg}" not found in Apollo. Cannot proceed.`);
   process.exit(1);
@@ -640,10 +643,12 @@ console.log(`Phase 2: Searching Apollo (${BROAD_SEARCH ? 'broad — no filters, 
 const allPeople = await apolloSearchAll(org.id);
 console.log(`\n  Total unique from Apollo: ${allPeople.length} people`);
 
+const SESSION_CAP = LIMIT === 0 ? 15 : LIMIT;
+let scored = [];  // populated in broad mode; used for Phase 4 expansion
 let relevant;
 if (BROAD_SEARCH) {
-  // Score each contact; skip irrelevant titles; sort by score desc; take top LIMIT
-  const scored = allPeople
+  // Score each contact; skip irrelevant titles; sort by score desc
+  scored = allPeople
     .filter(p => p.first_name)
     .filter(p => !BROAD_SKIP.some(s => (p.title || '').toLowerCase().includes(s)))
     .map(p => {
@@ -653,17 +658,17 @@ if (BROAD_SEARCH) {
     })
     .filter(p => p._score >= 1)  // require at least one relevant keyword match
     .sort((a, b) => b._score - a._score);
-  const cap = LIMIT === 0 ? 25 : LIMIT;  // default cap: top 25 by score
-  relevant = scored.slice(0, cap);
-  console.log(`  After broad filter + scoring (top ${cap} by relevance score): ${relevant.length} to enrich`);
+  // Enrich 2× the session cap to build a larger pool for format detection
+  const ENRICH_CAP = SESSION_CAP * 2;
+  relevant = scored.slice(0, ENRICH_CAP);
+  console.log(`  After broad filter + scoring: ${scored.length} relevant (enriching top ${ENRICH_CAP} for format detection)`);
   relevant.forEach(p => console.log(`    [score ${p._score}] ${p.first_name} ${p.last_name_obfuscated || ''} — ${p.title || 'no title'}`));
   console.log();
 } else {
-  const cap = LIMIT === 0 ? 25 : LIMIT;
   relevant = allPeople
     .filter(p => p.first_name && !SKIP_TITLES.some(s => (p.title || '').toLowerCase().includes(s)))
-    .slice(0, cap);
-  console.log(`  After role filter (top ${cap}): ${relevant.length} to enrich\n`);
+    .slice(0, SESSION_CAP);
+  console.log(`  After role filter (top ${SESSION_CAP}): ${relevant.length} to enrich\n`);
 }
 
 if (relevant.length === 0) {
@@ -681,7 +686,8 @@ for (const person of relevant) {
     const full = await apolloEnrich(person.id);
     if (full) {
       enriched.push({ apolloId: person.id, name: full.name || `${full.first_name} ${full.last_name}`.trim(),
-        title: full.title || person.title || '', email: full.email || '', linkedIn: full.linkedin_url || '' });
+        title: full.title || person.title || '', email: full.email || '', linkedIn: full.linkedin_url || '',
+        _score: person._score || 0 });
       console.log(`→ ${full.name} | ${full.title || 'no title'} | ${full.email || 'no email'}`);
     } else { console.log('→ no result'); }
   } catch (e) { console.log(`→ error: ${e.message}`); }
@@ -802,10 +808,43 @@ for (const contact of enriched) {
 }
 console.log();
 
-// Dedup against existing, and only keep verified/catch-all emails
+// Phase 4: Format expansion — once the format is known, scan ALL remaining scored contacts
+// and verify emails using the detected format only (1 Clearout call each).
+// Only runs in broad-search mode and only if format was detected and we're under the session cap.
+if (BROAD_SEARCH && detectedFormat && knownDomain) {
+  const enrichedIds = new Set(enriched.map(c => c.apolloId));
+  const remaining = scored.filter(p => !enrichedIds.has(p.id));
+  const verifiedSoFar = results.filter(r => r.verified || r.catchAll).length;
+
+  if (remaining.length > 0 && verifiedSoFar < SESSION_CAP) {
+    console.log(`Phase 4: Format expansion — trying ${detectedFormat}@${knownDomain} on ${remaining.length} remaining scored contacts...\n`);
+    for (const person of remaining) {
+      if (results.filter(r => r.verified || r.catchAll).length >= SESSION_CAP) break;
+      const fullName = `${person.first_name} ${person.last_name || ''}`.trim();
+      const guess = generateEmail(fullName, detectedFormat, knownDomain);
+      if (!guess) continue;
+      process.stdout.write(`  ${fullName.padEnd(28)} [fmt:${detectedFormat}] ${guess}`);
+      const v = await verifyEmail(guess);
+      await new Promise(r => setTimeout(r, 600));
+      if (v.verified || v.catchAll) {
+        console.log(` → ${v.status}${v.catchAll ? ' (catch-all)' : ''} ✓`);
+        results.push({ apolloId: person.id, name: fullName, title: person.title || '',
+          email: guess, linkedIn: person.linkedin_url || '', emailStatus: v.status,
+          verified: v.verified, catchAll: v.catchAll, _score: person._score || 0 });
+      } else {
+        console.log(` → ${v.status}`);
+      }
+    }
+    console.log();
+  }
+}
+
+// Dedup against existing, sort by relevance score, cap at SESSION_CAP
 const allWithEmail = results.filter(r => r.email);
-const newContacts  = allWithEmail.filter(r => !existingIds.has(`contact-apollo-${r.apolloId}`) && !existingIds.has(r.linkedIn));
-const toAdd        = newContacts.filter(r => r.verified || r.catchAll);
+const newContacts  = allWithEmail
+  .filter(r => !existingIds.has(`contact-apollo-${r.apolloId}`) && !existingIds.has(r.linkedIn))
+  .sort((a, b) => (b._score || 0) - (a._score || 0));
+const toAdd        = newContacts.filter(r => r.verified || r.catchAll).slice(0, SESSION_CAP);
 const unverified   = newContacts.filter(r => !r.verified && !r.catchAll);
 
 const dupeCount = allWithEmail.length - newContacts.length;
@@ -968,7 +1007,7 @@ console.log(`\n  ${draftCount} draft(s) created\n`);
 
 console.log('Logging engagement...\n');
 await logEngagement(prospect.id, prospect.engagements, prospect.company_name, draftCount);
-console.log(`  ✓ Engagement logged (${draftCount} emails, stage → contacted)\n`);
+console.log(`  ✓ Engagement logged (${draftCount} emails)\n`);
 
 console.log('--- DONE ---');
 console.log(`  New contacts saved:  ${newContacts.length}`);
