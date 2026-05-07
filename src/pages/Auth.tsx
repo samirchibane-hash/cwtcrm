@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useToast } from '@/hooks/use-toast';
-import { Droplet, Loader2 } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { z } from 'zod';
 
 const authSchema = z.object({
@@ -139,9 +139,7 @@ const Auth = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1 text-center">
           <div className="flex justify-center mb-4">
-            <div className="p-3 bg-primary/10 rounded-full">
-              <Droplet className="h-8 w-8 text-primary" />
-            </div>
+            <img src="/canopus-logo.png" alt="Canopus Water Technologies" className="h-16 w-16 object-contain" />
           </div>
           <CardTitle className="text-2xl font-bold">Canopus Water CRM</CardTitle>
           <CardDescription>
