@@ -1,11 +1,16 @@
 #!/usr/bin/env node
 /**
- * Import approved companies from a prospect_suggestions row into GHL contacts.
- * Before importing, enriches each approved company with email + phone by running
- * a targeted Apify Google Maps scrape (scrapeContacts: true) on their place IDs.
+ * Import approved companies from a prospect_suggestions row into GHL and/or
+ * the CWT CRM prospects table.
  *
  * Usage:
- *   node scripts/import-ghl-leads.mjs --suggestion-id <uuid> [--dry-run]
+ *   node scripts/import-ghl-leads.mjs --suggestion-id <uuid> [--target ghl|crm|both] [--crm-min-reviews N] [--dry-run]
+ *
+ * --target defaults to "ghl". Use "crm" for VIP leads going into the prospects
+ * table, or "both" to push to GHL and CRM simultaneously.
+ *
+ * --crm-min-reviews N  Route companies with >= N reviews to CRM and the rest
+ *                      to GHL automatically (overrides --target per company).
  */
 
 import { readFileSync } from 'fs';
@@ -24,10 +29,16 @@ const args    = process.argv.slice(2);
 const getFlag = f => { const i = args.indexOf(f); return i !== -1 ? args[i + 1] : null; };
 const hasFlag = f => args.includes(f);
 
-const SUGGESTION_ID = getFlag('--suggestion-id');
-const DRY_RUN       = hasFlag('--dry-run');
+const SUGGESTION_ID     = getFlag('--suggestion-id');
+const TARGET            = getFlag('--target') || 'ghl';   // ghl | crm | both
+const CRM_MIN_REVIEWS   = getFlag('--crm-min-reviews') ? parseInt(getFlag('--crm-min-reviews'), 10) : null;
+const DRY_RUN           = hasFlag('--dry-run');
 
 if (!SUGGESTION_ID) { console.error('Error: --suggestion-id is required'); process.exit(1); }
+if (!CRM_MIN_REVIEWS && !['ghl', 'crm', 'both'].includes(TARGET)) {
+  console.error(`Error: --target must be ghl, crm, or both (got "${TARGET}")`);
+  process.exit(1);
+}
 
 const GHL_TOKEN    = env.GHL_ACCESS_TOKEN;
 const GHL_LOCATION = env.GHL_LOCATION_ID;
@@ -35,10 +46,14 @@ const APIFY_TOKEN  = env.APIFY_TOKEN;
 const SUPABASE_URL = env.VITE_SUPABASE_URL || `https://${env.VITE_SUPABASE_PROJECT_ID}.supabase.co`;
 const SB_KEY       = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
-if (!GHL_TOKEN)    { console.error('Missing GHL_ACCESS_TOKEN in .env');  process.exit(1); }
-if (!GHL_LOCATION) { console.error('Missing GHL_LOCATION_ID in .env');   process.exit(1); }
-if (!APIFY_TOKEN)  { console.error('Missing APIFY_TOKEN in .env');       process.exit(1); }
-if (!SB_KEY)       { console.error('Missing Supabase key in .env');      process.exit(1); }
+// When --crm-min-reviews is set both destinations are used (routing is per company)
+const wantsGHL = CRM_MIN_REVIEWS != null ? true : (TARGET === 'ghl' || TARGET === 'both');
+const wantsCRM = CRM_MIN_REVIEWS != null ? true : (TARGET === 'crm' || TARGET === 'both');
+
+if (wantsGHL && !GHL_TOKEN)    { console.error('Missing GHL_ACCESS_TOKEN in .env');  process.exit(1); }
+if (wantsGHL && !GHL_LOCATION) { console.error('Missing GHL_LOCATION_ID in .env');   process.exit(1); }
+if (!APIFY_TOKEN)               { console.error('Missing APIFY_TOKEN in .env');       process.exit(1); }
+if (!SB_KEY)                    { console.error('Missing Supabase key in .env');      process.exit(1); }
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
@@ -72,7 +87,6 @@ async function enrichPlaceIds(placeIds) {
   const dsId  = data.defaultDatasetId;
   console.log(`  Run ID: ${runId}`);
 
-  // Poll
   const start    = Date.now();
   const deadline = start + 8 * 60_000;
   while (true) {
@@ -91,14 +105,12 @@ async function enrichPlaceIds(placeIds) {
     }
   }
 
-  // Fetch results
   const d = await fetch(
     `https://api.apify.com/v2/datasets/${dsId}/items?token=${APIFY_TOKEN}&format=json&limit=500`
   );
   if (!d.ok) return {};
   const items = await d.json();
 
-  // Build placeId → { email, phone } map
   const enriched = {};
   for (const item of items) {
     const pid = item.placeId;
@@ -114,7 +126,7 @@ async function enrichPlaceIds(placeIds) {
 }
 
 // ---------------------------------------------------------------------------
-// GHL: check if contact exists by phone or email
+// GHL helpers
 // ---------------------------------------------------------------------------
 async function ghlContactExists(phone, email) {
   for (const [field, value] of [['phone', phone], ['email', email]]) {
@@ -130,23 +142,28 @@ async function ghlContactExists(phone, email) {
   return false;
 }
 
-// ---------------------------------------------------------------------------
-// GHL: create contact
-// ---------------------------------------------------------------------------
 async function ghlCreateContact(company, stateName, enrichment) {
-  const stateTag = stateName.toLowerCase().replace(/\s+/g, '-');
+  const stateTag = stateName.toLowerCase();
+  const streetOnly = company.address && company.city
+    ? company.address.split(', ' + company.city)[0].trim()
+    : company.address || undefined;
   const body = {
-    locationId: GHL_LOCATION,
-    firstName:  company.name,
-    email:      enrichment?.email  || undefined,
-    phone:      enrichment?.phone  || company.phone || undefined,
-    website:    company.website    || undefined,
-    address1:   company.address    || undefined,
-    city:       company.city       || undefined,
-    state:      company.state      || stateName,
-    postalCode: company.postalCode || undefined,
-    tags:       ['residential-water', 'apify-discovery', stateTag],
-    source:     'Apify Google Maps',
+    locationId:  GHL_LOCATION,
+    companyName: company.name,
+    firstName:   'N/a',
+    email:       enrichment?.email  || undefined,
+    phone:       enrichment?.phone  || company.phone || undefined,
+    website:     company.website    || undefined,
+    address1:    streetOnly         || undefined,
+    city:        company.city       || undefined,
+    state:       company.state      || stateName,
+    postalCode:  company.postalCode || undefined,
+    tags:        [stateTag],
+    source:      'Apify Google Maps',
+    customFields: [
+      { id: 'evYmPQXtUDehCbb2q74C', value: company.googleMapsUrl || '' },
+      { id: 'l6mNUjW1T7SGUTOr22qP', value: String(company.reviews || 0) },
+    ],
   };
   for (const k of Object.keys(body)) { if (body[k] === undefined) delete body[k]; }
 
@@ -164,10 +181,87 @@ async function ghlCreateContact(company, stateName, enrichment) {
   return (await r.json()).contact?.id;
 }
 
+// ---------------------------------------------------------------------------
+// CRM (Supabase prospects table) helpers
+// ---------------------------------------------------------------------------
+function reviewsToTier(reviews) {
+  if (!reviews) return 'C';
+  if (reviews >= 200) return 'A';
+  if (reviews >= 50)  return 'B';
+  return 'C';
+}
+
+async function crmProspectExists(phone, companyName, state) {
+  // Check by phone first (most reliable dedup)
+  if (phone) {
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/prospects?phone=eq.${encodeURIComponent(phone)}&select=id`,
+      { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }
+    );
+    if (r.ok) {
+      const rows = await r.json();
+      if (rows.length > 0) return true;
+    }
+  }
+  // Fallback: name + state match
+  const r = await fetch(
+    `${SUPABASE_URL}/rest/v1/prospects?company_name=eq.${encodeURIComponent(companyName)}&state=eq.${encodeURIComponent(state)}&select=id`,
+    { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } }
+  );
+  if (r.ok) {
+    const rows = await r.json();
+    if (rows.length > 0) return true;
+  }
+  return false;
+}
+
+async function crmCreateProspect(company, stateName, enrichment) {
+  const streetOnly = company.address ? company.address.split(',')[0].trim() : '';
+  const body = {
+    company_name:    company.name,
+    state:           company.state || stateName,
+    city:            company.city            || '',
+    street:          streetOnly,
+    zip:             company.postalCode      || '',
+    country:         'USA',
+    phone:           enrichment?.phone || company.phone || '',
+    website:         company.website         || '',
+    google_maps_url: company.googleMapsUrl   || '',
+    linkedin:        company.linkedin        || '',
+    type:            'Residential Dealer',
+    market_type:     'Residential',
+    stage:           'New Lead',
+    lead_tier:       reviewsToTier(company.reviews),
+    contacts:        (enrichment?.email || company.email)
+      ? [{ email: enrichment?.email || company.email, source: 'Apify' }]
+      : [],
+    engagements:     [],
+    starred:         false,
+  };
+
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/prospects`, {
+    method:  'POST',
+    headers: {
+      apikey:          SB_KEY,
+      Authorization:   `Bearer ${SB_KEY}`,
+      'Content-Type':  'application/json',
+      Prefer:          'return=representation',
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!r.ok) throw new Error(`CRM ${r.status}: ${await r.text()}`);
+  const [row] = await r.json();
+  return row?.id;
+}
+
 // ===========================================================================
 // MAIN
 // ===========================================================================
-console.log(`\n=== GHL Lead Import ===`);
+const modeLabel = CRM_MIN_REVIEWS != null
+  ? `split (CRM ≥ ${CRM_MIN_REVIEWS} reviews, GHL < ${CRM_MIN_REVIEWS})`
+  : TARGET;
+console.log(`\n=== Lead Import (target: ${modeLabel}) ===`);
 console.log(`Suggestion: ${SUGGESTION_ID}`);
 if (DRY_RUN) console.log('(dry run)\n');
 else         console.log('');
@@ -203,8 +297,13 @@ if (approved.length === 0) {
 }
 
 if (DRY_RUN) {
-  approved.forEach((c, i) => console.log(`  ${i + 1}. ${c.name} | ${c.phone || '—'} | ${c.state || stateName}`));
-  console.log('\nDry run — not writing to GHL.');
+  approved.forEach((c, i) => {
+    const dest = CRM_MIN_REVIEWS != null
+      ? ((c.reviews || 0) >= CRM_MIN_REVIEWS ? 'CRM' : 'GHL')
+      : TARGET.toUpperCase();
+    console.log(`  ${i + 1}. ${c.name} | ${c.reviews || 0} reviews | tier ${reviewsToTier(c.reviews)} | → ${dest}`);
+  });
+  console.log(`\nDry run — not writing anywhere.`);
   process.exit(0);
 }
 
@@ -215,52 +314,86 @@ const realPlaceIds = approved
 
 const enrichmentMap = await enrichPlaceIds(realPlaceIds);
 
-// Step 4: Push to GHL
-console.log('Importing to GHL...\n');
-let added   = 0;
-let skipped = 0;
-let errors  = 0;
-let enriched = 0;
+// Step 4: Import
+const stats = {
+  ghl:  { added: 0, skipped: 0, errors: 0 },
+  crm:  { added: 0, skipped: 0, errors: 0 },
+  enriched: 0,
+};
 
 for (let i = 0; i < approved.length; i++) {
   const c   = approved[i];
   const enr = enrichmentMap[c.apolloId] || null;
-  if (enr) enriched++;
+  if (enr) stats.enriched++;
 
-  const phone = enr?.phone || c.phone;
-  const email = enr?.email || null;
+  const phone     = enr?.phone || c.phone;
+  const email     = enr?.email || c.email || null;
+  const nameLabel = c.name.padEnd(42);
 
-  process.stdout.write(`  ${String(i + 1).padStart(3)}. ${c.name.padEnd(42)} `);
+  process.stdout.write(`  ${String(i + 1).padStart(3)}. ${nameLabel} `);
   process.stdout.write(email ? `📧 ` : `   `);
   process.stdout.write(phone ? `📞  → ` : `    → `);
 
-  try {
-    const exists = await ghlContactExists(phone, email);
-    if (exists) {
-      console.log('skip (already in GHL)');
-      skipped++;
-      await sleep(300);
-      continue;
-    }
+  // Per-company destination: review threshold overrides global --target
+  const reviews      = c.reviews || 0;
+  const sendToGHL    = CRM_MIN_REVIEWS != null ? reviews < CRM_MIN_REVIEWS  : wantsGHL;
+  const sendToCRM    = CRM_MIN_REVIEWS != null ? reviews >= CRM_MIN_REVIEWS : wantsCRM;
 
-    const id = await ghlCreateContact(c, stateName || c.state || '', enr);
-    console.log(`added (${id})`);
-    added++;
-  } catch (e) {
-    console.log(`error: ${e.message}`);
-    errors++;
+  const results = [];
+
+  if (sendToGHL) {
+    try {
+      const exists = await ghlContactExists(phone, email);
+      if (exists) {
+        results.push('GHL:skip');
+        stats.ghl.skipped++;
+      } else {
+        const id = await ghlCreateContact(c, stateName || c.state || '', enr);
+        results.push(`GHL:added(${id})`);
+        stats.ghl.added++;
+      }
+    } catch (e) {
+      results.push(`GHL:error(${e.message})`);
+      stats.ghl.errors++;
+    }
+    await sleep(300);
   }
 
-  await sleep(300);
+  if (sendToCRM) {
+    try {
+      const exists = await crmProspectExists(phone, c.name, c.state || stateName);
+      if (exists) {
+        results.push('CRM:skip');
+        stats.crm.skipped++;
+      } else {
+        const id = await crmCreateProspect(c, stateName || c.state || '', enr);
+        results.push(`CRM:added(${id})`);
+        stats.crm.added++;
+      }
+    } catch (e) {
+      results.push(`CRM:error(${e.message})`);
+      stats.crm.errors++;
+    }
+    await sleep(200);
+  }
+
+  console.log(results.join('  '));
 }
 
 // Summary
-console.log(`\n${'─'.repeat(50)}`);
+console.log(`\n${'─'.repeat(54)}`);
 console.log(`  Run:              ${run_label}`);
 console.log(`  Approved:         ${approved.length}`);
-console.log(`  With email/phone: ${enriched}`);
-console.log(`  Added to GHL:     ${added}`);
-console.log(`  Skipped (dupe):   ${skipped}`);
-if (errors > 0) console.log(`  Errors:           ${errors}`);
-console.log('─'.repeat(50));
+console.log(`  With email/phone: ${stats.enriched}`);
+if (wantsGHL) {
+  console.log(`  Added to GHL:     ${stats.ghl.added}`);
+  console.log(`  GHL skipped:      ${stats.ghl.skipped}`);
+  if (stats.ghl.errors > 0) console.log(`  GHL errors:       ${stats.ghl.errors}`);
+}
+if (wantsCRM) {
+  console.log(`  Added to CRM:     ${stats.crm.added}`);
+  console.log(`  CRM skipped:      ${stats.crm.skipped}`);
+  if (stats.crm.errors > 0) console.log(`  CRM errors:       ${stats.crm.errors}`);
+}
+console.log('─'.repeat(54));
 console.log('');
