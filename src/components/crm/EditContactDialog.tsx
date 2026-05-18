@@ -81,7 +81,7 @@ const EditContactDialog = ({ contact, onUpdateContact, onDeleteContact, trigger 
 
   const onSubmit = (data: ContactFormData) => {
     const updatedContact: Contact = {
-      id: contact.id,
+      ...contact,
       name: data.name,
       role: data.role || undefined,
       email: data.email || undefined,
