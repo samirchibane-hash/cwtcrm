@@ -33,7 +33,7 @@ interface ProspectsTableProps {
   onSelectProspect: (prospect: Prospect) => void;
 }
 
-type SortField = 'companyName' | 'contacts' | 'state' | 'type' | 'leadTier' | 'stage' | 'lastContact';
+type SortField = 'companyName' | 'contacts' | 'state' | 'type' | 'leadTier' | 'stage' | 'lastContact' | 'engagements';
 type SortDirection = 'asc' | 'desc' | null;
 
 interface ExportColumn {
@@ -270,7 +270,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const [lastContactCalendarOpen, setLastContactCalendarOpen] = useState<'from' | 'to' | null>(null);
   const [sortField, setSortField] = useState<SortField | null>(() => {
     const field = searchParams.get('sortField');
-    if (field && ['companyName', 'contacts', 'state', 'type', 'leadTier', 'stage', 'lastContact'].includes(field)) {
+    if (field && ['companyName', 'contacts', 'state', 'type', 'leadTier', 'stage', 'lastContact', 'engagements'].includes(field)) {
       return field as SortField;
     }
     return null;
@@ -488,6 +488,10 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
           case 'lastContact':
             aVal = getProspectLastContactSortValue(a);
             bVal = getProspectLastContactSortValue(b);
+            break;
+          case 'engagements':
+            aVal = (a.engagements || []).length;
+            bVal = (b.engagements || []).length;
             break;
         }
 
@@ -719,13 +723,18 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
               >
                 <span className="flex items-center">Stage{getSortIcon('stage')}</span>
               </th>
-              <th 
+              <th
                 className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
                 onClick={() => handleSort('lastContact')}
               >
                 <span className="flex items-center">Last Contact{getSortIcon('lastContact')}</span>
               </th>
-              
+              <th
+                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
+                onClick={() => handleSort('engagements')}
+              >
+                <span className="flex items-center">Engagements{getSortIcon('engagements')}</span>
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -749,8 +758,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                         </span>
                       );
                     }
-                    return prospect.contacts.length > 0 
-                      ? `${prospect.contacts.length} contact${prospect.contacts.length > 1 ? 's' : ''}`
+                    return prospect.contacts.length > 0
+                      ? `${prospect.contacts.length}`
                       : '—';
                   })()}
                 </td>
@@ -768,6 +777,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                 </td>
                 <td className="p-4 text-sm font-mono text-muted-foreground">
                   {getProspectLastContactLabel(prospect) || '—'}
+                </td>
+                <td className="p-4 text-sm font-mono text-muted-foreground">
+                  {(prospect.engagements || []).length > 0 ? (prospect.engagements || []).length : '—'}
                 </td>
               </tr>
             ))}
