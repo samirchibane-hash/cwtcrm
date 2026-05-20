@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ProductModelsProvider } from "@/context/ProductModelsContext";
 import { OrdersProvider } from "@/context/OrdersContext";
 import { ProspectsProvider } from "@/context/ProspectsContext";
+import { TasksProvider } from "@/context/TasksContext";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
@@ -22,6 +23,7 @@ const App = () => (
       <ProductModelsProvider>
         <OrdersProvider>
           <ProspectsProvider>
+          <TasksProvider>
           <TooltipProvider>
             <Toaster />
             <Sonner />
@@ -48,6 +50,7 @@ const App = () => (
               </Routes>
             </BrowserRouter>
           </TooltipProvider>
+          </TasksProvider>
           </ProspectsProvider>
         </OrdersProvider>
       </ProductModelsProvider>

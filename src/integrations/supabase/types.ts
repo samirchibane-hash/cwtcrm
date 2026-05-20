@@ -14,6 +14,98 @@ export type Database = {
   }
   public: {
     Tables: {
+      tasks: {
+        Row: {
+          id: string
+          title: string
+          description: string | null
+          status: string
+          priority: string
+          due_date: string | null
+          prospect_id: string | null
+          prospect_name: string | null
+          order_id: string | null
+          order_name: string | null
+          contact_tags: Json
+          labels: Json
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          title: string
+          description?: string | null
+          status?: string
+          priority?: string
+          due_date?: string | null
+          prospect_id?: string | null
+          prospect_name?: string | null
+          order_id?: string | null
+          order_name?: string | null
+          contact_tags?: Json
+          labels?: Json
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          title?: string
+          description?: string | null
+          status?: string
+          priority?: string
+          due_date?: string | null
+          prospect_id?: string | null
+          prospect_name?: string | null
+          order_id?: string | null
+          order_name?: string | null
+          contact_tags?: Json
+          labels?: Json
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      task_comments: {
+        Row: {
+          id: string
+          task_id: string
+          content: string
+          author: string | null
+          edited: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          task_id: string
+          content: string
+          author?: string | null
+          edited?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          task_id?: string
+          content?: string
+          author?: string | null
+          edited?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       allowed_emails: {
         Row: {
           created_at: string

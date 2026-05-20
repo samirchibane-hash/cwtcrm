@@ -9,6 +9,7 @@ import OrdersTable from '@/components/crm/OrdersTable';
 import ActivityDashboard from '@/components/crm/ActivityDashboard';
 import { AIRecommendationsPage } from '@/components/crm/AIRecommendationsPage';
 import { OutreachAgentPage } from '@/components/crm/OutreachAgentPage';
+import { TasksPage } from '@/components/crm/TasksPage';
 import { Prospect } from '@/data/prospects';
 
 const Index = () => {
@@ -19,7 +20,7 @@ const Index = () => {
   // Handle view query parameter (e.g., /?view=orders)
   useEffect(() => {
     const viewParam = searchParams.get('view');
-    if (viewParam && ['pipeline', 'prospects', 'agent', 'orders', 'reports', 'activity'].includes(viewParam)) {
+    if (viewParam && ['pipeline', 'prospects', 'agent', 'orders', 'reports', 'activity', 'tasks'].includes(viewParam)) {
       setActiveView(viewParam);
     }
     // Support legacy params
@@ -46,6 +47,8 @@ const Index = () => {
         return <OrdersReportingDashboard />;
       case 'activity':
         return <ActivityDashboard />;
+      case 'tasks':
+        return <TasksPage />;
       default:
         return <ProspectsTable onSelectProspect={handleSelectProspect} />;
     }
@@ -59,6 +62,7 @@ const Index = () => {
       case 'orders': return 'Orders';
       case 'reports': return 'Reports';
       case 'activity': return 'Activity Tracker';
+      case 'tasks': return 'Tasks';
       default: return 'Pipeline';
     }
   };
@@ -71,6 +75,7 @@ const Index = () => {
       case 'orders': return 'Track all customer orders and shipments';
       case 'reports': return 'Revenue analytics and business insights';
       case 'activity': return 'Aggregate call and email activity across all companies';
+      case 'tasks': return 'Manage tasks, track follow-ups, and link to pipeline companies';
       default: return 'Manage and track all your prospects and customers';
     }
   };
