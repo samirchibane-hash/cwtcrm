@@ -33,9 +33,13 @@ const env = Object.fromEntries(
     .map(l => { const [k, ...v] = l.split('='); return [k.trim(), v.join('=').trim().replace(/^["']|["']$/g, '')]; })
 );
 
-const SUPABASE_URL     = env.VITE_SUPABASE_URL || `https://${env.VITE_SUPABASE_PROJECT_ID}.supabase.co`;
-const SB_KEY           = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const SUPABASE_URL      = env.VITE_SUPABASE_URL || `https://${env.VITE_SUPABASE_PROJECT_ID}.supabase.co`;
+const SB_KEY            = env.SUPABASE_SERVICE_ROLE_KEY || env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const ANTHROPIC_API_KEY = env.ANTHROPIC_API_KEY;
+const CLIENT_ID         = env.VITE_GOOGLE_CLIENT_ID;
+const CLIENT_SECRET     = env.GOOGLE_CLIENT_SECRET;
+const REFRESH_TOKEN     = env.GOOGLE_REFRESH_TOKEN;
+const FROM_EMAIL        = 'samir@canopuswatertechnologies.com';
 
 if (!ANTHROPIC_API_KEY) {
   console.error('\n❌  ANTHROPIC_API_KEY is not set in your .env file.');
@@ -79,6 +83,241 @@ async function sbDelete(path) {
   if (!res.ok) throw new Error(`Supabase DELETE ${path}: ${await res.text()}`);
 }
 
+async function sbPatch(path, body) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    method: 'PATCH',
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Supabase PATCH ${path}: ${await res.text()}`);
+}
+
+// ── Reply checking ───────────────────────────────────────────────────────────
+
+async function getGmailToken() {
+  const res = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: CLIENT_ID, client_secret: CLIENT_SECRET,
+      refresh_token: REFRESH_TOKEN, grant_type: 'refresh_token',
+    }),
+  });
+  const data = await res.json();
+  if (!data.access_token) throw new Error('Gmail token error: ' + JSON.stringify(data));
+  return data.access_token;
+}
+
+async function getGmailThread(token, threadId) {
+  const res = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}?format=metadata&metadataHeaders=From`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    if (err?.error?.code === 404) return null;
+    throw new Error(`Gmail thread ${threadId}: ${JSON.stringify(err)}`);
+  }
+  return res.json();
+}
+
+async function searchInboxForReply(token, contactEmail, afterDate) {
+  const afterTs = Math.floor(new Date(afterDate).getTime() / 1000);
+  const res = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(`from:${contactEmail} after:${afterTs}`)}&maxResults=1`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) return false;
+  const data = await res.json();
+  return (data.messages?.length ?? 0) > 0;
+}
+
+function hasReply(thread) {
+  if (!thread?.messages?.length) return false;
+  return thread.messages.slice(1).some(msg => {
+    const from = msg.payload?.headers?.find(h => h.name === 'From')?.value ?? '';
+    return !from.toLowerCase().includes(FROM_EMAIL.toLowerCase());
+  });
+}
+
+// ── Email body helpers ────────────────────────────────────────────────────────
+
+function decodeEmailBody(data) {
+  if (!data) return '';
+  const base64 = data.replace(/-/g, '+').replace(/_/g, '/');
+  return Buffer.from(base64, 'base64').toString('utf-8');
+}
+
+function extractTextFromPayload(payload) {
+  if (!payload) return '';
+  if (payload.mimeType === 'text/plain' && payload.body?.data) return decodeEmailBody(payload.body.data);
+  if (payload.parts) {
+    for (const part of payload.parts) {
+      if (part.mimeType === 'text/plain' && part.body?.data) return decodeEmailBody(part.body.data);
+    }
+    for (const part of payload.parts) {
+      const nested = extractTextFromPayload(part);
+      if (nested) return nested;
+    }
+  }
+  return '';
+}
+
+function cleanEmailBody(text, maxChars = 400) {
+  if (!text) return '';
+  const lines = text.split('\n')
+    .filter(l => !l.trim().startsWith('>'))
+    .filter(l => !/^On .+wrote:/.test(l.trim()));
+  const cleaned = lines.join('\n').replace(/\r/g, '').replace(/\n{3,}/g, '\n\n').trim();
+  return cleaned.length > maxChars ? cleaned.slice(0, maxChars) + '...' : cleaned;
+}
+
+async function fetchLastExchange(token, threadId) {
+  const res = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}?format=full`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) return null;
+  const thread = await res.json().catch(() => null);
+  if (!thread?.messages?.length) return null;
+
+  const exchange = [];
+  for (const msg of thread.messages.slice(-2)) {
+    const from = msg.payload?.headers?.find(h => h.name === 'From')?.value ?? '';
+    const date = msg.payload?.headers?.find(h => h.name === 'Date')?.value ?? '';
+    const isMe = from.toLowerCase().includes(FROM_EMAIL.toLowerCase());
+    const body = cleanEmailBody(extractTextFromPayload(msg.payload), 350);
+    if (body) exchange.push({
+      role: isMe ? 'you' : 'them',
+      date: date.split(',').slice(1).join(',').trim().split(' ').slice(0, 3).join(' '),
+      body,
+    });
+  }
+  return exchange.length > 0 ? exchange : null;
+}
+
+async function fetchSentStyleSnapshot(token, days = 14) {
+  const afterTs = Math.floor((Date.now() - days * 86400000) / 1000);
+  const listRes = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(`in:sent after:${afterTs}`)}&maxResults=20`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!listRes.ok) return null;
+  const listData = await listRes.json().catch(() => null);
+  if (!listData?.messages?.length) return null;
+
+  const sample = listData.messages.slice(0, 15);
+  process.stdout.write(`  Scanning ${sample.length} sent email(s) for style patterns... `);
+
+  const emails = [];
+  for (const msg of sample) {
+    try {
+      const msgRes = await fetch(
+        `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!msgRes.ok) continue;
+      const msgData = await msgRes.json();
+      const subject = msgData.payload?.headers?.find(h => h.name === 'Subject')?.value ?? '';
+      const body = cleanEmailBody(extractTextFromPayload(msgData.payload), 400);
+      if (body.length > 40) emails.push({ subject, body });
+    } catch { /* skip */ }
+    await new Promise(r => setTimeout(r, 80));
+  }
+
+  if (emails.length < 3) { console.log('not enough emails'); return null; }
+
+  try {
+    const guide = await callClaude(
+      'You analyze sales email writing patterns. Be concise and specific.',
+      `Analyze these ${emails.length} sales emails from Samir at Canopus Water Technologies. Extract 5-7 bullet points covering: tone, typical length, how he opens, subject line style, call-to-action patterns, and any distinctive phrases or approaches.\n\nEmails:\n${emails.map((e, i) => `[${i + 1}] Subject: ${e.subject}\n${e.body}`).join('\n\n---\n\n')}\n\nReturn ONLY the bullet points, no intro text.`
+    );
+    console.log('done');
+    return guide;
+  } catch (e) {
+    console.log(`failed (${e.message})`);
+    return null;
+  }
+}
+
+async function fetchAllThreadContents(token, threadsByProspect) {
+  const entries = Object.entries(threadsByProspect).filter(([, v]) => v.latestThreadId).slice(0, 50);
+  if (entries.length === 0) return {};
+
+  process.stdout.write(`  Enriching ${entries.length} email thread(s) with content... `);
+  const contents = {};
+  let count = 0;
+  for (const [prospectId, info] of entries) {
+    try {
+      const exchange = await fetchLastExchange(token, info.latestThreadId);
+      if (exchange) { contents[prospectId] = exchange; count++; }
+    } catch { /* skip */ }
+    await new Promise(r => setTimeout(r, 120));
+  }
+  console.log(`${count} enriched`);
+  return contents;
+}
+
+async function checkRepliesForProspects(prospectIds, gmailToken = null) {
+  if (!CLIENT_ID || !CLIENT_SECRET || !REFRESH_TOKEN) return; // Gmail not configured
+
+  const idList = prospectIds.join(',');
+  const rows = await sbGet(
+    `email_threads?prospect_id=in.(${idList})&responded=eq.false&skipped=eq.false` +
+    `&select=id,prospect_id,contact_email,contact_name,gmail_thread_id,sent_at&order=sent_at.asc`
+  );
+  if (rows.length === 0) return;
+
+  process.stdout.write(`  Checking replies for ${new Set(rows.map(r => r.contact_email)).size} contact(s)... `);
+
+  let token = gmailToken;
+  if (!token) {
+    try { token = await getGmailToken(); }
+    catch (e) { console.log(`skipped (${e.message})`); return; }
+  }
+
+  const byThreadId = new Map();
+  for (const row of rows) {
+    if (!byThreadId.has(row.gmail_thread_id)) byThreadId.set(row.gmail_thread_id, []);
+    byThreadId.get(row.gmail_thread_id).push(row);
+  }
+
+  const needsFallback = new Map(); // contact_email → rows[]
+  let found = 0;
+
+  for (const [threadId, threadRows] of byThreadId) {
+    let gmailThread;
+    try { gmailThread = await getGmailThread(token, threadId); } catch { /* skip */ }
+
+    if (gmailThread && hasReply(gmailThread)) {
+      const ids = threadRows.map(r => r.id).join(',');
+      await sbPatch(`email_threads?id=in.(${ids})`, { responded: true, responded_at: new Date().toISOString() });
+      found++;
+    } else {
+      for (const row of threadRows) {
+        if (!needsFallback.has(row.contact_email)) needsFallback.set(row.contact_email, []);
+        if (!needsFallback.get(row.contact_email).find(r => r.id === row.id))
+          needsFallback.get(row.contact_email).push(row);
+      }
+    }
+    await new Promise(r => setTimeout(r, 100));
+  }
+
+  for (const [email, contactRows] of needsFallback) {
+    const earliestSentAt = contactRows.reduce((min, r) => r.sent_at < min ? r.sent_at : min, contactRows[0].sent_at);
+    let replied = false;
+    try { replied = await searchInboxForReply(token, email, earliestSentAt); } catch { /* skip */ }
+    if (replied) {
+      const ids = contactRows.map(r => r.id).join(',');
+      await sbPatch(`email_threads?id=in.(${ids})`, { responded: true, responded_at: new Date().toISOString() });
+      found++;
+    }
+    await new Promise(r => setTimeout(r, 150));
+  }
+
+  console.log(`${found} new reply(s) detected`);
+}
+
 // ── Claude API ───────────────────────────────────────────────────────────────
 
 async function callClaude(systemPrompt, userPrompt) {
@@ -113,7 +352,7 @@ function daysSince(dateStr) {
   return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
 
-function buildContext(prospect, orders, emailThreadSummary) {
+function buildContext(prospect, orders, emailThreadSummary, lastExchange = null) {
   const contacts = (prospect.contacts || []).map(c => ({
     name: c.name,
     role: c.role,
@@ -146,12 +385,14 @@ function buildContext(prospect, orders, emailThreadSummary) {
     orders: orderSummary,
     email_touches_sent: emailThreadSummary?.total || 0,
     email_any_response: emailThreadSummary?.responded || false,
+    last_email_exchange: lastExchange || null,
   };
 }
 
 // ── System prompt ────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are an executive sales assistant for Canopus Water Technologies, a company that sells UV-C water purification systems to OEMs, distributors, and other businesses.
+function buildSystemPrompt(styleGuide = null) {
+return `You are an executive sales assistant for Canopus Water Technologies, a company that sells UV-C water purification systems to OEMs, distributors, and other businesses.
 
 You will receive a list of companies from our CRM. For each company, recommend the single most valuable action Samir (our CMO) should take today.
 
@@ -163,7 +404,7 @@ Respond with a JSON array — one object per company — in this exact format:
     "priority": "urgent" | "high" | "normal",
     "contact_name": "First Last",
     "contact_method": "phone number or LinkedIn URL or email address",
-    "reason": "One sentence explaining why this action is needed today.",
+    "reason": "One sentence explaining why this action is needed today. Always start with how long ago the last outreach was, e.g. 'Last contacted 12 days ago — ...' or 'No prior contact — ...'.",
     "talking_point": "Specific conversation starter or key message for this outreach."
   }
 ]
@@ -184,7 +425,8 @@ Priority guidance:
 
 For contact_name and contact_method: pick the most relevant contact. Prefer the champion (isChampion=true), then the most senior person. For "call" use their phone number; for "linkedin" use their LinkedIn URL; for "email" use their email address. If the ideal method isn't available, pick the next best.
 
-Return ONLY the JSON array with no additional text.`;
+Return ONLY the JSON array with no additional text.${styleGuide ? `\n\nSamir's writing style — use this to make talking_point suggestions sound like him:\n${styleGuide}` : ''}`;
+}
 
 // ── Main ─────────────────────────────────────────────────────────────────────
 
@@ -201,6 +443,20 @@ const allProspects = await sbGet(prospectsQuery);
 const prospects = allProspects.filter(p => !SKIP_STAGES.some(s => (p.stage || '').includes(s)));
 console.log(`  Analyzing ${prospects.length} companies...\n`);
 
+// Initialize Gmail token once — shared across reply-check, style scan, and thread enrichment
+let gmailToken = null;
+if (CLIENT_ID && CLIENT_SECRET && REFRESH_TOKEN) {
+  try { gmailToken = await getGmailToken(); }
+  catch (e) { console.warn('  Gmail auth skipped:', e.message); }
+}
+
+// Check for new replies from these companies before building context
+await checkRepliesForProspects(prospects.map(p => p.id), gmailToken);
+
+// Scan recent sent emails to learn Samir's messaging style
+let styleGuide = null;
+if (gmailToken) styleGuide = await fetchSentStyleSnapshot(gmailToken);
+
 // Fetch orders (for customer check-ins)
 const allOrders = await sbGet('orders?select=company,status,total_value,model_type,order_type,created_at&order=created_at.desc');
 const ordersByCompany = {};
@@ -209,20 +465,27 @@ for (const o of allOrders) {
   ordersByCompany[o.company].push(o);
 }
 
-// Fetch email thread summaries
-const threadRows = await sbGet('email_threads?select=prospect_id,responded&order=sent_at.desc');
+// Fetch email thread summaries (ordered desc so first row per prospect = most recent)
+const threadRows = await sbGet('email_threads?select=prospect_id,responded,gmail_thread_id,sent_at&order=sent_at.desc');
 const threadsByProspect = {};
 for (const t of threadRows) {
-  if (!threadsByProspect[t.prospect_id]) threadsByProspect[t.prospect_id] = { total: 0, responded: false };
+  if (!threadsByProspect[t.prospect_id]) {
+    threadsByProspect[t.prospect_id] = { total: 0, responded: false, latestThreadId: t.gmail_thread_id };
+  }
   threadsByProspect[t.prospect_id].total++;
   if (t.responded) threadsByProspect[t.prospect_id].responded = true;
 }
+
+// Enrich active threads with actual message content so Claude can see what was said
+let threadContents = {};
+if (gmailToken) threadContents = await fetchAllThreadContents(gmailToken, threadsByProspect);
 
 // Build context objects
 const contexts = prospects.map(p => buildContext(
   p,
   ordersByCompany[p.company_name] || [],
-  threadsByProspect[p.id] || null
+  threadsByProspect[p.id] || null,
+  threadContents[p.id] || null
 ));
 
 // Call Claude in batches of 15
@@ -235,7 +498,7 @@ for (let i = 0; i < contexts.length; i += BATCH_SIZE) {
 
   try {
     const userPrompt = `Here are ${batch.length} companies to analyze:\n\n${JSON.stringify(batch, null, 2)}`;
-    const raw = await callClaude(SYSTEM_PROMPT, userPrompt);
+    const raw = await callClaude(buildSystemPrompt(styleGuide), userPrompt);
 
     // Extract JSON from response (handle any markdown wrapping)
     const jsonMatch = raw.match(/\[[\s\S]*\]/);
