@@ -418,10 +418,10 @@ Action type guidance:
 - "quote_followup": Use when stage is "Quotes" and last contact was more than 5 days ago.
 - "none": Use if no action is needed today (recently contacted, in progress, etc.).
 
-Priority guidance:
-- "urgent": Quote/proposal sent >7 days ago with no response, OR customer with delivered units and no check-in in 60+ days.
-- "high": Active prospect >5 days without contact, OR customer with recent large order.
-- "normal": Routine follow-up, longer-term nurture.
+Priority guidance — staleness is the primary driver. Always escalate based on how long since last contact:
+- "urgent": Last contact was 21+ days ago (any active prospect), OR quote/proposal sent >7 days with no response, OR customer with no check-in in 60+ days. Null last_contact (never contacted) is always urgent.
+- "high": Last contact was 10–20 days ago, OR quote sent 3–7 days ago with no response, OR customer with a recent large order and no follow-up.
+- "normal": Last contact within the past 10 days and no urgent trigger above.
 
 For contact_name and contact_method: pick the most relevant contact. Prefer the champion (isChampion=true), then the most senior person. For "call" use their phone number; for "linkedin" use their LinkedIn URL; for "email" use their email address. If the ideal method isn't available, pick the next best.
 
@@ -519,20 +519,23 @@ for (let i = 0; i < contexts.length; i += BATCH_SIZE) {
 const actionable = recommendations.filter(r => r.action_type !== 'none');
 console.log(`\n  ${actionable.length} actionable recommendation(s) out of ${recommendations.length} companies analyzed`);
 
+// Sort by priority then by staleness (oldest last contact first) within each group
+const daysByCompany = Object.fromEntries(contexts.map(c => [c.company, c.last_contact_days_ago ?? 9999]));
+const PRIORITY_ORDER = { urgent: 0, high: 1, normal: 2 };
+actionable.sort((a, b) => {
+  const priDiff = (PRIORITY_ORDER[a.priority] ?? 2) - (PRIORITY_ORDER[b.priority] ?? 2);
+  if (priDiff !== 0) return priDiff;
+  return (daysByCompany[b.company] ?? 0) - (daysByCompany[a.company] ?? 0); // oldest first within group
+});
+
 if (DRY_RUN) {
   console.log('\n--- Preview ---\n');
-  const byPriority = { urgent: [], high: [], normal: [] };
   for (const r of actionable) {
-    (byPriority[r.priority] || byPriority.normal).push(r);
-  }
-  for (const [pri, recs] of Object.entries(byPriority)) {
-    if (recs.length === 0) continue;
-    console.log(`\n[${pri.toUpperCase()}]`);
-    for (const r of recs) {
-      console.log(`  ${r.company} — ${r.action_type} → ${r.contact_name || 'N/A'} (${r.contact_method || 'N/A'})`);
-      console.log(`    Why: ${r.reason}`);
-      console.log(`    Say: ${r.talking_point}`);
-    }
+    const days = daysByCompany[r.company];
+    const daysLabel = days === 9999 ? 'never contacted' : `${days}d ago`;
+    console.log(`[${r.priority.toUpperCase()}] ${r.company} (${daysLabel}) — ${r.action_type} → ${r.contact_name || 'N/A'}`);
+    console.log(`  Why: ${r.reason}`);
+    console.log(`  Say: ${r.talking_point}\n`);
   }
   console.log('\n  [Dry run — nothing saved]\n');
   process.exit(0);
