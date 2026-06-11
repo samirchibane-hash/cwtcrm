@@ -7,6 +7,7 @@ export interface ActivityLogEntry {
   loggedBy: string;
   calls: number;
   emails: number;
+  linkedin: number;
   note?: string;
   prospectId?: string;
   createdAt: string;
@@ -18,6 +19,7 @@ const mapRow = (row: any): ActivityLogEntry => ({
   loggedBy: row.logged_by,
   calls: row.calls,
   emails: row.emails,
+  linkedin: row.linkedin ?? 0,
   note: row.note || undefined,
   prospectId: row.prospect_id || undefined,
   createdAt: row.created_at,
@@ -46,6 +48,7 @@ export const useActivityLog = () => {
         logged_by: entry.loggedBy,
         calls: entry.calls,
         emails: entry.emails,
+        linkedin: entry.linkedin,
         note: entry.note || null,
         prospect_id: entry.prospectId || null,
       })

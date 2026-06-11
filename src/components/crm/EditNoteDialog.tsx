@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Pencil, Trash2, Phone, Mail } from 'lucide-react';
+import { Pencil, Trash2, Phone, Mail, Linkedin } from 'lucide-react';
 import { Engagement, REPS, getRepConfig } from '@/data/prospects';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -35,7 +35,7 @@ type NoteFormData = z.infer<typeof noteSchema>;
 
 interface EditNoteDialogProps {
   engagement: Engagement;
-  onSave: (id: string, details: string, activity?: { calls?: number; emails?: number }, loggedBy?: string) => void;
+  onSave: (id: string, details: string, activity?: { calls?: number; emails?: number; linkedin?: number }, loggedBy?: string) => void;
   onDelete: (id: string) => void;
 }
 
@@ -44,6 +44,7 @@ const EditNoteDialog = ({ engagement, onSave, onDelete }: EditNoteDialogProps) =
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [calls, setCalls] = useState<number>(engagement.activity?.calls || 0);
   const [emails, setEmails] = useState<number>(engagement.activity?.emails || 0);
+  const [linkedIn, setLinkedIn] = useState<number>(engagement.activity?.linkedin || 0);
   const [loggedBy, setLoggedBy] = useState<string>(engagement.loggedBy || 'Samir');
   const { toast } = useToast();
 
@@ -60,9 +61,10 @@ const EditNoteDialog = ({ engagement, onSave, onDelete }: EditNoteDialogProps) =
   });
 
   const onSubmit = (data: NoteFormData) => {
-    const activity: { calls?: number; emails?: number } = {};
+    const activity: { calls?: number; emails?: number; linkedin?: number } = {};
     if (calls > 0) activity.calls = calls;
     if (emails > 0) activity.emails = emails;
+    if (linkedIn > 0) activity.linkedin = linkedIn;
     onSave(engagement.id, data.details, Object.keys(activity).length > 0 ? activity : undefined, loggedBy);
     toast({
       title: 'Note updated',
@@ -86,6 +88,7 @@ const EditNoteDialog = ({ engagement, onSave, onDelete }: EditNoteDialogProps) =
       reset({ details: engagement.details || engagement.summary });
       setCalls(engagement.activity?.calls || 0);
       setEmails(engagement.activity?.emails || 0);
+      setLinkedIn(engagement.activity?.linkedin || 0);
       setLoggedBy(engagement.loggedBy || 'Samir');
     }
   };
@@ -135,7 +138,7 @@ const EditNoteDialog = ({ engagement, onSave, onDelete }: EditNoteDialogProps) =
               )}
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1 text-xs">
                   <Phone className="w-3 h-3" /> Calls made
@@ -158,6 +161,19 @@ const EditNoteDialog = ({ engagement, onSave, onDelete }: EditNoteDialogProps) =
                   min={0}
                   value={emails || ''}
                   onChange={(e) => setEmails(Math.max(0, parseInt(e.target.value) || 0))}
+                  placeholder="0"
+                  className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1 text-xs">
+                  <Linkedin className="w-3 h-3" /> LinkedIn
+                </Label>
+                <input
+                  type="number"
+                  min={0}
+                  value={linkedIn || ''}
+                  onChange={(e) => setLinkedIn(Math.max(0, parseInt(e.target.value) || 0))}
                   placeholder="0"
                   className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
                 />

@@ -3,7 +3,7 @@ import { useProspects } from '@/context/ProspectsContext';
 import { useActivityLog } from '@/hooks/useActivityLog';
 import { REPS, getRepConfig } from '@/data/prospects';
 import MetricCard from '@/components/crm/MetricCard';
-import { Phone, Mail, Building2, Activity, Plus, Trash2, Loader2, BarChart2, TrendingUp } from 'lucide-react';
+import { Phone, Mail, Linkedin, Building2, Activity, Plus, Trash2, Loader2, BarChart2, TrendingUp } from 'lucide-react';
 import {
   BarChart, Bar,
   LineChart, Line,
@@ -33,7 +33,7 @@ const parseDate = (dateStr: string): Date | null => {
 const todayISO = new Date().toISOString().slice(0, 10);
 
 type DateRange = '7d' | '30d' | '90d' | 'all';
-type MetricFilter = 'all' | 'calls' | 'emails';
+type MetricFilter = 'all' | 'calls' | 'emails' | 'linkedin';
 type ChartType = 'bar' | 'line';
 type Period = 'daily' | 'weekly';
 
@@ -45,10 +45,10 @@ const DATE_RANGES: { label: string; value: DateRange }[] = [
 ];
 
 // Colors per rep and per metric
-const REP_CHART_COLORS: Record<string, { calls: string; emails: string }> = {
-  'Samir':      { calls: '#3b82f6', emails: '#93c5fd' },
-  'Deondre B.': { calls: '#f97316', emails: '#fed7aa' },
-  'all':        { calls: 'hsl(var(--chart-1))', emails: 'hsl(var(--chart-2))' },
+const REP_CHART_COLORS: Record<string, { calls: string; emails: string; linkedin: string }> = {
+  'Samir':      { calls: '#3b82f6', emails: '#93c5fd', linkedin: '#0077b5' },
+  'Deondre B.': { calls: '#f97316', emails: '#fed7aa', linkedin: '#0e76a8' },
+  'all':        { calls: 'hsl(var(--chart-1))', emails: 'hsl(var(--chart-2))', linkedin: '#0077b5' },
 };
 
 function getChartColors(repFilter: string) {
@@ -104,17 +104,19 @@ const ActivityDashboard = () => {
   const [formRep, setFormRep] = useState<string>('Samir');
   const [formCalls, setFormCalls] = useState<number>(0);
   const [formEmails, setFormEmails] = useState<number>(0);
+  const [formLinkedIn, setFormLinkedIn] = useState<number>(0);
   const [formNote, setFormNote] = useState('');
   const [saving, setSaving] = useState(false);
 
   const handleAddEntry = async () => {
-    if (formCalls + formEmails === 0) return;
+    if (formCalls + formEmails + formLinkedIn === 0) return;
     setSaving(true);
-    const result = await addEntry({ date: formDate, loggedBy: formRep, calls: formCalls, emails: formEmails, note: formNote.trim() || undefined });
+    const result = await addEntry({ date: formDate, loggedBy: formRep, calls: formCalls, emails: formEmails, linkedin: formLinkedIn, note: formNote.trim() || undefined });
     setSaving(false);
     if (result) {
-      toast({ title: 'Activity logged', description: `Added ${formCalls} calls and ${formEmails} emails for ${formRep}.` });
-      setFormCalls(0); setFormEmails(0); setFormNote(''); setShowForm(false);
+      const parts = [formCalls > 0 && `${formCalls} calls`, formEmails > 0 && `${formEmails} emails`, formLinkedIn > 0 && `${formLinkedIn} LinkedIn`].filter(Boolean).join(', ');
+      toast({ title: 'Activity logged', description: `Added ${parts} for ${formRep}.` });
+      setFormCalls(0); setFormEmails(0); setFormLinkedIn(0); setFormNote(''); setShowForm(false);
     } else {
       toast({ title: 'Error', description: 'Failed to save activity.', variant: 'destructive' });
     }
@@ -134,6 +136,7 @@ const ActivityDashboard = () => {
         date: e.date,
         calls: e.activity?.calls || 0,
         emails: e.activity?.emails || 0,
+        linkedin: e.activity?.linkedin || 0,
         loggedBy: e.loggedBy || 'Samir',
         prospectId: p.id as string | null,
       }))
@@ -142,6 +145,7 @@ const ActivityDashboard = () => {
       date: e.date,
       calls: e.calls,
       emails: e.emails,
+      linkedin: e.linkedin,
       loggedBy: e.loggedBy,
       prospectId: null as string | null,
     })),
@@ -168,13 +172,14 @@ const ActivityDashboard = () => {
   }), [allActivities, cutoffDate, repFilter]);
 
   // Summary metrics (respect metricFilter for display only in chart, but totals show both)
-  const totalCalls  = useMemo(() => filtered.reduce((s, e) => s + e.calls, 0), [filtered]);
-  const totalEmails = useMemo(() => filtered.reduce((s, e) => s + e.emails, 0), [filtered]);
+  const totalCalls    = useMemo(() => filtered.reduce((s, e) => s + e.calls, 0), [filtered]);
+  const totalEmails   = useMemo(() => filtered.reduce((s, e) => s + e.emails, 0), [filtered]);
+  const totalLinkedIn = useMemo(() => filtered.reduce((s, e) => s + e.linkedin, 0), [filtered]);
   const companiesContacted = useMemo(() => {
-    const ids = new Set(filtered.filter(e => e.prospectId && (e.calls + e.emails) > 0).map(e => e.prospectId!));
+    const ids = new Set(filtered.filter(e => e.prospectId && (e.calls + e.emails + e.linkedin) > 0).map(e => e.prospectId!));
     return ids.size;
   }, [filtered]);
-  const totalActivities = totalCalls + totalEmails;
+  const totalActivities = totalCalls + totalEmails + totalLinkedIn;
 
   // Per-rep breakdown (always uses full filtered set, ignores repFilter for this)
   const repBreakdown = useMemo(() => REPS.map(rep => {
@@ -189,6 +194,7 @@ const ActivityDashboard = () => {
       ...rep,
       calls: repActivities.reduce((s, e) => s + e.calls, 0),
       emails: repActivities.reduce((s, e) => s + e.emails, 0),
+      linkedin: repActivities.reduce((s, e) => s + e.linkedin, 0),
     };
   }), [allActivities, cutoffDate]);
 
@@ -222,12 +228,16 @@ const ActivityDashboard = () => {
       if (repFilter === 'all') {
         // Group by rep — value depends on metric filter
         const repName = e.loggedBy || 'Samir';
-        const value = metricFilter === 'calls' ? e.calls : metricFilter === 'emails' ? e.emails : e.calls + e.emails;
+        const value = metricFilter === 'calls' ? e.calls
+          : metricFilter === 'emails' ? e.emails
+          : metricFilter === 'linkedin' ? e.linkedin
+          : e.calls + e.emails + e.linkedin;
         if (value > 0) bucket[repName] = (bucket[repName] || 0) + value;
       } else {
         // Single rep — split by metric type
-        if (metricFilter !== 'emails' && e.calls > 0) bucket['Calls'] = (bucket['Calls'] || 0) + e.calls;
-        if (metricFilter !== 'calls' && e.emails > 0) bucket['Emails'] = (bucket['Emails'] || 0) + e.emails;
+        if (metricFilter !== 'emails' && metricFilter !== 'linkedin' && e.calls > 0) bucket['Calls'] = (bucket['Calls'] || 0) + e.calls;
+        if (metricFilter !== 'calls' && metricFilter !== 'linkedin' && e.emails > 0) bucket['Emails'] = (bucket['Emails'] || 0) + e.emails;
+        if (metricFilter !== 'calls' && metricFilter !== 'emails' && e.linkedin > 0) bucket['LinkedIn'] = (bucket['LinkedIn'] || 0) + e.linkedin;
       }
 
       map.set(key, bucket);
@@ -293,7 +303,7 @@ const ActivityDashboard = () => {
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground font-medium">Show</span>
           <SegmentedControl
-            options={[{ label: 'All', value: 'all' }, { label: 'Calls', value: 'calls' }, { label: 'Emails', value: 'emails' }]}
+            options={[{ label: 'All', value: 'all' }, { label: 'Calls', value: 'calls' }, { label: 'Emails', value: 'emails' }, { label: 'LinkedIn', value: 'linkedin' }]}
             value={metricFilter}
             onChange={setMetricFilter}
           />
@@ -301,11 +311,12 @@ const ActivityDashboard = () => {
       </div>
 
       {/* ── Summary cards ── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <MetricCard title="Total Calls" value={metricFilter === 'emails' ? 0 : totalCalls} icon={Phone} />
-        <MetricCard title="Total Emails" value={metricFilter === 'calls' ? 0 : totalEmails} icon={Mail} />
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+        <MetricCard title="Total Calls" value={metricFilter === 'all' || metricFilter === 'calls' ? totalCalls : 0} icon={Phone} />
+        <MetricCard title="Total Emails" value={metricFilter === 'all' || metricFilter === 'emails' ? totalEmails : 0} icon={Mail} />
+        <MetricCard title="LinkedIn" value={metricFilter === 'all' || metricFilter === 'linkedin' ? totalLinkedIn : 0} icon={Linkedin} />
         <MetricCard title="Companies Touched" value={companiesContacted} icon={Building2} />
-        <MetricCard title="Total Activities" value={metricFilter === 'calls' ? totalCalls : metricFilter === 'emails' ? totalEmails : totalActivities} icon={Activity} />
+        <MetricCard title="Total Activities" value={metricFilter === 'calls' ? totalCalls : metricFilter === 'emails' ? totalEmails : metricFilter === 'linkedin' ? totalLinkedIn : totalActivities} icon={Activity} />
       </div>
 
       {/* ── Rep breakdown ── */}
@@ -319,7 +330,7 @@ const ActivityDashboard = () => {
                 </span>
                 <span className="font-medium text-sm">{rep.name}</span>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-lg bg-muted/40 px-3 py-2">
                   <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
                     <Phone className="w-3 h-3" /> Calls
@@ -331,6 +342,12 @@ const ActivityDashboard = () => {
                     <Mail className="w-3 h-3" /> Emails
                   </p>
                   <p className="text-xl font-semibold">{rep.emails}</p>
+                </div>
+                <div className="rounded-lg bg-muted/40 px-3 py-2">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 mb-0.5">
+                    <Linkedin className="w-3 h-3" /> LinkedIn
+                  </p>
+                  <p className="text-xl font-semibold">{rep.linkedin}</p>
                 </div>
               </div>
             </CardContent>
@@ -395,8 +412,9 @@ const ActivityDashboard = () => {
                     ))
                   ) : (
                     <>
-                      {metricFilter !== 'emails' && <Bar dataKey="Calls" name="Calls" fill={colors.calls} radius={[4, 4, 0, 0]} />}
-                      {metricFilter !== 'calls'  && <Bar dataKey="Emails" name="Emails" fill={colors.emails} radius={[4, 4, 0, 0]} />}
+                      {metricFilter !== 'emails' && metricFilter !== 'linkedin' && <Bar dataKey="Calls" name="Calls" fill={colors.calls} radius={[4, 4, 0, 0]} />}
+                      {metricFilter !== 'calls' && metricFilter !== 'linkedin' && <Bar dataKey="Emails" name="Emails" fill={colors.emails} radius={[4, 4, 0, 0]} />}
+                      {metricFilter !== 'calls' && metricFilter !== 'emails' && <Bar dataKey="LinkedIn" name="LinkedIn" fill={colors.linkedin} radius={[4, 4, 0, 0]} />}
                     </>
                   )}
                 </BarChart>
@@ -418,8 +436,9 @@ const ActivityDashboard = () => {
                     ))
                   ) : (
                     <>
-                      {metricFilter !== 'emails' && <Line type="monotone" dataKey="Calls" name="Calls" stroke={colors.calls} strokeWidth={2} dot={{ r: 3, fill: colors.calls }} activeDot={{ r: 5 }} />}
-                      {metricFilter !== 'calls'  && <Line type="monotone" dataKey="Emails" name="Emails" stroke={colors.emails} strokeWidth={2} dot={{ r: 3, fill: colors.emails }} activeDot={{ r: 5 }} />}
+                      {metricFilter !== 'emails' && metricFilter !== 'linkedin' && <Line type="monotone" dataKey="Calls" name="Calls" stroke={colors.calls} strokeWidth={2} dot={{ r: 3, fill: colors.calls }} activeDot={{ r: 5 }} />}
+                      {metricFilter !== 'calls' && metricFilter !== 'linkedin' && <Line type="monotone" dataKey="Emails" name="Emails" stroke={colors.emails} strokeWidth={2} dot={{ r: 3, fill: colors.emails }} activeDot={{ r: 5 }} />}
+                      {metricFilter !== 'calls' && metricFilter !== 'emails' && <Line type="monotone" dataKey="LinkedIn" name="LinkedIn" stroke={colors.linkedin} strokeWidth={2} dot={{ r: 3, fill: colors.linkedin }} activeDot={{ r: 5 }} />}
                     </>
                   )}
                 </LineChart>
@@ -477,6 +496,11 @@ const ActivityDashboard = () => {
                 <input type="number" min={0} value={formEmails || ''} onChange={e => setFormEmails(Math.max(0, parseInt(e.target.value) || 0))} placeholder="0"
                   className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
               </div>
+              <div className="space-y-1.5 sm:col-span-2">
+                <label className="text-xs font-medium text-muted-foreground flex items-center gap-1"><Linkedin className="w-3 h-3" /> LinkedIn messages</label>
+                <input type="number" min={0} value={formLinkedIn || ''} onChange={e => setFormLinkedIn(Math.max(0, parseInt(e.target.value) || 0))} placeholder="0"
+                  className="w-full h-9 rounded-lg border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+              </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Note (optional)</label>
@@ -523,6 +547,11 @@ const ActivityDashboard = () => {
                             {entry.emails > 0 && (
                               <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-chart-2/10 text-chart-2">
                                 <Mail className="w-3 h-3" />{entry.emails} email{entry.emails !== 1 ? 's' : ''}
+                              </span>
+                            )}
+                            {entry.linkedin > 0 && (
+                              <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,119,181,0.1)', color: '#0077b5' }}>
+                                <Linkedin className="w-3 h-3" />{entry.linkedin} LinkedIn
                               </span>
                             )}
                           </div>

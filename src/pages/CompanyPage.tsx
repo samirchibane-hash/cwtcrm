@@ -43,6 +43,7 @@ const CompanyPage = () => {
   const [newNote, setNewNote] = useState('');
   const [newNoteCalls, setNewNoteCalls] = useState<number>(0);
   const [newNoteEmails, setNewNoteEmails] = useState<number>(0);
+  const [newNoteLinkedIn, setNewNoteLinkedIn] = useState<number>(0);
   const [newNoteLoggedBy, setNewNoteLoggedBy] = useState<string>('Samir');
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [engagements, setEngagements] = useState<Engagement[]>([]);
@@ -72,11 +73,11 @@ const CompanyPage = () => {
     const logAsEngagements: Engagement[] = activityLogEntries.map(e => ({
       id: `alog-${e.id}`,
       date: e.date,
-      type: (e.emails > 0 ? 'email' : e.calls > 0 ? 'call' : 'note') as Engagement['type'],
-      summary: e.note || `${e.emails > 0 ? `${e.emails} email${e.emails !== 1 ? 's' : ''}` : ''}${e.calls > 0 ? `${e.calls} call${e.calls !== 1 ? 's' : ''}` : ''}`,
+      type: (e.emails > 0 ? 'email' : e.calls > 0 ? 'call' : e.linkedin > 0 ? 'linkedin' : 'note') as Engagement['type'],
+      summary: e.note || [e.calls > 0 && `${e.calls} call${e.calls !== 1 ? 's' : ''}`, e.emails > 0 && `${e.emails} email${e.emails !== 1 ? 's' : ''}`, e.linkedin > 0 && `${e.linkedin} LinkedIn`].filter(Boolean).join(', '),
       details: e.note || undefined,
       loggedBy: e.loggedBy,
-      activity: { calls: e.calls || undefined, emails: e.emails || undefined },
+      activity: { calls: e.calls || undefined, emails: e.emails || undefined, linkedin: e.linkedin || undefined },
     }));
     const merged = [...engagements, ...logAsEngagements];
     // Deduplicate by id and sort descending by date
@@ -253,6 +254,7 @@ const CompanyPage = () => {
     const activity: Engagement['activity'] = {};
     if (newNoteCalls > 0) activity.calls = newNoteCalls;
     if (newNoteEmails > 0) activity.emails = newNoteEmails;
+    if (newNoteLinkedIn > 0) activity.linkedin = newNoteLinkedIn;
 
     const newEngagement: Engagement = {
       id: `eng-${Date.now()}`,
@@ -274,9 +276,10 @@ const CompanyPage = () => {
     setNewNote('');
     setNewNoteCalls(0);
     setNewNoteEmails(0);
+    setNewNoteLinkedIn(0);
   };
 
-  const handleEditNote = (engagementId: string, newDetails: string, activity?: { calls?: number; emails?: number }, loggedBy?: string) => {
+  const handleEditNote = (engagementId: string, newDetails: string, activity?: { calls?: number; emails?: number; linkedin?: number }, loggedBy?: string) => {
     const updatedEngagements = engagements.map(eng =>
       eng.id === engagementId
         ? {
@@ -676,6 +679,19 @@ const CompanyPage = () => {
                     className="w-full h-9 rounded-lg border border-input bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
                   />
                 </div>
+                <div className="space-y-1 col-span-2">
+                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                    <Linkedin className="w-3 h-3" /> LinkedIn messages
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={newNoteLinkedIn || ''}
+                    onChange={(e) => setNewNoteLinkedIn(Math.max(0, parseInt(e.target.value) || 0))}
+                    placeholder="0"
+                    className="w-full h-9 rounded-lg border border-input bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                  />
+                </div>
               </div>
               <div className="space-y-1">
                 <label className="text-xs font-medium text-muted-foreground">Logged by</label>
@@ -954,13 +970,14 @@ const ContactCard = ({ contact }: { contact: Contact }) => {
 
 interface EngagementCardProps {
   engagement: Engagement;
-  onEdit?: (id: string, details: string, activity?: { calls?: number; emails?: number }, loggedBy?: string) => void;
+  onEdit?: (id: string, details: string, activity?: { calls?: number; emails?: number; linkedin?: number }, loggedBy?: string) => void;
   onDelete?: (id: string) => void;
 }
 
 const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) => {
   const hasCalls = (engagement.activity?.calls || 0) > 0;
   const hasEmails = (engagement.activity?.emails || 0) > 0;
+  const hasLinkedIn = (engagement.activity?.linkedin || 0) > 0;
   const rep = getRepConfig(engagement.loggedBy);
 
   return (
@@ -980,7 +997,7 @@ const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) =
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
               <p className="text-sm">{engagement.details || engagement.summary}</p>
-              {(hasCalls || hasEmails) && (
+              {(hasCalls || hasEmails || hasLinkedIn) && (
                 <div className="flex items-center gap-2 mt-1.5">
                   {hasCalls && (
                     <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-chart-1/10 text-chart-1">
@@ -992,6 +1009,12 @@ const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) =
                     <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-chart-2/10 text-chart-2">
                       <Mail className="w-3 h-3" />
                       {engagement.activity!.emails} email{engagement.activity!.emails !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {hasLinkedIn && (
+                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,119,181,0.1)', color: '#0077b5' }}>
+                      <Linkedin className="w-3 h-3" />
+                      {engagement.activity!.linkedin} LinkedIn
                     </span>
                   )}
                 </div>

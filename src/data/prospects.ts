@@ -22,13 +22,14 @@ export const getRepConfig = (name?: string) =>
 export interface Engagement {
   id: string;
   date: string;
-  type: 'call' | 'email' | 'meeting' | 'note';
+  type: 'call' | 'email' | 'meeting' | 'note' | 'linkedin';
   summary: string;
   details?: string;
   loggedBy?: string;
   activity?: {
     calls?: number;
     emails?: number;
+    linkedin?: number;
   };
 }
 
