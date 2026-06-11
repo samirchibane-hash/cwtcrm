@@ -33,38 +33,59 @@ function buildHtmlEmail(firstName: string, bodyTemplate: string, companyName: st
   return `<div dir="ltr">\n${htmlBody}<br><br>\n${SIGNATURE}\n</div>`;
 }
 
-function makeMime(from: string, to: string, subject: string, htmlBody: string): string {
-  const raw = [
+interface MimeOpts {
+  inReplyTo?: string;
+  references?: string;
+}
+
+function makeMime(from: string, to: string, subject: string, htmlBody: string, opts: MimeOpts = {}): string {
+  const headers: string[] = [
     `From: ${from}`,
     `To: ${to}`,
     `Subject: ${subject}`,
-    `MIME-Version: 1.0`,
-    `Content-Type: text/html; charset=UTF-8`,
-    ``,
-    htmlBody,
-  ].join('\r\n');
+  ];
+  if (opts.inReplyTo) headers.push(`In-Reply-To: ${opts.inReplyTo}`);
+  if (opts.references) headers.push(`References: ${opts.references}`);
+  headers.push(`MIME-Version: 1.0`, `Content-Type: text/html; charset=UTF-8`, ``);
+
+  const raw = [...headers, htmlBody].join('\r\n');
   const bytes = new TextEncoder().encode(raw);
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-async function createDraft(token: string, raw: string): Promise<void> {
+async function createDraft(token: string, raw: string, threadId?: string): Promise<void> {
+  const message: Record<string, unknown> = { raw };
+  if (threadId) message.threadId = threadId;
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/drafts', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message: { raw } }),
+    body: JSON.stringify({ message }),
   });
   if (!res.ok) throw new Error(JSON.stringify(await res.json()));
 }
 
-async function sendMessage(token: string, raw: string): Promise<void> {
+async function sendMessage(token: string, raw: string, threadId?: string): Promise<{ id: string; threadId: string }> {
+  const body: Record<string, unknown> = { raw };
+  if (threadId) body.threadId = threadId;
   const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ raw }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(JSON.stringify(await res.json()));
+  return await res.json() as { id: string; threadId: string };
+}
+
+async function getMessageId(token: string, gmailId: string): Promise<string> {
+  const res = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${gmailId}?format=metadata&metadataHeaders=Message-ID`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) return '';
+  const data = await res.json() as { payload?: { headers?: { name: string; value: string }[] } };
+  return data.payload?.headers?.find(h => h.name === 'Message-ID')?.value ?? '';
 }
 
 serve(async (req) => {
@@ -74,7 +95,7 @@ serve(async (req) => {
 
   try {
     const {
-      contacts,      // { name: string, email: string }[]
+      contacts,      // { name, email, threadId?, inReplyTo? }[]
       subject,
       bodyTemplate,  // plain text with {firstName} and {companyName} placeholders
       mode,          // 'draft' | 'send'
@@ -94,16 +115,24 @@ serve(async (req) => {
 
     let count = 0;
     const errors: string[] = [];
+    const sent: { email: string; name: string; gmailMessageId: string; gmailThreadId: string; rfcMessageId: string }[] = [];
 
-    for (const contact of contacts as { name: string; email: string }[]) {
+    for (const contact of contacts as { name: string; email: string; threadId?: string; inReplyTo?: string }[]) {
       const firstName = contact.name.split(' ')[0];
       const html = buildHtmlEmail(firstName, bodyTemplate, companyName);
-      const raw = makeMime(FROM, contact.email, subject, html);
+      const mimeOpts: MimeOpts = {};
+      if (contact.inReplyTo) {
+        mimeOpts.inReplyTo = contact.inReplyTo;
+        mimeOpts.references = contact.inReplyTo;
+      }
+      const raw = makeMime(FROM, contact.email, subject, html, mimeOpts);
       try {
         if (mode === 'send') {
-          await sendMessage(token, raw);
+          const result = await sendMessage(token, raw, contact.threadId);
+          const rfcMessageId = await getMessageId(token, result.id);
+          sent.push({ email: contact.email, name: contact.name, gmailMessageId: result.id, gmailThreadId: result.threadId, rfcMessageId });
         } else {
-          await createDraft(token, raw);
+          await createDraft(token, raw, contact.threadId);
         }
         count++;
       } catch (e: any) {
@@ -112,7 +141,7 @@ serve(async (req) => {
       await new Promise(r => setTimeout(r, 200));
     }
 
-    return new Response(JSON.stringify({ count, errors }), {
+    return new Response(JSON.stringify({ count, errors, sent }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error: any) {

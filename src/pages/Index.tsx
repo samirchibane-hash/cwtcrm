@@ -10,6 +10,7 @@ import ActivityDashboard from '@/components/crm/ActivityDashboard';
 import { AIRecommendationsPage } from '@/components/crm/AIRecommendationsPage';
 import { OutreachAgentPage } from '@/components/crm/OutreachAgentPage';
 import { TasksPage } from '@/components/crm/TasksPage';
+import { DailyBriefingPage } from '@/components/crm/DailyBriefingPage';
 import { Prospect } from '@/data/prospects';
 
 const Index = () => {
@@ -20,7 +21,7 @@ const Index = () => {
   // Handle view query parameter (e.g., /?view=orders)
   useEffect(() => {
     const viewParam = searchParams.get('view');
-    if (viewParam && ['pipeline', 'prospects', 'agent', 'orders', 'reports', 'activity', 'tasks'].includes(viewParam)) {
+    if (viewParam && ['pipeline', 'prospects', 'agent', 'orders', 'reports', 'activity', 'tasks', 'briefing'].includes(viewParam)) {
       setActiveView(viewParam);
     }
     // Support legacy params
@@ -35,6 +36,8 @@ const Index = () => {
 
   const renderView = () => {
     switch (activeView) {
+      case 'briefing':
+        return <DailyBriefingPage />;
       case 'pipeline':
         return <ProspectsTable onSelectProspect={handleSelectProspect} />;
       case 'prospects':
@@ -56,6 +59,7 @@ const Index = () => {
 
   const getViewTitle = () => {
     switch (activeView) {
+      case 'briefing': return 'Daily Briefing';
       case 'pipeline': return 'Pipeline';
       case 'prospects': return 'AI Prospects';
       case 'agent': return 'Claude Agent';
@@ -69,6 +73,7 @@ const Index = () => {
 
   const getViewSubtitle = () => {
     switch (activeView) {
+      case 'briefing': return 'Your AI-powered action list — who to call, email, or connect with today';
       case 'pipeline': return 'Manage and track all your prospects and customers';
       case 'prospects': return 'AI-recommended companies based on your existing pipeline';
       case 'agent': return 'Discover contacts, review, and launch outreach campaigns';

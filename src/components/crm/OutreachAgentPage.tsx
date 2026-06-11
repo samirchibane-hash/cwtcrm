@@ -835,7 +835,7 @@ function LocalDealerSuggestionsPage() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function OutreachAgentPage() {
-  const [activeTab, setActiveTab] = useState<'outreach' | 'suggestions' | 'dealers'>('outreach');
+  const [activeTab, setActiveTab] = useState<'outreach' | 'followup' | 'suggestions' | 'dealers'>('outreach');
   const [sessions, setSessions] = useState<OutreachSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<OutreachSession | null>(null);
@@ -846,7 +846,19 @@ export function OutreachAgentPage() {
   const [emailIds, setEmailIds] = useState<Set<string>>(new Set());
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
-  const [template, setTemplate] = useState<'standard' | 'wqa'>('standard');
+  const [template, setTemplate] = useState<'standard' | 'wqa' | 'dealer'>('standard');
+
+  const DEALER_BODY_TEMPLATE = [
+    `Hey {firstName},`,
+    ``,
+    `I meant to reach out before the WQA to possibly coordinate a time for your team to experience our LED UVs in person.`,
+    ``,
+    `Water treatment OEMs are adding our premium LED UV-C systems due to their space saving, chemical-free, and long-lasting advantages. Most importantly, the external maintenance only takes seconds.`,
+    ``,
+    `Let me know your availability this week for a technical discussion with our engineers on how we can best support your applications at {companyName}.`,
+    ``,
+    `Meanwhile, access our brochure and tech sheets here: https://drive.google.com/drive/folders/1Pb8pPqPLei7VxoSe3FWT7IQZ93-dnT3q?usp=sharing`,
+  ].join('\n');
   const [mode, setMode] = useState<'draft' | 'send'>('draft');
   const [showPreview, setShowPreview] = useState(false);
 
@@ -940,7 +952,7 @@ export function OutreachAgentPage() {
     if (!selected) return '';
     const firstTarget = selected.discovered_contacts.find(c => emailIds.has(c.apolloId) && c.email);
     const firstName = firstTarget ? firstTarget.name.split(' ')[0] : 'Alex';
-    const currentBody = template === 'wqa' ? (selected.wqa_body_template || body) : body;
+    const currentBody = template === 'wqa' ? (selected.wqa_body_template || body) : template === 'dealer' ? DEALER_BODY_TEMPLATE : body;
     return currentBody
       .replace(/\{firstName\}/g, firstName)
       .replace(/\{companyName\}/g, selected.prospect_name)
@@ -964,10 +976,14 @@ export function OutreachAgentPage() {
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
+  const followupSessions = sessions.filter(s => (s as any).session_type === 'followup');
+  const initialSessions  = sessions.filter(s => (s as any).session_type !== 'followup');
+  const pendingFollowups = followupSessions.filter(s => s.status === 'pending').length;
+
   const tabBar = (
     <div className="flex gap-1 border-b mb-6 w-fit">
       <button
-        onClick={() => setActiveTab('outreach')}
+        onClick={() => { setActiveTab('outreach'); setSelected(null); }}
         className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px ${
           activeTab === 'outreach'
             ? 'border-accent text-accent'
@@ -975,6 +991,21 @@ export function OutreachAgentPage() {
         }`}
       >
         Outreach Sessions
+      </button>
+      <button
+        onClick={() => { setActiveTab('followup'); setSelected(null); }}
+        className={`px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-px relative ${
+          activeTab === 'followup'
+            ? 'border-accent text-accent'
+            : 'border-transparent text-muted-foreground hover:text-foreground'
+        }`}
+      >
+        Follow-up Queue
+        {pendingFollowups > 0 && (
+          <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-accent text-white rounded-full">
+            {pendingFollowups}
+          </span>
+        )}
       </button>
       <button
         onClick={() => setActiveTab('suggestions')}
@@ -1017,6 +1048,51 @@ export function OutreachAgentPage() {
     );
   }
 
+  if (activeTab === 'followup' && !selected) {
+    return (
+      <div className="max-w-2xl space-y-6">
+        {tabBar}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center">
+              <Bot className="w-5 h-5 text-accent" />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Approve follow-up emails — they'll be sent as replies in the original thread
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={loadSessions} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : followupSessions.length === 0 ? (
+          <div className="border rounded-xl p-10 text-center space-y-3 bg-card">
+            <Bot className="w-10 h-10 text-muted-foreground/40 mx-auto" />
+            <p className="font-medium text-muted-foreground">No follow-ups queued</p>
+            <p className="text-sm text-muted-foreground">
+              Run the follow-up agent to build today's queue:
+            </p>
+            <code className="block text-xs bg-muted rounded-lg px-4 py-3 text-left mt-2 leading-relaxed">
+              node scripts/check-replies.mjs<br />
+              node scripts/followup-agent.mjs
+            </code>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {followupSessions.map(s => (
+              <SessionCard key={s.id} session={s} onClick={() => openSession(s)} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   if (!selected) {
     return (
       <div className="max-w-2xl space-y-6">
@@ -1039,7 +1115,7 @@ export function OutreachAgentPage() {
           <div className="flex items-center justify-center py-16">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
-        ) : sessions.length === 0 ? (
+        ) : initialSessions.length === 0 ? (
           <div className="border rounded-xl p-10 text-center space-y-3 bg-card">
             <Bot className="w-10 h-10 text-muted-foreground/40 mx-auto" />
             <p className="font-medium text-muted-foreground">No sessions yet</p>
@@ -1054,7 +1130,7 @@ export function OutreachAgentPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {sessions.map(s => (
+            {initialSessions.map(s => (
               <SessionCard key={s.id} session={s} onClick={() => openSession(s)} />
             ))}
           </div>
@@ -1075,10 +1151,15 @@ export function OutreachAgentPage() {
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="sm" onClick={() => setSelected(null)} className="-ml-2">
           <ChevronLeft className="w-4 h-4 mr-1" />
-          Sessions
+          {(selected as any).session_type === 'followup' ? 'Follow-up Queue' : 'Sessions'}
         </Button>
         <span className="text-muted-foreground">/</span>
         <span className="font-medium">{selected.prospect_name}</span>
+        {(selected as any).session_type === 'followup' && (
+          <Badge variant="outline" className="text-xs border-sky-300 text-sky-700">
+            Follow-up #{(selected as any).followup_sequence ?? 2}
+          </Badge>
+        )}
         <Badge variant="outline" className={`capitalize text-xs ml-1 ${
           selected.status === 'completed' ? 'border-green-300 text-green-700' :
           selected.status === 'approved'  ? 'border-blue-300 text-blue-700' :
@@ -1087,6 +1168,16 @@ export function OutreachAgentPage() {
           {selected.status}
         </Badge>
       </div>
+
+      {(selected as any).session_type === 'followup' && !isReadOnly && (
+        <div className="border border-sky-200 bg-sky-50 rounded-lg px-4 py-3 text-sm text-sky-800 flex items-center gap-2">
+          <span>
+            This is follow-up <strong>#{(selected as any).followup_sequence ?? 2}</strong> for <strong>{selected.prospect_name}</strong>.
+            The email will be sent as a reply in the original Gmail thread.
+            Subject: <strong>{selected.email_subject}</strong>
+          </span>
+        </div>
+      )}
 
       {isReadOnly && (
         <div className="border border-green-200 bg-green-50 rounded-lg px-4 py-3 text-sm text-green-700">
@@ -1202,10 +1293,18 @@ export function OutreachAgentPage() {
               <Label className="text-xs text-muted-foreground">Template</Label>
               <Select
                 value={template}
-                onValueChange={(v: 'standard' | 'wqa') => {
+                onValueChange={(v: 'standard' | 'wqa' | 'dealer') => {
                   setTemplate(v);
-                  if (v === 'wqa' && selected.wqa_body_template) setBody(selected.wqa_body_template);
-                  else if (selected.body_template) setBody(selected.body_template);
+                  if (v === 'wqa' && selected.wqa_body_template) {
+                    setBody(selected.wqa_body_template);
+                    setSubject('LED UVs at the WQA in Miami');
+                  } else if (v === 'dealer') {
+                    setBody(DEALER_BODY_TEMPLATE);
+                    setSubject('LED UVs from WQA Miami');
+                  } else {
+                    if (selected.body_template) setBody(selected.body_template);
+                    setSubject(selected.email_subject || `LED UVs for ${selected.prospect_name}`);
+                  }
                 }}
                 disabled={isReadOnly}
               >
@@ -1215,6 +1314,7 @@ export function OutreachAgentPage() {
                 <SelectContent>
                   <SelectItem value="standard">Standard</SelectItem>
                   <SelectItem value="wqa">WQA Event</SelectItem>
+                  <SelectItem value="dealer">Post WQA Miami</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1283,7 +1383,9 @@ export function OutreachAgentPage() {
             >
               {saving
                 ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Saving...</>
-                : <><CheckCircle2 className="w-4 h-4 mr-2" />Save & Approve</>
+                : (selected as any).session_type === 'followup'
+                  ? <><CheckCircle2 className="w-4 h-4 mr-2" />Approve Follow-ups</>
+                  : <><CheckCircle2 className="w-4 h-4 mr-2" />Save & Approve</>
               }
             </Button>
           )}
@@ -1293,7 +1395,9 @@ export function OutreachAgentPage() {
               <p className="font-medium">Approved — ready to execute</p>
               <p>Tell Claude Code to proceed, or run:</p>
               <code className="block bg-blue-100 rounded px-2 py-1 mt-1 break-all">
-                node scripts/outreach-agent.mjs --session {selected.id}
+                {(selected as any).session_type === 'followup'
+                  ? `node scripts/followup-agent.mjs --session ${selected.id}`
+                  : `node scripts/outreach-agent.mjs --session ${selected.id}`}
               </code>
             </div>
           )}

@@ -1,4 +1,4 @@
-import { Users, ShoppingCart, FileText, BarChart2, Bot, CheckSquare2 } from 'lucide-react';
+import { Users, ShoppingCart, FileText, Bot, CheckSquare2, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface MobileNavProps {
@@ -7,11 +7,11 @@ interface MobileNavProps {
 }
 
 const navItems = [
+  { id: 'briefing', label: 'Briefing', icon: Sparkles },
   { id: 'pipeline', label: 'Pipeline', icon: Users },
   { id: 'tasks', label: 'Tasks', icon: CheckSquare2 },
   { id: 'agent', label: 'Agent', icon: Bot },
   { id: 'orders', label: 'Orders', icon: ShoppingCart },
-  { id: 'reports', label: 'Reports', icon: FileText },
 ];
 
 const MobileNav = ({ activeView, onViewChange }: MobileNavProps) => {

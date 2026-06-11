@@ -31,6 +31,7 @@
  *   --limit N       Cap enrichment at N contacts (0 = unlimited, default)
  *   --template standard Use standard intro email (default)
  *   --template wqa      Use WQA event intro email
+ *   --template dealer   Use post-WQA local dealer suggestions email
  *   --broad-search  Skip Apollo-side filters; pull all pages and score/filter client-side.
  */
 
@@ -368,6 +369,7 @@ function buildEmail(firstName, hook, companyName) {
 function getSubject(companyName) {
   if (SUBJECT_OVERRIDE) return SUBJECT_OVERRIDE;
   if (TEMPLATE === 'wqa') return 'LED UVs at the WQA in Miami';
+  if (TEMPLATE === 'dealer') return 'LED UVs from WQA Miami';
   return `LED UVs for ${companyName}`;
 }
 
@@ -385,6 +387,46 @@ async function createDraft(token, raw) {
   });
   if (!res.ok) throw new Error(JSON.stringify(await res.json()));
   return res.json();
+}
+
+async function sendGmail(token, raw, threadId) {
+  const body = { raw };
+  if (threadId) body.threadId = threadId;
+  const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(JSON.stringify(await res.json()));
+  return res.json(); // { id, threadId }
+}
+
+async function getGmailRfcMessageId(token, gmailId) {
+  const res = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/messages/${gmailId}?format=metadata&metadataHeaders=Message-ID`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  if (!res.ok) return '';
+  const data = await res.json();
+  return data.payload?.headers?.find(h => h.name === 'Message-ID')?.value ?? '';
+}
+
+async function saveEmailThread({ prospectId, contactEmail, contactName, gmailThreadId, gmailMessageId, subject, sequenceNumber, sessionId }) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/email_threads`, {
+    method: 'POST',
+    headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      prospect_id: prospectId,
+      contact_email: contactEmail,
+      contact_name: contactName,
+      gmail_thread_id: gmailThreadId,
+      gmail_message_id: gmailMessageId,
+      subject,
+      sequence_number: sequenceNumber ?? 1,
+      outreach_session_id: sessionId ?? null,
+    }),
+  });
+  if (!res.ok) console.error('  ⚠ Could not save email thread:', await res.text());
 }
 
 // ── Supabase session helpers ─────────────────────────────────────────────────
@@ -460,34 +502,30 @@ if (SESSION_ID) {
   console.log(`  Emailing:  ${toEmail.length} contact(s) [${mode}]`);
   console.log(`  Subject:   ${subject}\n`);
 
-  // 1. Import contacts to prospects table
-  if (toImport.length > 0 && prospectId) {
-    const newContacts = toImport.map(c => ({
-      id: `contact-apollo-${c.apolloId}`,
-      name: c.name,
-      role: c.title,
-      email: c.email,
-      phone: '',
-      linkedIn: c.linkedIn,
-      emailVerified: c.verified,
-    }));
-
-    // Fetch current contacts from Supabase
+  // Fetch current prospect data (needed for import merge and engagement log)
+  let existingEngagements = [];
+  if ((toImport.length > 0 || toEmail.length > 0) && prospectId) {
     const prospectRes = await fetch(`${SUPABASE_URL}/rest/v1/prospects?id=eq.${prospectId}&select=contacts,engagements`, {
       headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` },
     });
     const [prospectRow] = await prospectRes.json();
-    const existingContacts = prospectRow?.contacts || [];
-    const existingEngagements = prospectRow?.engagements || [];
-    const merged = [...existingContacts, ...newContacts];
+    existingEngagements = prospectRow?.engagements || [];
 
-    await saveContacts(prospectId, merged);
-    console.log(`  ✓ Imported ${newContacts.length} contact(s) to CRM\n`);
-
-    // Log engagement after emailing
-    if (toEmail.length > 0) {
-      await logEngagement(prospectId, existingEngagements, companyName, toEmail.length);
-      console.log(`  ✓ Engagement logged\n`);
+    // 1. Import contacts to prospects table
+    if (toImport.length > 0) {
+      const newContacts = toImport.map(c => ({
+        id: `contact-apollo-${c.apolloId}`,
+        name: c.name,
+        role: c.title,
+        email: c.email,
+        phone: '',
+        linkedIn: c.linkedIn,
+        emailVerified: c.verified,
+      }));
+      const existingContacts = prospectRow?.contacts || [];
+      const merged = [...existingContacts, ...newContacts];
+      await saveContacts(prospectId, merged);
+      console.log(`  ✓ Imported ${newContacts.length} contact(s) to CRM\n`);
     }
   }
 
@@ -509,7 +547,7 @@ if (SESSION_ID) {
       const firstName = c.name.split(' ')[0];
       // If body has placeholders, personalize; otherwise use old buildEmail
       let html;
-      if (bodyTemplate && bodyTemplate.includes('{firstName}')) {
+      if (bodyTemplate) {
         const personalized = personalizeBody(bodyTemplate, firstName, companyName)
           .replace(/\n\n/g, '<br><br>').replace(/\n/g, '<br>');
         html = `<div dir="ltr">\n${personalized}<br><br>\n${SIGNATURE}\n</div>`;
@@ -519,12 +557,18 @@ if (SESSION_ID) {
       const raw = makeMime(c.email, html, subject);
       try {
         if (mode === 'send') {
-          const res = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${gmailToken}`, 'Content-Type': 'application/json' },
-            body: JSON.stringify({ raw }),
+          const result = await sendGmail(gmailToken, raw);
+          const rfcId = await getGmailRfcMessageId(gmailToken, result.id);
+          await saveEmailThread({
+            prospectId,
+            contactEmail: c.email,
+            contactName: c.name,
+            gmailThreadId: result.threadId,
+            gmailMessageId: rfcId || result.id,
+            subject,
+            sequenceNumber: session.followup_sequence || 1,
+            sessionId: SESSION_ID,
           });
-          if (!res.ok) throw new Error(JSON.stringify(await res.json()));
         } else {
           await createDraft(gmailToken, raw);
         }
@@ -535,6 +579,11 @@ if (SESSION_ID) {
       }
     }
     console.log(`\n  ${count} message(s) ${mode === 'send' ? 'sent' : 'drafted'}\n`);
+
+    if (count > 0 && prospectId) {
+      await logEngagement(prospectId, existingEngagements, companyName, count);
+      console.log(`  ✓ Engagement logged\n`);
+    }
   }
 
   // 3. Mark session completed
@@ -914,6 +963,17 @@ if (!AUTO) {
     ``,
     `If not, we can schedule a time next week for a technical discussion on how we can best support your applications at {companyName}.`,
   ].join('\n');
+  const dealerBodyTemplate = [
+    `Hey {firstName},`,
+    ``,
+    `I meant to reach out before the WQA to possibly coordinate a time for your team to experience our LED UVs in person.`,
+    ``,
+    `Water treatment OEMs are adding our premium LED UV-C systems due to their space saving, chemical-free, and long-lasting advantages. Most importantly, the external maintenance only takes seconds.`,
+    ``,
+    `Let me know your availability this week for a technical discussion with our engineers on how we can best support your applications at {companyName}.`,
+    ``,
+    `Meanwhile, access our brochure and tech sheets here: ${DRIVE_LINK}`,
+  ].join('\n');
 
   // Mark all as alreadyInCrm = false (these are all new, we pre-filtered dupes)
   const sessionContacts = toAdd.map(r => ({
@@ -949,8 +1009,8 @@ if (!AUTO) {
     hook,
     body_template: bodyTemplate,
     wqa_body_template: wqaBodyTemplate,
-    email_subject: SUBJECT_OVERRIDE || `LED UVs for ${prospect.company_name}`,
-    email_body: TEMPLATE === 'wqa' ? wqaBodyTemplate : bodyTemplate,
+    email_subject: getSubject(prospect.company_name),
+    email_body: TEMPLATE === 'wqa' ? wqaBodyTemplate : TEMPLATE === 'dealer' ? dealerBodyTemplate : bodyTemplate,
     email_mode: 'draft',
     status: 'pending',
     approved_import_ids: [],
