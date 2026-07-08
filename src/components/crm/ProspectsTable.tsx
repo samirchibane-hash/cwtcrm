@@ -11,7 +11,6 @@ import { Prospect, COMPANY_TYPES, PIPELINE_STAGES, LEAD_TIERS } from '@/data/pro
 import { useProductVerticals } from '@/hooks/useProductVerticals';
 import { getProspectLastContactLabel, getProspectLastContactSortValue, getProspectLastContactDate } from '@/lib/prospect-last-contact';
 import StageBadge from './StageBadge';
-import TypeBadge from './TypeBadge';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -747,8 +746,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                 <td className="p-4 text-sm font-mono text-muted-foreground">
                   {prospect.state || '—'}
                 </td>
-                <td className="p-4">
-                  <TypeBadge type={prospect.type} />
+                <td className="p-4 text-sm text-muted-foreground">
+                  {prospect.type || '—'}
                 </td>
                 <td className="p-4">
                   <StageBadge stage={prospect.stage} leadTier={prospect.leadTier} />
