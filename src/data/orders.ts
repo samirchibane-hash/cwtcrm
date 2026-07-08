@@ -9,6 +9,14 @@ export interface OrderModelItem {
 
 export type OrderType = 'Standard' | 'Sample' | 'Replacement';
 
+export interface OrderAttachment {
+  name: string;   // original filename shown to the user
+  path: string;   // storage object path in the `order-attachments` bucket
+  size: number;   // bytes
+  type: string;   // MIME type
+  uploadedAt: string; // ISO timestamp
+}
+
 export interface Order {
   id: string;
   customer: string;
@@ -23,6 +31,7 @@ export interface Order {
   tracking: string;
   orderUpdates: string;
   orderType?: OrderType; // Sample/Replacement orders have $0 value
+  attachments?: OrderAttachment[]; // Uploaded files (POs, invoices, docs)
 }
 
 // Get pricing tier based on quantity

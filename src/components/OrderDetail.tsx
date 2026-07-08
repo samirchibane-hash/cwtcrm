@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, type ComponentType } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Building2, Truck, FileText, Save, Plus, Trash2, AlertTriangle } from 'lucide-react';
-import { Order, OrderModelItem, OrderType, getStatusColor, formatCurrency } from '@/data/orders';
+import { Package, Building2, Truck, FileText, Save, Plus, Trash2, AlertTriangle, Upload, Download, Pencil, Check, X, Loader2 } from 'lucide-react';
+import { Order, OrderModelItem, OrderType, OrderAttachment, getStatusColor, formatCurrency } from '@/data/orders';
 import { defaultTierNames } from '@/data/productModels';
 import { useProductModels } from '@/context/ProductModelsContext';
 import { useOrders } from '@/context/OrdersContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -50,6 +51,76 @@ const formatPlacedDate = (value: string): string => {
   });
 };
 
+const formatBytes = (bytes: number): string => {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
+// Inline-editable link field: shows a link when set, an "add" affordance when empty
+const InlineLink = ({ icon: Icon, actionLabel, value, placeholder, onSave }: {
+  icon: ComponentType<{ className?: string }>;
+  actionLabel: string;
+  value: string;
+  placeholder: string;
+  onSave: (value: string) => void;
+}) => {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  useEffect(() => { if (!editing) setDraft(value); }, [value, editing]);
+
+  const commit = () => { onSave(draft.trim()); setEditing(false); };
+  const isHttp = !!value && value.startsWith('http');
+
+  if (editing) {
+    return (
+      <div className="mt-1 flex items-center gap-2">
+        <Input
+          autoFocus
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder={placeholder}
+          className="h-9"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') commit();
+            if (e.key === 'Escape') setEditing(false);
+          }}
+        />
+        <Button size="sm" className="h-9 px-2.5" onClick={commit}><Check className="w-4 h-4" /></Button>
+        <Button size="sm" variant="ghost" className="h-9 px-2.5" onClick={() => setEditing(false)}><X className="w-4 h-4" /></Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-1 flex items-center justify-between gap-2 group">
+      {isHttp ? (
+        <a href={value} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-accent hover:underline min-w-0">
+          <Icon className="w-4 h-4 shrink-0" />
+          <span className="truncate">{actionLabel}</span>
+        </a>
+      ) : value ? (
+        <span className="text-sm text-muted-foreground truncate">{value}</span>
+      ) : (
+        <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
+          <Plus className="w-3.5 h-3.5" />
+          {placeholder}
+        </button>
+      )}
+      {value && (
+        <button
+          onClick={() => setEditing(true)}
+          className="shrink-0 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+          title="Edit"
+        >
+          <Pencil className="w-3.5 h-3.5" />
+        </button>
+      )}
+    </div>
+  );
+};
+
 interface EditableModelItem extends OrderModelItem {
   tierOverride?: number; // Allow manual tier selection
   priceOverride?: number; // Allow fully manual price per unit
@@ -87,7 +158,11 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
   const [formData, setFormData] = useState<Order | null>(null);
   const [modelItems, setModelItems] = useState<EditableModelItem[]>([]);
   const [isEditing, setIsEditing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Initialize the form when a different order is opened. Keyed on id (not the
+  // whole object) so inline saves don't clobber unsaved edits on the same order.
   useEffect(() => {
     if (order) {
       setFormData({ ...order });
@@ -95,7 +170,8 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
       setModelItems(order.modelItems.map(item => ({ ...item })));
       setIsEditing(false);
     }
-  }, [order]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.id]);
 
   // Calculate total value from model items (Sample/Replacement = $0)
   const rawTotalValue = modelItems.reduce((total, item) => {
@@ -186,6 +262,51 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
     setFormData({ ...order });
     setModelItems(order.modelItems.map(item => ({ ...item })));
     setIsEditing(false);
+  };
+
+  // Persist a small change immediately (inline edits, uploads) without full edit mode
+  const persistPatch = (patch: Partial<Order>) => {
+    const next = { ...(formData ?? order), ...patch };
+    setFormData(next);
+    updateOrder(next);
+  };
+
+  const attachments = formData.attachments || [];
+
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    const added: OrderAttachment[] = [];
+    for (const file of Array.from(files)) {
+      const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+      const path = `${order.id}/${Date.now()}-${safeName}`;
+      const { error } = await supabase.storage.from('order-attachments').upload(path, file, { upsert: false });
+      if (error) {
+        toast({ title: 'Upload failed', description: `${file.name}: ${error.message}`, variant: 'destructive' });
+        continue;
+      }
+      added.push({ name: file.name, path, size: file.size, type: file.type, uploadedAt: new Date().toISOString() });
+    }
+    if (added.length) {
+      persistPatch({ attachments: [...attachments, ...added] });
+      toast({ title: 'File uploaded', description: `${added.length} file${added.length > 1 ? 's' : ''} added to this order.` });
+    }
+    setUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const openAttachment = async (att: OrderAttachment) => {
+    const { data, error } = await supabase.storage.from('order-attachments').createSignedUrl(att.path, 3600);
+    if (error || !data?.signedUrl) {
+      toast({ title: 'Could not open file', description: error?.message, variant: 'destructive' });
+      return;
+    }
+    window.open(data.signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const removeAttachment = async (att: OrderAttachment) => {
+    await supabase.storage.from('order-attachments').remove([att.path]);
+    persistPatch({ attachments: attachments.filter(a => a.path !== att.path) });
   };
 
   const isPanel = variant === 'panel';
@@ -455,40 +576,102 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
   );
 
   // ---- Links & Tracking (view mode only rendered when there's something to show) ----
-  const hasLinks = (formData.invoice && formData.invoice.startsWith('http')) || !!formData.tracking;
-  const linksCard = (isEditing || hasLinks) ? (
+  // ---- Documents & Tracking: inline-editable links + file uploads (no Edit mode needed) ----
+  const docsCard = (
     <section className="content-card p-6">
-      <h2 className="section-header">Links & Tracking</h2>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="section-header mb-0">Documents & Tracking</h2>
+        {!isEditing && (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              className="hidden"
+              onChange={(e) => handleFiles(e.target.files)}
+              accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.doc,.docx,.xls,.xlsx,.csv,.txt"
+            />
+            <Button size="sm" variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+              {uploading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Upload className="w-4 h-4 mr-1.5" />}
+              Upload
+            </Button>
+          </>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
           <Label className="text-xs text-muted-foreground">Invoice</Label>
           {isEditing ? (
             <Input value={formData.invoice} onChange={(e) => handleChange('invoice', e.target.value)} className="mt-1" placeholder="https://..." />
-          ) : formData.invoice && formData.invoice.startsWith('http') ? (
-            <a href={formData.invoice} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-accent hover:underline mt-1">
-              <FileText className="w-4 h-4" />
-              View Invoice
-            </a>
           ) : (
-            <p className="text-muted-foreground text-sm mt-1">{formData.invoice || 'No invoice'}</p>
+            <InlineLink
+              icon={FileText}
+              actionLabel="View Invoice"
+              value={formData.invoice}
+              placeholder="Add invoice link"
+              onSave={(v) => persistPatch({ invoice: v })}
+            />
           )}
         </div>
         <div>
           <Label className="text-xs text-muted-foreground">Tracking</Label>
           {isEditing ? (
             <Input value={formData.tracking} onChange={(e) => handleChange('tracking', e.target.value)} className="mt-1" placeholder="https://..." />
-          ) : formData.tracking ? (
-            <a href={formData.tracking} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-accent hover:underline mt-1">
-              <Truck className="w-4 h-4" />
-              Track Shipment
-            </a>
           ) : (
-            <p className="text-muted-foreground text-sm mt-1">No tracking info</p>
+            <InlineLink
+              icon={Truck}
+              actionLabel="Track Shipment"
+              value={formData.tracking}
+              placeholder="Add tracking link"
+              onSave={(v) => persistPatch({ tracking: v })}
+            />
           )}
         </div>
       </div>
+
+      <div className="mt-5">
+        <Label className="text-xs text-muted-foreground">Files</Label>
+        {attachments.length === 0 ? (
+          isEditing ? (
+            <p className="mt-1 text-sm text-muted-foreground">No files. Upload from the order view.</p>
+          ) : (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="mt-1 w-full rounded-lg border border-dashed border-border p-5 text-center hover:border-accent/50 hover:bg-muted/30 transition-colors"
+            >
+              <Upload className="w-5 h-5 mx-auto mb-1.5 text-muted-foreground" />
+              <p className="text-sm text-muted-foreground">
+                Drop-in a <span className="text-foreground font-medium">PO</span>, invoice, or doc
+              </p>
+            </button>
+          )
+        ) : (
+          <ul className="mt-2 space-y-2">
+            {attachments.map((att) => (
+              <li key={att.path} className="flex items-center gap-3 rounded-lg border border-border p-2.5 group">
+                <div className="w-9 h-9 rounded-lg bg-muted flex items-center justify-center shrink-0">
+                  <FileText className="w-4 h-4 text-muted-foreground" />
+                </div>
+                <button onClick={() => openAttachment(att)} className="min-w-0 flex-1 text-left">
+                  <p className="text-sm font-medium truncate group-hover:text-accent transition-colors">{att.name}</p>
+                  {att.size ? <p className="text-xs text-muted-foreground">{formatBytes(att.size)}</p> : null}
+                </button>
+                <button onClick={() => openAttachment(att)} className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Open / download">
+                  <Download className="w-4 h-4" />
+                </button>
+                {!isEditing && (
+                  <button onClick={() => removeAttachment(att)} className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors" title="Remove">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
-  ) : null;
+  );
 
   // ---- Order updates / notes ----
   const notesCard = (
@@ -508,7 +691,7 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
     <div className={isPanel ? 'space-y-6' : 'space-y-8'}>
       {isEditing && metadataCard}
       {productsCard}
-      {linksCard}
+      {docsCard}
       {notesCard}
     </div>
   );

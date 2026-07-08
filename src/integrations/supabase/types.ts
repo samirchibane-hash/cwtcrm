@@ -132,6 +132,7 @@ export type Database = {
       }
       orders: {
         Row: {
+          attachments: Json
           company: string
           created_at: string
           id: string
@@ -145,6 +146,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attachments?: Json
           company: string
           created_at?: string
           id?: string
@@ -158,6 +160,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attachments?: Json
           company?: string
           created_at?: string
           id?: string

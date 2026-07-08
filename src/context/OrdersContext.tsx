@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { orders as initialOrders, Order, OrderModelItem } from '@/data/orders';
+import { orders as initialOrders, Order, OrderModelItem, OrderAttachment } from '@/data/orders';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -51,6 +51,7 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
               tracking: metaItem?.tracking || '',
               orderUpdates: metaItem?.orderUpdates || '',
               orderType: (row.order_type as Order['orderType']) || 'Standard',
+              attachments: (row.attachments as unknown as OrderAttachment[]) || [],
             };
           });
           setOrders(mappedOrders);
@@ -124,6 +125,7 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
             { tracking: updatedOrder.tracking, orderUpdates: updatedOrder.orderUpdates }
           ])),
           total_value: updatedOrder.totalValue,
+          attachments: JSON.parse(JSON.stringify(updatedOrder.attachments || [])),
         })
         .eq('id', updatedOrder.id);
 
@@ -206,6 +208,7 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
         tracking: orderData.tracking || '',
         orderUpdates: orderData.orderUpdates || '',
         orderType: (data.order_type as Order['orderType']) || 'Standard',
+        attachments: (data.attachments as unknown as OrderAttachment[]) || [],
       };
 
       setOrders(prev => [newOrder, ...prev]);
