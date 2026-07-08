@@ -1,5 +1,5 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Package, Truck, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle, Pencil, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Package, Truck, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle, Pencil, Copy, Check, CheckSquare } from 'lucide-react';
 import { Contact, Engagement, CompanyType, MarketType, LeadTier, REPS, getRepConfig } from '@/data/prospects';
 import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import { parseDateLoose, formatMmDdYyyy } from '@/lib/date';
@@ -17,6 +17,9 @@ import AddOrderDialog from '@/components/crm/AddOrderDialog';
 import OrderDetail from '@/components/OrderDetail';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useOrders } from '@/context/OrdersContext';
+import { useTasks, Task, TaskStatus } from '@/context/TasksContext';
+import { useAuth } from '@/hooks/useAuth';
+import { TaskCard, TaskDetailSheet } from '@/components/crm/TaskDetailSheet';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -627,6 +630,9 @@ const CompanyPage = () => {
 
           {/* Right rail */}
           <div className="space-y-6">
+            {/* Tasks for this company */}
+            <CompanyTasksSection companyId={prospect.id} companyName={companyName} />
+
             {/* Log Activity composer */}
             <section className="content-card p-5 animate-fade-in" style={{ animationDelay: '60ms' }}>
               <h2 className="section-header flex items-center gap-2">
@@ -752,6 +758,125 @@ const StatTile = ({ label, value, accent }: { label: string; value: string | num
     <div className="mt-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
   </div>
 );
+
+// Company-scoped task list — mirrors the Tasks page interface, filtered to this company
+const CompanyTasksSection = ({ companyId, companyName }: { companyId: string; companyName: string }) => {
+  const { tasks, updateTask, getComments } = useTasks();
+  const { user } = useAuth();
+
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null);
+  const [isNewTask, setIsNewTask] = useState(false);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
+
+  const companyTasks = useMemo(() => {
+    const active = tasks.filter(t => t.prospect_id === companyId);
+    // Active tasks first (by due date), completed/cancelled last
+    return active.sort((a, b) => {
+      const aDone = a.status === 'done' || a.status === 'cancelled';
+      const bDone = b.status === 'done' || b.status === 'cancelled';
+      if (aDone !== bDone) return aDone ? 1 : -1;
+      if (!a.due_date && !b.due_date) return 0;
+      if (!a.due_date) return 1;
+      if (!b.due_date) return -1;
+      return new Date(a.due_date).getTime() - new Date(b.due_date).getTime();
+    });
+  }, [tasks, companyId]);
+
+  const openCount = companyTasks.filter(t => t.status !== 'done' && t.status !== 'cancelled').length;
+  const taskIdsKey = companyTasks.map(t => t.id).join(',');
+
+  // Load comment counts for this company's tasks
+  useEffect(() => {
+    if (!taskIdsKey) return;
+    let cancelled = false;
+    (async () => {
+      const counts: Record<string, number> = {};
+      await Promise.all(taskIdsKey.split(',').map(async id => {
+        const cs = await getComments(id);
+        counts[id] = cs.length;
+      }));
+      if (!cancelled) setCommentCounts(counts);
+    })();
+    return () => { cancelled = true; };
+  }, [taskIdsKey]);
+
+  const openTask = (task: Task) => {
+    setSelectedTask(task);
+    setIsNewTask(false);
+    setIsDetailOpen(true);
+  };
+
+  const openNewTask = () => {
+    setSelectedTask(null);
+    setIsNewTask(true);
+    setIsDetailOpen(true);
+  };
+
+  const closeDetail = () => {
+    setIsDetailOpen(false);
+    setSelectedTask(null);
+    setIsNewTask(false);
+  };
+
+  const toggleDone = async (task: Task, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next: TaskStatus = task.status === 'done' ? 'todo' : 'done';
+    await updateTask({ ...task, status: next });
+  };
+
+  return (
+    <section className="content-card p-5 animate-fade-in" style={{ animationDelay: '40ms' }}>
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="section-header mb-0 flex items-center gap-2">
+          <CheckSquare className="w-4 h-4" />
+          Tasks
+          {openCount > 0 && <span className="text-muted-foreground/60 font-normal">{openCount}</span>}
+        </h2>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={openNewTask}>
+          <Plus className="w-4 h-4" />
+          Add Task
+        </Button>
+      </div>
+
+      {companyTasks.length > 0 ? (
+        <div className="space-y-2">
+          {companyTasks.map(task => (
+            <TaskCard
+              key={task.id}
+              task={task}
+              commentCounts={commentCounts}
+              onClick={() => openTask(task)}
+              onToggleDone={e => toggleDone(task, e)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="text-center py-8 text-muted-foreground">
+          <CheckSquare className="w-10 h-10 mx-auto mb-3 opacity-30" />
+          <p className="text-sm">No tasks for this company yet</p>
+          <Button variant="outline" size="sm" className="mt-3 gap-1.5" onClick={openNewTask}>
+            <Plus className="w-4 h-4" />
+            Add Task
+          </Button>
+        </div>
+      )}
+
+      {/* Task detail / create slide-over — same interface as the Tasks page */}
+      <Sheet open={isDetailOpen} onOpenChange={open => { if (!open) closeDetail(); }}>
+        <SheetContent side="right" className="w-full sm:w-[540px] p-0 flex flex-col" hideCloseButton>
+          <TaskDetailSheet
+            task={selectedTask}
+            isNew={isNewTask}
+            onClose={closeDetail}
+            user={user}
+            defaultProspect={isNewTask ? { id: companyId, name: companyName } : null}
+          />
+        </SheetContent>
+      </Sheet>
+    </section>
+  );
+};
 
 const ContactRow =({ contact, onToggleChampion, onUpdate, onDelete }: {
   contact: Contact;
