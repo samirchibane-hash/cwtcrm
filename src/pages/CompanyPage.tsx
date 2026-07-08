@@ -1,9 +1,9 @@
-import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle, Pencil } from 'lucide-react';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Package, Truck, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle, Pencil } from 'lucide-react';
 import { Contact, Engagement, CompanyType, MarketType, LeadTier, REPS, getRepConfig } from '@/data/prospects';
 import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import { parseDateLoose, formatMmDdYyyy } from '@/lib/date';
-import { getOrdersByCustomer, Order, getStatusColor, formatCurrency } from '@/data/orders';
+import { Order, getStatusColor, formatCurrency } from '@/data/orders';
 import { useProspects } from '@/context/ProspectsContext';
 import StageBadge from '@/components/crm/StageBadge';
 import TypeBadge from '@/components/crm/TypeBadge';
@@ -31,9 +31,24 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useState, useEffect, useMemo } from 'react';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useProspectActivityLog } from '@/hooks/useActivityLog';
+
+// Two-letter monogram from a company name
+const getInitials = (name: string): string => {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '';
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+};
+
+const normalizeUrl = (url: string) => (url.startsWith('http') ? url : `https://${url}`);
 
 const CompanyPage = () => {
   const { id } = useParams();
@@ -41,6 +56,7 @@ const CompanyPage = () => {
   const location = useLocation();
   const { toast } = useToast();
   const { getProspectById, updateProspect, deleteProspect, isLoading } = useProspects();
+  const { orders } = useOrders();
   const [newNote, setNewNote] = useState('');
   const [newNoteCalls, setNewNoteCalls] = useState<number>(0);
   const [newNoteEmails, setNewNoteEmails] = useState<number>(0);
@@ -65,7 +81,10 @@ const CompanyPage = () => {
   const [lastContact, setLastContact] = useState('');
   const [engagementNotes, setEngagementNotes] = useState('');
   const [editPanelOpen, setEditPanelOpen] = useState(false);
-  
+
+  const composerRef = useRef<HTMLDivElement>(null);
+  const noteRef = useRef<HTMLTextAreaElement>(null);
+
   const prospect = id ? getProspectById(id) : null;
   const { prospects } = useProspects();
   const { entries: activityLogEntries } = useProspectActivityLog(id);
@@ -88,11 +107,17 @@ const CompanyPage = () => {
       .filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; })
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [engagements, activityLogEntries]);
-  
+
+  const companyOrders = useMemo(
+    () => orders.filter(o => o.customer === companyName),
+    [orders, companyName]
+  );
+  const lifetimeValue = companyOrders.reduce((sum, o) => sum + o.totalValue, 0);
+
   // Use passed prospect IDs from navigation state (sorted/filtered order) or fallback to default
-  const prospectIds: string[] = (location.state as { prospectIds?: string[] } | null)?.prospectIds 
+  const prospectIds: string[] = (location.state as { prospectIds?: string[] } | null)?.prospectIds
     || prospects.map(p => p.id);
-  
+
   // Get previous and next prospect for navigation based on the passed order
   const currentIndex = prospectIds.findIndex(pId => pId === id);
   const previousProspectId = currentIndex > 0 ? prospectIds[currentIndex - 1] : null;
@@ -219,7 +244,7 @@ const CompanyPage = () => {
   };
 
   const handleUpdateContact = (updatedContact: Contact) => {
-    const updatedContacts = contacts.map(c => 
+    const updatedContacts = contacts.map(c =>
       c.id === updatedContact.id ? updatedContact : c
     );
     setContacts(updatedContacts);
@@ -239,12 +264,12 @@ const CompanyPage = () => {
     }));
     setContacts(updatedContacts);
     saveProspect({ contacts: updatedContacts });
-    
+
     const contact = contacts.find(c => c.id === contactId);
     const isNowChampion = !contact?.isChampion;
     toast({
       title: isNowChampion ? 'Champion set' : 'Champion removed',
-      description: isNowChampion 
+      description: isNowChampion
         ? `${contact?.name} is now the company champion.`
         : `${contact?.name} is no longer the champion.`,
     });
@@ -252,7 +277,7 @@ const CompanyPage = () => {
 
   const handleAddNote = () => {
     if (!newNote.trim()) return;
-    
+
     const activity: Engagement['activity'] = {};
     if (newNoteCalls > 0) activity.calls = newNoteCalls;
     if (newNoteEmails > 0) activity.emails = newNoteEmails;
@@ -336,141 +361,144 @@ const CompanyPage = () => {
     saveProspect(details);
   };
 
+  const focusComposer = () => {
+    composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setTimeout(() => noteRef.current?.focus(), 350);
+  };
+
+  const lastContactLabel = getProspectLastContactLabel(prospect);
+  const locationLabel = [city, state, country].filter(Boolean).join(', ');
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between mb-4">
-            <button 
+        <div className="max-w-6xl mx-auto px-6">
+          {/* Nav row */}
+          <div className="flex items-center justify-between py-3">
+            <button
               onClick={() => {
                 const from = location.state?.from;
-                if (from) {
-                  navigate(from);
-                } else {
-                  navigate('/?view=pipeline');
-                }
+                navigate(from || '/?view=pipeline');
               }}
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span className="text-sm font-medium">Back</span>
+              Back
             </button>
-            
-            <div className="flex items-center gap-2">
+
+            <div className="flex items-center gap-1">
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                onClick={() =>
-                  previousProspectId &&
-                  navigate(`/company/${previousProspectId}`, { state: location.state })
-                }
+                onClick={() => previousProspectId && navigate(`/company/${previousProspectId}`, { state: location.state })}
                 disabled={!previousProspectId}
-                className="gap-1"
+                className="gap-1 text-muted-foreground"
               >
                 <ChevronLeft className="w-4 h-4" />
-                Previous
+                Prev
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                onClick={() =>
-                  nextProspectId &&
-                  navigate(`/company/${nextProspectId}`, { state: location.state })
-                }
+                onClick={() => nextProspectId && navigate(`/company/${nextProspectId}`, { state: location.state })}
                 disabled={!nextProspectId}
-                className="gap-1"
+                className="gap-1 text-muted-foreground"
               >
                 Next
                 <ChevronRight className="w-4 h-4" />
               </Button>
             </div>
           </div>
-          
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-muted flex items-center justify-center">
-                <Building2 className="w-8 h-8 text-muted-foreground" />
+
+          {/* Identity row */}
+          <div className="flex items-start justify-between gap-4 pb-5">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-muted to-secondary flex items-center justify-center shrink-0 border border-border">
+                {companyName ? (
+                  <span className="text-lg font-semibold tracking-tight text-foreground/80">{getInitials(companyName)}</span>
+                ) : (
+                  <Building2 className="w-6 h-6 text-muted-foreground" />
+                )}
               </div>
-              <div>
-                <h1 className="text-2xl font-semibold tracking-tight">{companyName}</h1>
-                <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <div className="min-w-0">
+                <h1 className="text-2xl font-semibold tracking-tight truncate">{companyName}</h1>
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                   <TypeBadge type={companyType} />
                   <MarketTypeBadge marketType={marketType} />
-                  <StageBadge stage={stage} leadTier={leadTier} />
-                  {(city || state || country) && (
-                    <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                  <StageBadge stage={stage} leadTier={leadTier} maxVisible={3} />
+                </div>
+                {/* Quick facts */}
+                <div className="flex items-center gap-x-4 gap-y-1 mt-2 flex-wrap text-xs text-muted-foreground">
+                  {locationLabel && (
+                    <span className="flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5" />
-                      {[city, state, country].filter(Boolean).join(', ')}
+                      {locationLabel}
                     </span>
                   )}
-                </div>
-                <div className="flex items-center gap-4 mt-2 flex-wrap">
-                  {getProspectLastContactLabel(prospect) && (
-                     <span className="text-xs text-muted-foreground">
-                       Last contact: <span className="font-medium text-foreground">{getProspectLastContactLabel(prospect)}</span>
-                     </span>
-                   )}
+                  {lastContactLabel && (
+                    <span>Last contact <span className="font-medium text-foreground">{lastContactLabel}</span></span>
+                  )}
                   {phone && (
-                    <a
-                      href={`tel:${phone}`}
-                      className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-                    >
-                      <Phone className="w-3 h-3" />
+                    <a href={`tel:${phone}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                      <Phone className="w-3.5 h-3.5" />
                       {phone}
                     </a>
                   )}
                   {website && (
-                    <a
-                      href={website.startsWith('http') ? website : `https://${website}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-accent hover:underline flex items-center gap-1"
-                    >
-                      <Globe className="w-3 h-3" />
+                    <a href={normalizeUrl(website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline">
+                      <Globe className="w-3.5 h-3.5" />
                       {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
                     </a>
                   )}
                 </div>
               </div>
             </div>
-            
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" className="gap-2" onClick={() => setEditPanelOpen(true)}>
-                <Pencil className="w-4 h-4" />
-                Edit Details
-              </Button>
-              {linkedIn && (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={linkedIn} target="_blank" rel="noopener noreferrer">
-                    <Linkedin className="w-4 h-4 mr-2" />
-                    LinkedIn
-                  </a>
-                </Button>
-              )}
-              {website && (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={website.startsWith('http') ? website : `https://${website}`} target="_blank" rel="noopener noreferrer">
-                    <Globe className="w-4 h-4 mr-2" />
-                    Website
-                  </a>
-                </Button>
-              )}
-              {googleMapsUrl && (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={googleMapsUrl.startsWith('http') ? googleMapsUrl : `https://${googleMapsUrl}`} target="_blank" rel="noopener noreferrer">
-                    <MapPin className="w-4 h-4 mr-2" />
-                    Maps
-                  </a>
-                </Button>
-              )}
-              <Button size="sm">
-                <Plus className="w-4 h-4 mr-2" />
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 shrink-0">
+              <Button size="sm" onClick={focusComposer} className="gap-1.5">
+                <Plus className="w-4 h-4" />
                 Log Activity
               </Button>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditPanelOpen(true)}>
+                <Pencil className="w-4 h-4" />
+                Edit
+              </Button>
+
+              {/* External links */}
+              {(linkedIn || googleMapsUrl) && (
+                <div className="flex items-center gap-1 pl-1 border-l border-border ml-1">
+                  {linkedIn && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" asChild>
+                          <a href={normalizeUrl(linkedIn)} target="_blank" rel="noopener noreferrer">
+                            <Linkedin className="w-4 h-4" />
+                          </a>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>LinkedIn</TooltipContent>
+                    </Tooltip>
+                  )}
+                  {googleMapsUrl && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" asChild>
+                          <a href={normalizeUrl(googleMapsUrl)} target="_blank" rel="noopener noreferrer">
+                            <MapPin className="w-4 h-4" />
+                          </a>
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Google Maps</TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
+              )}
+
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="text-destructive hover:text-destructive">
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
                     <Trash2 className="w-4 h-4" />
                   </Button>
                 </AlertDialogTrigger>
@@ -495,13 +523,28 @@ const CompanyPage = () => {
       </header>
 
       {/* Content */}
-      <main className="max-w-6xl mx-auto px-6 py-8 space-y-8">
-        {/* Contacts */}
-        <section className="content-card animate-fade-in" style={{ animationDelay: '100ms' }}>
-              <div className="flex items-center justify-between p-6 border-b border-border">
-                <h2 className="section-header mb-0">Contacts</h2>
+      <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
+        {/* At-a-glance stat strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 animate-fade-in">
+          <StatTile label="Contacts" value={contacts.length} />
+          <StatTile label="Orders" value={companyOrders.length} />
+          <StatTile label="Engagements" value={allEngagements.length} />
+          <StatTile label="Lifetime Value" value={formatCurrency(lifetimeValue)} accent />
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main column */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Contacts */}
+            <section className="content-card animate-fade-in" style={{ animationDelay: '60ms' }}>
+              <div className="flex items-center justify-between p-5 border-b border-border">
+                <h2 className="section-header mb-0 flex items-center gap-2">
+                  <Building2 className="w-4 h-4" />
+                  Contacts
+                  {contacts.length > 0 && <span className="text-muted-foreground/60 font-normal">{contacts.length}</span>}
+                </h2>
                 <div className="flex items-center gap-2">
-                  <EmailVerificationDialog 
+                  <EmailVerificationDialog
                     companyWebsite={website}
                     onEmailVerified={(email) => {
                       toast({
@@ -513,107 +556,23 @@ const CompanyPage = () => {
                   <AddContactDialog onAddContact={handleAddContact} />
                 </div>
               </div>
-              
+
               {contacts.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-border bg-muted/30">
-                        <th className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3 py-3 w-12">★</th>
-                        <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Name</th>
-                        <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Role</th>
-                        <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Email</th>
-                        <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Cell Phone</th>
-                        <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">LinkedIn</th>
-                        <th className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {contacts.map((contact) => (
-                        <tr key={contact.id} className="hover:bg-muted/30 transition-colors">
-                          <td className="px-3 py-4 text-center">
-                            <button
-                              onClick={() => handleToggleChampion(contact.id)}
-                              className={`p-1.5 rounded-lg transition-colors ${
-                                contact.isChampion 
-                                  ? 'text-amber-500 bg-amber-500/10 hover:bg-amber-500/20' 
-                                  : 'text-muted-foreground hover:text-amber-500 hover:bg-muted'
-                              }`}
-                              title={contact.isChampion ? 'Remove as champion' : 'Set as champion'}
-                            >
-                              <Star className={`w-4 h-4 ${contact.isChampion ? 'fill-current' : ''}`} />
-                            </button>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="font-medium text-sm">{contact.name}</p>
-                          </td>
-                          <td className="px-6 py-4">
-                            <p className="text-sm text-muted-foreground">{contact.role || '—'}</p>
-                          </td>
-                          <td className="px-6 py-4">
-                            {contact.email ? (
-                              <div className="flex items-center gap-1.5">
-                                {contact.emailVerified === true && (
-                                  <CheckCircle className="w-3.5 h-3.5 text-green-500 shrink-0" />
-                                )}
-                                {contact.emailVerified === false && (
-                                  <XCircle className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                                )}
-                                <a
-                                  href={`mailto:${contact.email}`}
-                                  className="text-sm text-accent hover:underline flex items-center gap-1.5"
-                                >
-                                  <Mail className="w-3.5 h-3.5" />
-                                  {contact.email}
-                                </a>
-                              </div>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            {contact.phone ? (
-                              <a 
-                                href={`tel:${contact.phone}`}
-                                className="text-sm font-mono text-foreground hover:text-accent flex items-center gap-1.5"
-                              >
-                                <Phone className="w-3.5 h-3.5" />
-                                {contact.phone}
-                              </a>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            {contact.linkedIn ? (
-                              <a 
-                                href={contact.linkedIn}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
-                              >
-                                <Linkedin className="w-4 h-4" />
-                              </a>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">—</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 text-right">
-                            <EditContactDialog
-                              contact={contact}
-                              onUpdateContact={handleUpdateContact}
-                              onDeleteContact={handleDeleteContact}
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="divide-y divide-border">
+                  {contacts.map((contact) => (
+                    <ContactRow
+                      key={contact.id}
+                      contact={contact}
+                      onToggleChampion={handleToggleChampion}
+                      onUpdate={handleUpdateContact}
+                      onDelete={handleDeleteContact}
+                    />
+                  ))}
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   <p className="text-sm">No contacts added yet</p>
-                  <AddContactDialog 
+                  <AddContactDialog
                     onAddContact={handleAddContact}
                     trigger={
                       <Button variant="outline" size="sm" className="mt-3">
@@ -624,124 +583,196 @@ const CompanyPage = () => {
                   />
                 </div>
               )}
-        </section>
+            </section>
 
-        {/* Engagements Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Quick Add Note */}
-          <section className="content-card p-6 animate-fade-in lg:col-span-1" style={{ animationDelay: '150ms' }}>
-            <h2 className="section-header">Log Activity</h2>
-            <div className="space-y-3">
-              <Textarea
-                placeholder="Add a note about this company..."
-                value={newNote}
-                onChange={(e) => setNewNote(e.target.value)}
-                className="min-h-[100px] resize-none border-0 bg-muted/50 focus:bg-card focus:ring-2 focus:ring-accent rounded-xl"
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                    <Phone className="w-3 h-3" /> Calls made
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={newNoteCalls || ''}
-                    onChange={(e) => setNewNoteCalls(Math.max(0, parseInt(e.target.value) || 0))}
-                    placeholder="0"
-                    className="w-full h-9 rounded-lg border border-input bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                    <Mail className="w-3 h-3" /> Emails sent
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={newNoteEmails || ''}
-                    onChange={(e) => setNewNoteEmails(Math.max(0, parseInt(e.target.value) || 0))}
-                    placeholder="0"
-                    className="w-full h-9 rounded-lg border border-input bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                </div>
-                <div className="space-y-1 col-span-2">
-                  <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                    <Linkedin className="w-3 h-3" /> LinkedIn messages
-                  </label>
-                  <input
-                    type="number"
-                    min={0}
-                    value={newNoteLinkedIn || ''}
-                    onChange={(e) => setNewNoteLinkedIn(Math.max(0, parseInt(e.target.value) || 0))}
-                    placeholder="0"
-                    className="w-full h-9 rounded-lg border border-input bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                  />
-                </div>
+            {/* Engagement History */}
+            <section className="content-card animate-fade-in" style={{ animationDelay: '120ms' }}>
+              <div className="p-5 border-b border-border flex items-center justify-between">
+                <h2 className="section-header mb-0 flex items-center gap-2">
+                  <MessageSquare className="w-4 h-4" />
+                  Recent Engagements
+                </h2>
               </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Logged by</label>
-                <div className="flex gap-2">
-                  {REPS.map(rep => (
-                    <button
-                      key={rep.name}
-                      type="button"
-                      onClick={() => setNewNoteLoggedBy(rep.name)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                        newNoteLoggedBy === rep.name
-                          ? `${rep.activeClass} border-current`
-                          : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'
-                      }`}
-                    >
-                      <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${rep.avatarClass}`}>
-                        {rep.initials}
-                      </span>
-                      {rep.name}
-                    </button>
+
+              {allEngagements.length > 0 ? (
+                <div className="divide-y divide-border">
+                  {allEngagements.map((engagement) => (
+                    <EngagementCard
+                      key={engagement.id}
+                      engagement={engagement}
+                      onEdit={engagement.id.startsWith('alog-') ? undefined : handleEditNote}
+                      onDelete={engagement.id.startsWith('alog-') ? undefined : handleDeleteNote}
+                    />
                   ))}
                 </div>
-              </div>
-              <div className="flex items-center justify-end">
-                <Button size="sm" onClick={handleAddNote} disabled={!newNote.trim()}>
-                  Save
+              ) : (
+                <div className="p-12 text-center text-muted-foreground">
+                  <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-30" />
+                  <p className="text-sm">No engagements recorded yet</p>
+                  <p className="text-xs mt-1">Use the composer to start tracking interactions</p>
+                </div>
+              )}
+
+              {prospect.engagementNotes && (
+                <div className="p-5 bg-muted/30 border-t border-border">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Original Notes</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed">{prospect.engagementNotes}</p>
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* Right rail */}
+          <div className="space-y-6">
+            {/* Log Activity composer */}
+            <section ref={composerRef} className="content-card p-5 animate-fade-in scroll-mt-28" style={{ animationDelay: '60ms' }}>
+              <h2 className="section-header flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Log Activity
+              </h2>
+              <div className="space-y-3">
+                <Textarea
+                  ref={noteRef}
+                  placeholder="Add a note about this company..."
+                  value={newNote}
+                  onChange={(e) => setNewNote(e.target.value)}
+                  className="min-h-[90px] resize-none border-0 bg-muted/50 focus:bg-card focus:ring-2 focus:ring-accent rounded-xl"
+                />
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                      <Phone className="w-3 h-3" /> Calls
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={newNoteCalls || ''}
+                      onChange={(e) => setNewNoteCalls(Math.max(0, parseInt(e.target.value) || 0))}
+                      placeholder="0"
+                      className="w-full h-9 rounded-lg border border-input bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                      <Mail className="w-3 h-3" /> Emails
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={newNoteEmails || ''}
+                      onChange={(e) => setNewNoteEmails(Math.max(0, parseInt(e.target.value) || 0))}
+                      placeholder="0"
+                      className="w-full h-9 rounded-lg border border-input bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                  </div>
+                  <div className="space-y-1 col-span-2">
+                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
+                      <Linkedin className="w-3 h-3" /> LinkedIn messages
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      value={newNoteLinkedIn || ''}
+                      onChange={(e) => setNewNoteLinkedIn(Math.max(0, parseInt(e.target.value) || 0))}
+                      placeholder="0"
+                      className="w-full h-9 rounded-lg border border-input bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium text-muted-foreground">Logged by</label>
+                  <div className="flex gap-2 flex-wrap">
+                    {REPS.map(rep => (
+                      <button
+                        key={rep.name}
+                        type="button"
+                        onClick={() => setNewNoteLoggedBy(rep.name)}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+                          newNoteLoggedBy === rep.name
+                            ? `${rep.activeClass} border-current`
+                            : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${rep.avatarClass}`}>
+                          {rep.initials}
+                        </span>
+                        {rep.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <Button size="sm" onClick={handleAddNote} disabled={!newNote.trim()} className="w-full">
+                  Save Activity
                 </Button>
               </div>
-            </div>
-          </section>
+            </section>
 
-          {/* Engagement History */}
-          <section className="content-card animate-fade-in lg:col-span-2" style={{ animationDelay: '200ms' }}>
-            <div className="p-6 border-b border-border">
-              <h2 className="section-header mb-0">Recent Engagements</h2>
-            </div>
-            
-            {allEngagements.length > 0 ? (
-              <div className="divide-y divide-border">
-                {allEngagements.map((engagement) => (
-                  <EngagementCard
-                    key={engagement.id}
-                    engagement={engagement}
-                    onEdit={engagement.id.startsWith('alog-') ? undefined : handleEditNote}
-                    onDelete={engagement.id.startsWith('alog-') ? undefined : handleDeleteNote}
-                  />
-                ))}
+            {/* Company details */}
+            <section className="content-card p-5 animate-fade-in space-y-4" style={{ animationDelay: '120ms' }}>
+              <div className="flex items-center justify-between">
+                <h2 className="section-header mb-0 flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Details
+                </h2>
+                <button
+                  onClick={() => setEditPanelOpen(true)}
+                  className="text-xs text-accent hover:underline flex items-center gap-1"
+                >
+                  <Pencil className="w-3 h-3" />
+                  Edit
+                </button>
               </div>
-            ) : (
-              <div className="p-12 text-center text-muted-foreground">
-                <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                <p className="text-sm">No engagements recorded yet</p>
-                <p className="text-xs mt-1">Add a note above to start tracking interactions</p>
-              </div>
-            )}
 
-            {/* Original Notes */}
-            {prospect.engagementNotes && (
-              <div className="p-6 bg-muted/30 border-t border-border">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Original Notes</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{prospect.engagementNotes}</p>
+              <div className="space-y-3">
+                <DetailRow label="Business Model">
+                  {companyType ? <TypeBadge type={companyType} /> : <span className="text-muted-foreground">—</span>}
+                </DetailRow>
+                <DetailRow label="Product Vertical">
+                  {marketType ? <span className="text-foreground">{marketType}</span> : <span className="text-muted-foreground">—</span>}
+                </DetailRow>
+                <DetailRow label="Pipeline">
+                  {stage ? <StageBadge stage={stage} maxVisible={4} /> : <span className="text-muted-foreground">—</span>}
+                </DetailRow>
+
+                {(street || locationLabel || zip) && (
+                  <DetailRow label="Address">
+                    <div className="text-foreground leading-relaxed">
+                      {street && <div>{street}</div>}
+                      {(city || state || zip) && <div>{[city, state].filter(Boolean).join(', ')} {zip}</div>}
+                      {country && <div>{country}</div>}
+                    </div>
+                  </DetailRow>
+                )}
+
+                {phone && (
+                  <DetailRow label="Phone">
+                    <a href={`tel:${phone}`} className="text-accent hover:underline">{phone}</a>
+                  </DetailRow>
+                )}
+                {website && (
+                  <DetailRow label="Website">
+                    <a href={normalizeUrl(website)} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline break-all">
+                      {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                    </a>
+                  </DetailRow>
+                )}
+                {linkedIn && (
+                  <DetailRow label="LinkedIn">
+                    <a href={normalizeUrl(linkedIn)} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+                      View profile
+                    </a>
+                  </DetailRow>
+                )}
+                {googleMapsUrl && (
+                  <DetailRow label="Maps">
+                    <a href={normalizeUrl(googleMapsUrl)} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+                      Open in Maps
+                    </a>
+                  </DetailRow>
+                )}
               </div>
-            )}
-          </section>
+            </section>
+          </div>
         </div>
 
         {/* Order History Section */}
@@ -779,13 +810,91 @@ const CompanyPage = () => {
   );
 };
 
+const StatTile = ({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) => (
+  <div className="content-card px-4 py-3">
+    <div className={`text-xl font-semibold leading-none tabular-nums ${accent ? 'text-accent' : ''}`}>{value}</div>
+    <div className="mt-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
+  </div>
+);
+
+const DetailRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
+  <div className="grid grid-cols-[92px_1fr] gap-3 text-sm items-start">
+    <span className="text-xs font-medium text-muted-foreground pt-0.5">{label}</span>
+    <div className="min-w-0">{children}</div>
+  </div>
+);
+
+const ContactRow = ({ contact, onToggleChampion, onUpdate, onDelete }: {
+  contact: Contact;
+  onToggleChampion: (id: string) => void;
+  onUpdate: (contact: Contact) => void;
+  onDelete: (id: string) => void;
+}) => {
+  return (
+    <div className="flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors group">
+      <button
+        onClick={() => onToggleChampion(contact.id)}
+        className={`p-1.5 rounded-lg transition-colors shrink-0 ${
+          contact.isChampion
+            ? 'text-amber-500 bg-amber-500/10 hover:bg-amber-500/20'
+            : 'text-muted-foreground/40 hover:text-amber-500 hover:bg-muted'
+        }`}
+        title={contact.isChampion ? 'Remove as champion' : 'Set as champion'}
+      >
+        <Star className={`w-4 h-4 ${contact.isChampion ? 'fill-current' : ''}`} />
+      </button>
+
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <p className="font-medium text-sm truncate">{contact.name}</p>
+          {contact.role && <span className="text-xs text-muted-foreground truncate">· {contact.role}</span>}
+        </div>
+        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+          {contact.email ? (
+            <a href={`mailto:${contact.email}`} className="text-xs text-accent hover:underline flex items-center gap-1">
+              {contact.emailVerified === true && <CheckCircle className="w-3 h-3 text-green-500 shrink-0" />}
+              {contact.emailVerified === false && <XCircle className="w-3 h-3 text-red-500 shrink-0" />}
+              <Mail className="w-3 h-3" />
+              {contact.email}
+            </a>
+          ) : null}
+          {contact.phone && (
+            <a href={`tel:${contact.phone}`} className="text-xs font-mono text-muted-foreground hover:text-foreground flex items-center gap-1">
+              <Phone className="w-3 h-3" />
+              {contact.phone}
+            </a>
+          )}
+        </div>
+      </div>
+
+      {contact.linkedIn && (
+        <a
+          href={contact.linkedIn}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors shrink-0"
+        >
+          <Linkedin className="w-4 h-4" />
+        </a>
+      )}
+      <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <EditContactDialog
+          contact={contact}
+          onUpdateContact={onUpdate}
+          onDeleteContact={onDelete}
+        />
+      </div>
+    </div>
+  );
+};
+
 const OrderHistorySection = ({ companyName, companyId }: { companyName: string; companyId: string }) => {
   const { orders } = useOrders();
   const companyOrders = orders.filter(o => o.customer === companyName);
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   const addOrderButton = (
-    <AddOrderDialog 
+    <AddOrderDialog
       defaultCompanyName={companyName}
       defaultCompanyId={companyId}
       trigger={
@@ -799,10 +908,10 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
 
   if (companyOrders.length === 0) {
     return (
-      <section className="content-card animate-fade-in" style={{ animationDelay: '250ms' }}>
-        <div className="p-6 border-b border-border flex items-center justify-between">
+      <section className="content-card animate-fade-in" style={{ animationDelay: '180ms' }}>
+        <div className="p-5 border-b border-border flex items-center justify-between">
           <h2 className="section-header mb-0 flex items-center gap-2">
-            <Package className="w-5 h-5" />
+            <Package className="w-4 h-4" />
             Order History
           </h2>
           {addOrderButton}
@@ -821,10 +930,10 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
   const lifetimeValue = companyOrders.reduce((sum, o) => sum + o.totalValue, 0);
 
   return (
-    <section className="content-card animate-fade-in" style={{ animationDelay: '250ms' }}>
-      <div className="p-6 border-b border-border flex flex-wrap items-center justify-between gap-4">
+    <section className="content-card animate-fade-in" style={{ animationDelay: '180ms' }}>
+      <div className="p-5 border-b border-border flex flex-wrap items-center justify-between gap-4">
         <h2 className="section-header mb-0 flex items-center gap-2">
-          <Package className="w-5 h-5" />
+          <Package className="w-4 h-4" />
           Order History
         </h2>
         <div className="flex items-center gap-3">
@@ -845,7 +954,7 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
           {addOrderButton}
         </div>
       </div>
-      
+
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
@@ -943,73 +1052,6 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
   );
 };
 
-const ContactCard = ({ contact }: { contact: Contact }) => {
-  return (
-    <div className="p-4 bg-muted/30 rounded-xl hover:bg-muted/50 transition-colors">
-      <div className="grid grid-cols-1 gap-3">
-        {/* Name & Role */}
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-semibold text-sm">{contact.name}</p>
-            {contact.role && (
-              <p className="text-xs text-muted-foreground mt-0.5">{contact.role}</p>
-            )}
-          </div>
-          {contact.linkedIn && (
-            <a 
-              href={contact.linkedIn} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
-            >
-              <Linkedin className="w-4 h-4" />
-            </a>
-          )}
-        </div>
-        
-        {/* Contact Details Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {/* Email */}
-          <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg">
-            <Mail className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Email</p>
-              {contact.email ? (
-                <a 
-                  href={`mailto:${contact.email}`}
-                  className="text-xs text-foreground hover:text-accent transition-colors truncate block"
-                >
-                  {contact.email}
-                </a>
-              ) : (
-                <p className="text-xs text-muted-foreground/60">Not provided</p>
-              )}
-            </div>
-          </div>
-          
-          {/* Phone */}
-          <div className="flex items-center gap-2 p-2 bg-background/50 rounded-lg">
-            <Phone className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-            <div className="min-w-0 flex-1">
-              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">Cell Phone</p>
-              {contact.phone ? (
-                <a 
-                  href={`tel:${contact.phone}`}
-                  className="text-xs text-foreground hover:text-accent transition-colors font-mono"
-                >
-                  {contact.phone}
-                </a>
-              ) : (
-                <p className="text-xs text-muted-foreground/60">Not provided</p>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
 interface EngagementCardProps {
   engagement: Engagement;
   onEdit?: (id: string, details: string, activity?: { calls?: number; emails?: number; linkedin?: number }, loggedBy?: string) => void;
@@ -1023,7 +1065,7 @@ const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) =
   const rep = getRepConfig(engagement.loggedBy);
 
   return (
-    <div className="px-6 py-3 hover:bg-muted/30 transition-colors group">
+    <div className="px-5 py-3 hover:bg-muted/30 transition-colors group">
       <div className="flex items-start gap-3">
         {engagement.loggedBy && (
           <div className="flex-shrink-0 pt-0.5">
@@ -1084,4 +1126,3 @@ const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) =
 };
 
 export default CompanyPage;
-

@@ -160,15 +160,27 @@ const AddProspectPanel = ({ defaultType }: AddProspectPanelProps) => {
                 Company
               </h2>
               <div className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="companyName">Company Name *</Label>
-                  <Input
-                    id="companyName"
-                    value={companyName}
-                    onChange={(e) => setCompanyName(e.target.value)}
-                    placeholder="Enter company name"
-                    className="rounded-xl"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="companyName">Company Name *</Label>
+                    <Input
+                      id="companyName"
+                      value={companyName}
+                      onChange={(e) => setCompanyName(e.target.value)}
+                      placeholder="Enter company name"
+                      className="rounded-xl"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone</Label>
+                    <Input
+                      id="phone"
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="(555) 123-4567"
+                      className="rounded-xl"
+                    />
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -377,16 +389,6 @@ const AddProspectPanel = ({ defaultType }: AddProspectPanelProps) => {
                     value={linkedIn}
                     onChange={(e) => setLinkedIn(e.target.value)}
                     placeholder="https://linkedin.com/company/..."
-                    className="rounded-xl"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="(555) 123-4567"
                     className="rounded-xl"
                   />
                 </div>
