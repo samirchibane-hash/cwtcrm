@@ -375,6 +375,7 @@ const CompanyPage = () => {
   const lastContactLabel = getProspectLastContactLabel(prospect);
   const cityStateZip = [[city, state].filter(Boolean).join(', '), zip].filter(Boolean).join(' ');
   const addressLine = [street, cityStateZip, country].filter(Boolean).join(', ');
+  const hasRecord = Boolean(addressLine || googleMapsUrl || phone || website || linkedIn || lastContactLabel);
 
   return (
     <div className="min-h-screen bg-background">
@@ -420,103 +421,105 @@ const CompanyPage = () => {
 
           {/* Identity row */}
           <div className="flex items-start justify-between gap-6 pb-5">
-            {/* Identity */}
-            <div className="min-w-0">
-              <h1 className="text-2xl font-semibold tracking-tight truncate">{companyName}</h1>
-              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                <TypeBadge type={companyType} />
-                <MarketTypeBadge marketType={marketType} />
-                <StageBadge stage={stage} leadTier={leadTier} maxVisible={3} />
-              </div>
-            </div>
-
-            {/* Actions + company record */}
-            <div className="flex flex-col items-end gap-3 shrink-0">
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditPanelOpen(true)}>
-                  <Pencil className="w-4 h-4" />
-                  Edit
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent className="rounded-2xl">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Delete Company</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Are you sure you want to delete <strong>{companyName}</strong>? This action cannot be undone and will remove all contacts and engagement history.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleDeleteCompany} className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        Delete Company
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+            {/* Identity + company record, side by side */}
+            <div className="flex items-center gap-5 min-w-0 flex-wrap">
+              <div className="min-w-0">
+                <h1 className="text-2xl font-semibold tracking-tight truncate">{companyName}</h1>
+                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                  <TypeBadge type={companyType} />
+                  <MarketTypeBadge marketType={marketType} />
+                  <StageBadge stage={stage} leadTier={leadTier} maxVisible={3} />
+                </div>
               </div>
 
               {/* Company record — address+phone / links / last contact */}
-              <div className="flex flex-col items-end gap-1.5 text-xs text-muted-foreground">
-                {(addressLine || googleMapsUrl || phone) && (
-                  <div className="flex items-center justify-end gap-x-4 gap-y-1 flex-wrap">
-                    {(addressLine || googleMapsUrl) && (
-                      <span className="flex items-center gap-1">
-                        {googleMapsUrl ? (
-                          <a href={normalizeUrl(googleMapsUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline">
-                            <MapPin className="w-3.5 h-3.5 shrink-0" />
-                            {addressLine || 'View on Maps'}
+              {hasRecord && (
+                <div className="flex flex-col gap-1 pl-5 border-l border-border text-xs text-muted-foreground">
+                  {(addressLine || googleMapsUrl || phone) && (
+                    <div className="flex items-center gap-x-4 gap-y-1 flex-wrap">
+                      {(addressLine || googleMapsUrl) && (
+                        <span className="flex items-center gap-1">
+                          {googleMapsUrl ? (
+                            <a href={normalizeUrl(googleMapsUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline">
+                              <MapPin className="w-3.5 h-3.5 shrink-0" />
+                              {addressLine || 'View on Maps'}
+                            </a>
+                          ) : (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3.5 h-3.5 shrink-0" />
+                              {addressLine}
+                            </span>
+                          )}
+                          {addressLine && <CopyButton value={addressLine} label="address" />}
+                        </span>
+                      )}
+                      {phone && (
+                        <span className="flex items-center gap-1">
+                          <a href={`tel:${phone}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                            <Phone className="w-3.5 h-3.5 shrink-0" />
+                            {phone}
                           </a>
-                        ) : (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="w-3.5 h-3.5 shrink-0" />
-                            {addressLine}
-                          </span>
-                        )}
-                        {addressLine && <CopyButton value={addressLine} label="address" />}
-                      </span>
-                    )}
-                    {phone && (
-                      <span className="flex items-center gap-1">
-                        <a href={`tel:${phone}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
-                          <Phone className="w-3.5 h-3.5 shrink-0" />
-                          {phone}
+                          <CopyButton value={phone} label="phone" />
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {(website || linkedIn) && (
+                    <div className="flex items-center gap-x-4 gap-y-1 flex-wrap">
+                      {website && (
+                        <span className="flex items-center gap-1">
+                          <a href={normalizeUrl(website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline">
+                            <Globe className="w-3.5 h-3.5 shrink-0" />
+                            {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                          </a>
+                          <CopyButton value={normalizeUrl(website)} label="website" />
+                        </span>
+                      )}
+                      {linkedIn && (
+                        <a href={normalizeUrl(linkedIn)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline">
+                          <Linkedin className="w-3.5 h-3.5 shrink-0" />
+                          LinkedIn
                         </a>
-                        <CopyButton value={phone} label="phone" />
-                      </span>
-                    )}
-                  </div>
-                )}
-                {(website || linkedIn) && (
-                  <div className="flex items-center justify-end gap-x-4 gap-y-1 flex-wrap">
-                    {website && (
-                      <span className="flex items-center gap-1">
-                        <a href={normalizeUrl(website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline">
-                          <Globe className="w-3.5 h-3.5 shrink-0" />
-                          {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-                        </a>
-                        <CopyButton value={normalizeUrl(website)} label="website" />
-                      </span>
-                    )}
-                    {linkedIn && (
-                      <a href={normalizeUrl(linkedIn)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline">
-                        <Linkedin className="w-3.5 h-3.5 shrink-0" />
-                        LinkedIn
-                      </a>
-                    )}
-                  </div>
-                )}
-                {lastContactLabel && (
-                  <span className="flex items-center gap-1">
-                    <MessageSquare className="w-3.5 h-3.5 shrink-0" />
-                    Last contact <span className="font-medium text-foreground">{lastContactLabel}</span>
-                  </span>
-                )}
-              </div>
+                      )}
+                    </div>
+                  )}
+                  {lastContactLabel && (
+                    <span className="flex items-center gap-1">
+                      <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                      Last contact <span className="font-medium text-foreground">{lastContactLabel}</span>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2 shrink-0">
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditPanelOpen(true)}>
+                <Pencil className="w-4 h-4" />
+                Edit
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="rounded-2xl">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Company</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete <strong>{companyName}</strong>? This action cannot be undone and will remove all contacts and engagement history.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteCompany} className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                      Delete Company
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </div>
         </div>
