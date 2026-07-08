@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Pencil, X, Plus } from 'lucide-react';
-import { CompanyType, MarketType, LeadTier, COMPANY_TYPES, LEAD_TIERS, PIPELINE_STAGES, getStageColor } from '@/data/prospects';
+import { CompanyType, MarketType, LeadTier, COMPANY_TYPES, PIPELINE_STAGES, getStageColor } from '@/data/prospects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -232,27 +232,6 @@ const EditCompanyDetailsDialog = ({ currentDetails, onSave }: EditCompanyDetails
                 </SelectContent>
               </Select>
             )}
-          </div>
-
-          {/* Lead Tier */}
-          <div className="space-y-2">
-            <Label>Lead Tier</Label>
-            <Select 
-              value={toSelectValue(details.leadTier)} 
-              onValueChange={(value) => updateField('leadTier', fromSelectValue(value) as LeadTier)}
-            >
-              <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Select lead tier" />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl bg-background">
-                <SelectItem value={NONE_VALUE}>None</SelectItem>
-                {LEAD_TIERS.map((t) => (
-                  <SelectItem key={t} value={t}>
-                    {t}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
 
           {/* Street Address */}

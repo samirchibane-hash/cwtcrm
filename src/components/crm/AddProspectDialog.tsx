@@ -22,7 +22,7 @@ import {
 import { useProspects } from '@/context/ProspectsContext';
 import { useToast } from '@/hooks/use-toast';
 import { useProductVerticals } from '@/hooks/useProductVerticals';
-import { CompanyType, MarketType, LeadTier, PIPELINE_STAGES, COMPANY_TYPES, LEAD_TIERS, getStageColor } from '@/data/prospects';
+import { CompanyType, MarketType, PIPELINE_STAGES, COMPANY_TYPES, getStageColor } from '@/data/prospects';
 
 const ADD_NEW_VALUE = '__add_new__';
 
@@ -36,7 +36,6 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
   const [state, setState] = useState('');
   const [type, setType] = useState<CompanyType | ''>(defaultType || '');
   const [marketType, setMarketType] = useState<string>('');
-  const [leadTier, setLeadTier] = useState<LeadTier | ''>('');
   const [selectedStages, setSelectedStages] = useState<string[]>([]);
   const [linkedIn, setLinkedIn] = useState('');
   const [website, setWebsite] = useState('');
@@ -78,7 +77,7 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
       zip: '',
       type: type || '',
       marketType: (marketType || '') as MarketType,
-      leadTier: leadTier || '',
+      leadTier: '',
       stage: selectedStages.length > 0 ? selectedStages.join(', ') : 'Contact Made',
       lastContact: new Date().toLocaleDateString('en-US'),
       engagementNotes: '',
@@ -99,7 +98,6 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
       setState('');
       setType('');
       setMarketType('');
-      setLeadTier('');
       setSelectedStages([]);
       setLinkedIn('');
       setWebsite('');
@@ -157,7 +155,7 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
               </Select>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid gap-4">
             <div className="grid gap-2">
               <Label htmlFor="marketType">Product Vertical</Label>
               {showNewVerticalInput ? (
@@ -218,19 +216,6 @@ const AddProspectDialog = ({ defaultType }: AddProspectDialogProps) => {
                   </SelectContent>
                 </Select>
               )}
-            </div>
-            <div className="grid gap-2">
-              <Label>Lead Tier</Label>
-              <Select value={leadTier} onValueChange={(value) => setLeadTier(value as LeadTier)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select tier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {LEAD_TIERS.map((t) => (
-                    <SelectItem key={t} value={t}>{t}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </div>
           <div className="grid gap-2">
