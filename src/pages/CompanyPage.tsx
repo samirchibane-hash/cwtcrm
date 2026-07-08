@@ -1,5 +1,5 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Package, Truck, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle, Pencil } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Package, Truck, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle, Pencil, Copy, Check } from 'lucide-react';
 import { Contact, Engagement, CompanyType, MarketType, LeadTier, REPS, getRepConfig } from '@/data/prospects';
 import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import { parseDateLoose, formatMmDdYyyy } from '@/lib/date';
@@ -31,11 +31,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useProspectActivityLog } from '@/hooks/useActivityLog';
@@ -49,6 +44,33 @@ const getInitials = (name: string): string => {
 };
 
 const normalizeUrl = (url: string) => (url.startsWith('http') ? url : `https://${url}`);
+
+// Small inline copy-to-clipboard affordance; swaps to a check on success
+const CopyButton = ({ value, label }: { value: string; label: string }) => {
+  const [copied, setCopied] = useState(false);
+  const copy = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      /* clipboard unavailable — no-op */
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={copied ? 'Copied!' : `Copy ${label}`}
+      aria-label={`Copy ${label}`}
+      className={`p-0.5 rounded transition-colors ${copied ? 'text-green-500' : 'text-muted-foreground/50 hover:text-foreground hover:bg-muted'}`}
+    >
+      {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+};
 
 const CompanyPage = () => {
   const { id } = useParams();
@@ -367,7 +389,8 @@ const CompanyPage = () => {
   };
 
   const lastContactLabel = getProspectLastContactLabel(prospect);
-  const locationLabel = [city, state, country].filter(Boolean).join(', ');
+  const cityStateZip = [[city, state].filter(Boolean).join(', '), zip].filter(Boolean).join(' ');
+  const addressLine = [street, cityStateZip, country].filter(Boolean).join(', ');
 
   return (
     <div className="min-h-screen bg-background">
@@ -428,28 +451,53 @@ const CompanyPage = () => {
                   <MarketTypeBadge marketType={marketType} />
                   <StageBadge stage={stage} leadTier={leadTier} maxVisible={3} />
                 </div>
-                {/* Quick facts */}
-                <div className="flex items-center gap-x-4 gap-y-1 mt-2 flex-wrap text-xs text-muted-foreground">
-                  {locationLabel && (
+                {/* Meta row — the full company record, inline */}
+                <div className="flex items-center gap-x-4 gap-y-1.5 mt-2.5 flex-wrap text-xs text-muted-foreground">
+                  {(addressLine || googleMapsUrl) && (
                     <span className="flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5" />
-                      {locationLabel}
+                      {googleMapsUrl ? (
+                        <a href={normalizeUrl(googleMapsUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline">
+                          <MapPin className="w-3.5 h-3.5 shrink-0" />
+                          {addressLine || 'View on Maps'}
+                        </a>
+                      ) : (
+                        <span className="flex items-center gap-1">
+                          <MapPin className="w-3.5 h-3.5 shrink-0" />
+                          {addressLine}
+                        </span>
+                      )}
+                      {addressLine && <CopyButton value={addressLine} label="address" />}
                     </span>
                   )}
-                  {lastContactLabel && (
-                    <span>Last contact <span className="font-medium text-foreground">{lastContactLabel}</span></span>
-                  )}
                   {phone && (
-                    <a href={`tel:${phone}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
-                      <Phone className="w-3.5 h-3.5" />
-                      {phone}
-                    </a>
+                    <span className="flex items-center gap-1">
+                      <a href={`tel:${phone}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
+                        <Phone className="w-3.5 h-3.5 shrink-0" />
+                        {phone}
+                      </a>
+                      <CopyButton value={phone} label="phone" />
+                    </span>
                   )}
                   {website && (
-                    <a href={normalizeUrl(website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline">
-                      <Globe className="w-3.5 h-3.5" />
-                      {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                    <span className="flex items-center gap-1">
+                      <a href={normalizeUrl(website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline">
+                        <Globe className="w-3.5 h-3.5 shrink-0" />
+                        {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                      </a>
+                      <CopyButton value={normalizeUrl(website)} label="website" />
+                    </span>
+                  )}
+                  {linkedIn && (
+                    <a href={normalizeUrl(linkedIn)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline">
+                      <Linkedin className="w-3.5 h-3.5 shrink-0" />
+                      LinkedIn
                     </a>
+                  )}
+                  {lastContactLabel && (
+                    <span className="flex items-center gap-1">
+                      <MessageSquare className="w-3.5 h-3.5 shrink-0" />
+                      Last contact <span className="font-medium text-foreground">{lastContactLabel}</span>
+                    </span>
                   )}
                 </div>
               </div>
@@ -465,36 +513,6 @@ const CompanyPage = () => {
                 <Pencil className="w-4 h-4" />
                 Edit
               </Button>
-
-              {/* External links */}
-              {(linkedIn || googleMapsUrl) && (
-                <div className="flex items-center gap-1 pl-1 border-l border-border ml-1">
-                  {linkedIn && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" asChild>
-                          <a href={normalizeUrl(linkedIn)} target="_blank" rel="noopener noreferrer">
-                            <Linkedin className="w-4 h-4" />
-                          </a>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>LinkedIn</TooltipContent>
-                    </Tooltip>
-                  )}
-                  {googleMapsUrl && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground" asChild>
-                          <a href={normalizeUrl(googleMapsUrl)} target="_blank" rel="noopener noreferrer">
-                            <MapPin className="w-4 h-4" />
-                          </a>
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Google Maps</TooltipContent>
-                    </Tooltip>
-                  )}
-                </div>
-              )}
 
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -706,72 +724,6 @@ const CompanyPage = () => {
                 </Button>
               </div>
             </section>
-
-            {/* Company details */}
-            <section className="content-card p-5 animate-fade-in space-y-4" style={{ animationDelay: '120ms' }}>
-              <div className="flex items-center justify-between">
-                <h2 className="section-header mb-0 flex items-center gap-2">
-                  <FileText className="w-4 h-4" />
-                  Details
-                </h2>
-                <button
-                  onClick={() => setEditPanelOpen(true)}
-                  className="text-xs text-accent hover:underline flex items-center gap-1"
-                >
-                  <Pencil className="w-3 h-3" />
-                  Edit
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                <DetailRow label="Business Model">
-                  {companyType ? <TypeBadge type={companyType} /> : <span className="text-muted-foreground">—</span>}
-                </DetailRow>
-                <DetailRow label="Product Vertical">
-                  {marketType ? <span className="text-foreground">{marketType}</span> : <span className="text-muted-foreground">—</span>}
-                </DetailRow>
-                <DetailRow label="Pipeline">
-                  {stage ? <StageBadge stage={stage} maxVisible={4} /> : <span className="text-muted-foreground">—</span>}
-                </DetailRow>
-
-                {(street || locationLabel || zip) && (
-                  <DetailRow label="Address">
-                    <div className="text-foreground leading-relaxed">
-                      {street && <div>{street}</div>}
-                      {(city || state || zip) && <div>{[city, state].filter(Boolean).join(', ')} {zip}</div>}
-                      {country && <div>{country}</div>}
-                    </div>
-                  </DetailRow>
-                )}
-
-                {phone && (
-                  <DetailRow label="Phone">
-                    <a href={`tel:${phone}`} className="text-accent hover:underline">{phone}</a>
-                  </DetailRow>
-                )}
-                {website && (
-                  <DetailRow label="Website">
-                    <a href={normalizeUrl(website)} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline break-all">
-                      {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-                    </a>
-                  </DetailRow>
-                )}
-                {linkedIn && (
-                  <DetailRow label="LinkedIn">
-                    <a href={normalizeUrl(linkedIn)} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                      View profile
-                    </a>
-                  </DetailRow>
-                )}
-                {googleMapsUrl && (
-                  <DetailRow label="Maps">
-                    <a href={normalizeUrl(googleMapsUrl)} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
-                      Open in Maps
-                    </a>
-                  </DetailRow>
-                )}
-              </div>
-            </section>
           </div>
         </div>
 
@@ -817,14 +769,7 @@ const StatTile = ({ label, value, accent }: { label: string; value: string | num
   </div>
 );
 
-const DetailRow = ({ label, children }: { label: string; children: React.ReactNode }) => (
-  <div className="grid grid-cols-[92px_1fr] gap-3 text-sm items-start">
-    <span className="text-xs font-medium text-muted-foreground pt-0.5">{label}</span>
-    <div className="min-w-0">{children}</div>
-  </div>
-);
-
-const ContactRow = ({ contact, onToggleChampion, onUpdate, onDelete }: {
+const ContactRow =({ contact, onToggleChampion, onUpdate, onDelete }: {
   contact: Contact;
   onToggleChampion: (id: string) => void;
   onUpdate: (contact: Contact) => void;
@@ -851,18 +796,24 @@ const ContactRow = ({ contact, onToggleChampion, onUpdate, onDelete }: {
         </div>
         <div className="flex items-center gap-3 mt-0.5 flex-wrap">
           {contact.email ? (
-            <a href={`mailto:${contact.email}`} className="text-xs text-accent hover:underline flex items-center gap-1">
-              {contact.emailVerified === true && <CheckCircle className="w-3 h-3 text-green-500 shrink-0" />}
-              {contact.emailVerified === false && <XCircle className="w-3 h-3 text-red-500 shrink-0" />}
-              <Mail className="w-3 h-3" />
-              {contact.email}
-            </a>
+            <span className="flex items-center gap-1">
+              <a href={`mailto:${contact.email}`} className="text-xs text-accent hover:underline flex items-center gap-1">
+                {contact.emailVerified === true && <CheckCircle className="w-3 h-3 text-green-500 shrink-0" />}
+                {contact.emailVerified === false && <XCircle className="w-3 h-3 text-red-500 shrink-0" />}
+                <Mail className="w-3 h-3" />
+                {contact.email}
+              </a>
+              <CopyButton value={contact.email} label="email" />
+            </span>
           ) : null}
           {contact.phone && (
-            <a href={`tel:${contact.phone}`} className="text-xs font-mono text-muted-foreground hover:text-foreground flex items-center gap-1">
-              <Phone className="w-3 h-3" />
-              {contact.phone}
-            </a>
+            <span className="flex items-center gap-1">
+              <a href={`tel:${contact.phone}`} className="text-xs font-mono text-muted-foreground hover:text-foreground flex items-center gap-1">
+                <Phone className="w-3 h-3" />
+                {contact.phone}
+              </a>
+              <CopyButton value={contact.phone} label="phone" />
+            </span>
           )}
         </div>
       </div>
