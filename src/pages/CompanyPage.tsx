@@ -15,6 +15,8 @@ import EditCompanyDetailsDialog from '@/components/crm/EditCompanyDetailsDialog'
 import EditNoteDialog from '@/components/crm/EditNoteDialog';
 import { EmailVerificationDialog } from '@/components/crm/EmailVerificationDialog';
 import AddOrderDialog from '@/components/crm/AddOrderDialog';
+import OrderDetail from '@/components/OrderDetail';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { useOrders } from '@/context/OrdersContext';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -766,9 +768,9 @@ const CompanyPage = () => {
 };
 
 const OrderHistorySection = ({ companyName, companyId }: { companyName: string; companyId: string }) => {
-  const navigate = useNavigate();
   const { orders } = useOrders();
   const companyOrders = orders.filter(o => o.customer === companyName);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
   const addOrderButton = (
     <AddOrderDialog 
@@ -850,7 +852,7 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
               return (
                 <tr
                   key={order.id}
-                  onClick={() => navigate(`/order/${order.id}`)}
+                  onClick={() => setSelectedOrderId(order.id)}
                   className="hover:bg-muted/30 transition-colors group cursor-pointer"
                 >
                   <td className="px-6 py-4">
@@ -911,6 +913,20 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
           </tbody>
         </table>
       </div>
+
+      {/* Order detail slide-over — keeps the user on the company profile */}
+      <Sheet open={!!selectedOrderId} onOpenChange={(open) => !open && setSelectedOrderId(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl p-6 flex flex-col">
+          {selectedOrderId && (
+            <OrderDetail
+              orderId={selectedOrderId}
+              variant="panel"
+              linkCustomer={false}
+              onDeleted={() => setSelectedOrderId(null)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </section>
   );
 };
