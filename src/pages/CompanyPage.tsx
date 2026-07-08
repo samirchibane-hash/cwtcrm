@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle, Pencil } from 'lucide-react';
 import { Contact, Engagement, CompanyType, MarketType, LeadTier, REPS, getRepConfig } from '@/data/prospects';
 import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import { parseDateLoose, formatMmDdYyyy } from '@/lib/date';
@@ -10,7 +10,7 @@ import TypeBadge from '@/components/crm/TypeBadge';
 import MarketTypeBadge from '@/components/crm/MarketTypeBadge';
 import AddContactDialog from '@/components/crm/AddContactDialog';
 import EditContactDialog from '@/components/crm/EditContactDialog';
-import EditCompanyDetailsDialog from '@/components/crm/EditCompanyDetailsDialog';
+import EditCompanyDetailsPanel from '@/components/crm/EditCompanyDetailsPanel';
 import EditNoteDialog from '@/components/crm/EditNoteDialog';
 import { EmailVerificationDialog } from '@/components/crm/EmailVerificationDialog';
 import AddOrderDialog from '@/components/crm/AddOrderDialog';
@@ -64,6 +64,7 @@ const CompanyPage = () => {
   const [phone, setPhone] = useState('');
   const [lastContact, setLastContact] = useState('');
   const [engagementNotes, setEngagementNotes] = useState('');
+  const [editPanelOpen, setEditPanelOpen] = useState(false);
   
   const prospect = id ? getProspectById(id) : null;
   const { prospects } = useProspects();
@@ -435,25 +436,10 @@ const CompanyPage = () => {
             </div>
             
             <div className="flex items-center gap-2">
-              <EditCompanyDetailsDialog
-                currentDetails={{
-                  companyName,
-                  companyType,
-                  marketType,
-                  leadTier,
-                  street,
-                  city,
-                  state,
-                  country,
-                  zip,
-                  stage,
-                  linkedIn,
-                  website,
-                  googleMapsUrl,
-                  phone,
-                }}
-                onSave={handleUpdateCompanyDetails}
-              />
+              <Button variant="outline" size="sm" className="gap-2" onClick={() => setEditPanelOpen(true)}>
+                <Pencil className="w-4 h-4" />
+                Edit Details
+              </Button>
               {linkedIn && (
                 <Button variant="outline" size="sm" asChild>
                   <a href={linkedIn} target="_blank" rel="noopener noreferrer">
@@ -761,6 +747,34 @@ const CompanyPage = () => {
         {/* Order History Section */}
         <OrderHistorySection companyName={companyName} companyId={prospect.id} />
       </main>
+
+      {/* Edit company details slide-over — keeps the user on the company profile */}
+      <Sheet open={editPanelOpen} onOpenChange={setEditPanelOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl p-6 flex flex-col">
+          {editPanelOpen && (
+            <EditCompanyDetailsPanel
+              currentDetails={{
+                companyName,
+                companyType,
+                marketType,
+                leadTier,
+                street,
+                city,
+                state,
+                country,
+                zip,
+                stage,
+                linkedIn,
+                website,
+                googleMapsUrl,
+                phone,
+              }}
+              onSave={handleUpdateCompanyDetails}
+              onClose={() => setEditPanelOpen(false)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
