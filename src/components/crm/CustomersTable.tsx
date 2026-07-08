@@ -6,7 +6,7 @@ import { useProspects } from '@/context/ProspectsContext';
 import { useOrders } from '@/context/OrdersContext';
 import { getProspectLastContactSortValue, getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import LeadTierBadge from './LeadTierBadge';
-import AddProspectDialog from './AddProspectDialog';
+import AddProspectPanel from './AddProspectPanel';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -173,7 +173,7 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <AddProspectDialog defaultType={"Customer" as any} />
+          <AddProspectPanel defaultType={"Customer" as any} />
         </div>
       </div>
 
