@@ -152,6 +152,13 @@ const OrdersTable = () => {
         if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
         return 0;
       });
+    } else {
+      // Default: most recent order dates first
+      result = [...result].sort(
+        (a, b) =>
+          (parseDateLoose(b.placed)?.getTime() ?? 0) -
+          (parseDateLoose(a.placed)?.getTime() ?? 0)
+      );
     }
 
     return result;
