@@ -3,7 +3,7 @@ import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, Me
 import { Contact, Engagement, CompanyType, MarketType, LeadTier, REPS, getRepConfig } from '@/data/prospects';
 import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import { parseDateLoose, formatMmDdYyyy } from '@/lib/date';
-import { getOrdersByCustomer, Order, getStatusColor } from '@/data/orders';
+import { getOrdersByCustomer, Order, getStatusColor, formatCurrency } from '@/data/orders';
 import { useProspects } from '@/context/ProspectsContext';
 import StageBadge from '@/components/crm/StageBadge';
 import TypeBadge from '@/components/crm/TypeBadge';
@@ -803,21 +803,36 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
 
   const totalUnits = companyOrders.reduce((sum, o) => sum + o.units, 0);
   const totalOrders = companyOrders.length;
+  const lifetimeValue = companyOrders.reduce((sum, o) => sum + o.totalValue, 0);
+
+  // Per-company sequential order numbers (oldest = #1). companyOrders is sorted
+  // most-recent-first, so the newest row gets the highest number.
+  const orderNumberById = new Map(
+    companyOrders.map((o, idx) => [o.id, companyOrders.length - idx])
+  );
 
   return (
     <section className="content-card animate-fade-in" style={{ animationDelay: '250ms' }}>
-      <div className="p-6 border-b border-border flex items-center justify-between">
+      <div className="p-6 border-b border-border flex flex-wrap items-center justify-between gap-4">
         <h2 className="section-header mb-0 flex items-center gap-2">
           <Package className="w-5 h-5" />
           Order History
         </h2>
-        <div className="flex items-center gap-4 text-sm">
-          <span className="text-muted-foreground">
-            <strong className="text-foreground">{totalOrders}</strong> orders
-          </span>
-          <span className="text-muted-foreground">
-            <strong className="text-foreground">{totalUnits}</strong> total units
-          </span>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center divide-x divide-border rounded-xl border border-border bg-muted/30 overflow-hidden">
+            <div className="px-4 py-2 text-center">
+              <div className="text-base font-semibold leading-none tabular-nums">{totalOrders}</div>
+              <div className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Orders</div>
+            </div>
+            <div className="px-4 py-2 text-center">
+              <div className="text-base font-semibold leading-none tabular-nums">{totalUnits}</div>
+              <div className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Units</div>
+            </div>
+            <div className="px-4 py-2 text-center">
+              <div className="text-base font-semibold leading-none tabular-nums text-accent">{formatCurrency(lifetimeValue)}</div>
+              <div className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Lifetime Value</div>
+            </div>
+          </div>
           {addOrderButton}
         </div>
       </div>
@@ -830,6 +845,7 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
               <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Date</th>
               <th className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Units</th>
               <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Model</th>
+              <th className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Total</th>
               <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Status</th>
               <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Links</th>
             </tr>
@@ -840,11 +856,11 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
               return (
                 <tr key={order.id} className="hover:bg-muted/30 transition-colors group">
                   <td className="px-6 py-4">
-                    <Link 
+                    <Link
                       to={`/order/${order.id}`}
-                      className="font-medium text-accent hover:underline flex items-center gap-1.5"
+                      className="font-medium text-accent hover:underline flex items-center gap-1.5 whitespace-nowrap"
                     >
-                      #{order.id}
+                      Order #{orderNumberById.get(order.id)}
                       <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </Link>
                   </td>
@@ -856,6 +872,15 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
                   </td>
                   <td className="px-6 py-4">
                     <span className="text-sm">{order.modelType}</span>
+                  </td>
+                  <td className="px-6 py-4 text-right">
+                    {order.totalValue > 0 ? (
+                      <span className="text-sm font-semibold tabular-nums">{formatCurrency(order.totalValue)}</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        {order.orderType && order.orderType !== 'Standard' ? order.orderType : '—'}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4">
                     <Badge variant="secondary" className={`${statusColors.bg} ${statusColors.text} border-0`}>
