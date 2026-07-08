@@ -241,12 +241,14 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     return val ? val.split(',') : [];
   });
   const [stageFilter, setStageFilter] = useState<string[]>(() => {
-    const val = searchParams.get('stage');
-    return val ? val.split(',') : [];
-  });
-  const [leadTierFilter, setLeadTierFilter] = useState<string[]>(() => {
-    const val = searchParams.get('tier');
-    return val ? val.split(',') : [];
+    // Stage now also carries Lead Tier values; merge any legacy `tier` param in.
+    const stageVal = searchParams.get('stage');
+    const tierVal = searchParams.get('tier');
+    const merged = [
+      ...(stageVal ? stageVal.split(',') : []),
+      ...(tierVal ? tierVal.split(',') : []),
+    ];
+    return Array.from(new Set(merged));
   });
   const [verticalFilter, setVerticalFilter] = useState<string[]>(() => {
     const val = searchParams.get('vertical');
@@ -257,9 +259,6 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   );
   const [stageFilterMode, setStageFilterMode] = useState<'include' | 'exclude'>(() =>
     searchParams.get('stageMode') === 'exclude' ? 'exclude' : 'include'
-  );
-  const [leadTierFilterMode, setLeadTierFilterMode] = useState<'include' | 'exclude'>(() =>
-    searchParams.get('tierMode') === 'exclude' ? 'exclude' : 'include'
   );
   const [verticalFilterMode, setVerticalFilterMode] = useState<'include' | 'exclude'>(() =>
     searchParams.get('verticalMode') === 'exclude' ? 'exclude' : 'include'
@@ -296,11 +295,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         ...(searchQuery && { q: searchQuery }),
         ...(typeFilter.length && { type: typeFilter.join(',') }),
         ...(stageFilter.length && { stage: stageFilter.join(',') }),
-        ...(leadTierFilter.length && { tier: leadTierFilter.join(',') }),
         ...(verticalFilter.length && { vertical: verticalFilter.join(',') }),
         ...(typeFilterMode === 'exclude' && { typeMode: 'exclude' }),
         ...(stageFilterMode === 'exclude' && { stageMode: 'exclude' }),
-        ...(leadTierFilterMode === 'exclude' && { tierMode: 'exclude' }),
         ...(verticalFilterMode === 'exclude' && { verticalMode: 'exclude' }),
       },
       ...(lastContactFrom && { lastContactFrom: lastContactFrom.toISOString() }),
@@ -316,12 +313,13 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const loadPreset = (preset: FilterPreset) => {
     setSearchQuery(preset.params.q || '');
     setTypeFilter(preset.params.type ? preset.params.type.split(',') : []);
-    setStageFilter(preset.params.stage ? preset.params.stage.split(',') : []);
-    setLeadTierFilter(preset.params.tier ? preset.params.tier.split(',') : []);
+    setStageFilter(Array.from(new Set([
+      ...(preset.params.stage ? preset.params.stage.split(',') : []),
+      ...(preset.params.tier ? preset.params.tier.split(',') : []),
+    ])));
     setVerticalFilter(preset.params.vertical ? preset.params.vertical.split(',') : []);
     setTypeFilterMode(preset.params.typeMode === 'exclude' ? 'exclude' : 'include');
     setStageFilterMode(preset.params.stageMode === 'exclude' ? 'exclude' : 'include');
-    setLeadTierFilterMode(preset.params.tierMode === 'exclude' ? 'exclude' : 'include');
     setVerticalFilterMode(preset.params.verticalMode === 'exclude' ? 'exclude' : 'include');
     setLastContactFrom(preset.lastContactFrom ? new Date(preset.lastContactFrom) : undefined);
     setLastContactTo(preset.lastContactTo ? new Date(preset.lastContactTo) : undefined);
@@ -347,9 +345,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     
     if (stageFilter.length > 0) newParams.set('stage', stageFilter.join(','));
     else newParams.delete('stage');
-    
-    if (leadTierFilter.length > 0) newParams.set('tier', leadTierFilter.join(','));
-    else newParams.delete('tier');
+    // Legacy `tier` param is folded into `stage`; clear it so it can't linger.
+    newParams.delete('tier');
+    newParams.delete('tierMode');
 
     if (verticalFilter.length > 0) newParams.set('vertical', verticalFilter.join(','));
     else newParams.delete('vertical');
@@ -359,9 +357,6 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
 
     if (stageFilterMode === 'exclude') newParams.set('stageMode', 'exclude');
     else newParams.delete('stageMode');
-
-    if (leadTierFilterMode === 'exclude') newParams.set('tierMode', 'exclude');
-    else newParams.delete('tierMode');
 
     if (verticalFilterMode === 'exclude') newParams.set('verticalMode', 'exclude');
     else newParams.delete('verticalMode');
@@ -376,7 +371,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     if (newParams.toString() !== searchParams.toString()) {
       setSearchParams(newParams, { replace: true });
     }
-  }, [searchQuery, typeFilter, stageFilter, leadTierFilter, verticalFilter, typeFilterMode, stageFilterMode, leadTierFilterMode, verticalFilterMode, sortField, sortDirection, searchParams, setSearchParams]);
+  }, [searchQuery, typeFilter, stageFilter, verticalFilter, typeFilterMode, stageFilterMode, verticalFilterMode, sortField, sortDirection, searchParams, setSearchParams]);
 
   // Filter options: merge static constants with any custom stages present in actual data
   const types = COMPANY_TYPES.filter(t => t !== '');
@@ -388,11 +383,12 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     const merged = Array.from(new Set([...PIPELINE_STAGES, ...stagesFromData]));
     return merged.filter(s => !EXCLUDED_STAGES.includes(s.toLowerCase()));
   }, [prospects]);
-  const leadTiers = LEAD_TIERS;
+  // Lead Tiers now live inside the Stage filter, listed ahead of the pipeline stages.
+  const stageAndTierOptions = useMemo(() => [...LEAD_TIERS, ...stages], [stages]);
   const { allVerticals } = useProductVerticals();
 
   const hasLastContactFilter = lastContactFrom !== undefined || lastContactTo !== undefined;
-  const totalActiveFilters = typeFilter.length + stageFilter.length + leadTierFilter.length + verticalFilter.length + (hasLastContactFilter ? 1 : 0);
+  const totalActiveFilters = typeFilter.length + stageFilter.length + verticalFilter.length + (hasLastContactFilter ? 1 : 0);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -423,15 +419,18 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         typeFilterMode === 'include' ? typeFilter.includes(prospect.type) : !typeFilter.includes(prospect.type)
       );
       
+      // Stage filter now also holds Lead Tier values: tier values match the
+      // leadTier field exactly, everything else matches within the stage string.
+      const matchesStageOrTier = (value: string) =>
+        (LEAD_TIERS as readonly string[]).includes(value)
+          ? prospect.leadTier === value
+          : prospect.stage.toLowerCase().includes(value.toLowerCase());
       const matchesStage = stageFilter.length === 0 || (
         stageFilterMode === 'include'
-          ? stageFilter.some(s => prospect.stage.toLowerCase().includes(s.toLowerCase()))
-          : !stageFilter.some(s => prospect.stage.toLowerCase().includes(s.toLowerCase()))
+          ? stageFilter.some(matchesStageOrTier)
+          : !stageFilter.some(matchesStageOrTier)
       );
 
-      const matchesLeadTier = leadTierFilter.length === 0 || (
-        leadTierFilterMode === 'include' ? leadTierFilter.includes(prospect.leadTier) : !leadTierFilter.includes(prospect.leadTier)
-      );
       const matchesVertical = verticalFilter.length === 0 || (
         verticalFilterMode === 'include' ? verticalFilter.includes(prospect.marketType || '') : !verticalFilter.includes(prospect.marketType || '')
       );
@@ -451,7 +450,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         }
       }
 
-      return matchesSearch && matchesType && matchesStage && matchesLeadTier && matchesVertical && matchesLastContact;
+      return matchesSearch && matchesType && matchesStage && matchesVertical && matchesLastContact;
     });
 
     if (sortField && sortDirection) {
@@ -501,7 +500,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     }
 
     return result;
-  }, [prospects, searchQuery, typeFilter, stageFilter, leadTierFilter, verticalFilter, typeFilterMode, stageFilterMode, leadTierFilterMode, verticalFilterMode, lastContactFrom, lastContactTo, sortField, sortDirection]);
+  }, [prospects, searchQuery, typeFilter, stageFilter, verticalFilter, typeFilterMode, stageFilterMode, verticalFilterMode, lastContactFrom, lastContactTo, sortField, sortDirection]);
 
   const handleRowClick = (prospect: Prospect) => {
     const prospectIds = filteredAndSortedProspects.map(p => p.id);
@@ -556,11 +555,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                     onClick={() => {
                       setTypeFilter([]);
                       setStageFilter([]);
-                      setLeadTierFilter([]);
                       setVerticalFilter([]);
                       setTypeFilterMode('include');
                       setStageFilterMode('include');
-                      setLeadTierFilterMode('include');
                       setVerticalFilterMode('include');
                       setLastContactFrom(undefined);
                       setLastContactTo(undefined);
@@ -581,23 +578,14 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   mode={typeFilterMode}
                   onModeChange={setTypeFilterMode}
                 />
-                {/* Stage */}
+                {/* Stage (Lead Tiers listed first) */}
                 <FilterSection
                   label="Stage"
-                  items={stages}
+                  items={stageAndTierOptions}
                   selected={stageFilter}
                   onToggle={(item, checked) => setStageFilter(prev => checked ? [...prev, item] : prev.filter(s => s !== item))}
                   mode={stageFilterMode}
                   onModeChange={setStageFilterMode}
-                />
-                {/* Lead Tier */}
-                <FilterSection
-                  label="Lead Tier"
-                  items={leadTiers}
-                  selected={leadTierFilter}
-                  onToggle={(item, checked) => setLeadTierFilter(prev => checked ? [...prev, item] : prev.filter(t => t !== item))}
-                  mode={leadTierFilterMode}
-                  onModeChange={setLeadTierFilterMode}
                 />
                 {/* Product Vertical */}
                 <FilterSection
