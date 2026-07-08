@@ -8,7 +8,6 @@ import { useProspects } from '@/context/ProspectsContext';
 import StageBadge from '@/components/crm/StageBadge';
 import TypeBadge from '@/components/crm/TypeBadge';
 import MarketTypeBadge from '@/components/crm/MarketTypeBadge';
-import LeadTierBadge from '@/components/crm/LeadTierBadge';
 import AddContactDialog from '@/components/crm/AddContactDialog';
 import EditContactDialog from '@/components/crm/EditContactDialog';
 import EditCompanyDetailsDialog from '@/components/crm/EditCompanyDetailsDialog';
@@ -397,8 +396,7 @@ const CompanyPage = () => {
                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                   <TypeBadge type={companyType} />
                   <MarketTypeBadge marketType={marketType} />
-                  <LeadTierBadge leadTier={leadTier} />
-                  <StageBadge stage={stage} />
+                  <StageBadge stage={stage} leadTier={leadTier} />
                   {(city || state || country) && (
                     <span className="flex items-center gap-1 text-sm text-muted-foreground">
                       <MapPin className="w-3.5 h-3.5" />

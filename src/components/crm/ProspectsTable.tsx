@@ -12,7 +12,6 @@ import { useProductVerticals } from '@/hooks/useProductVerticals';
 import { getProspectLastContactLabel, getProspectLastContactSortValue, getProspectLastContactDate } from '@/lib/prospect-last-contact';
 import StageBadge from './StageBadge';
 import TypeBadge from './TypeBadge';
-import LeadTierBadge from './LeadTierBadge';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -711,13 +710,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
               >
                 <span className="flex items-center">Business Model{getSortIcon('type')}</span>
               </th>
-              <th 
-                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                onClick={() => handleSort('leadTier')}
-              >
-                <span className="flex items-center">Lead Tier{getSortIcon('leadTier')}</span>
-              </th>
-              <th 
+              <th
                 className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
                 onClick={() => handleSort('stage')}
               >
@@ -770,10 +763,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   <TypeBadge type={prospect.type} />
                 </td>
                 <td className="p-4">
-                  <LeadTierBadge leadTier={prospect.leadTier} />
-                </td>
-                <td className="p-4">
-                  <StageBadge stage={prospect.stage} />
+                  <StageBadge stage={prospect.stage} leadTier={prospect.leadTier} />
                 </td>
                 <td className="p-4 text-sm font-mono text-muted-foreground">
                   {getProspectLastContactLabel(prospect) || '—'}
