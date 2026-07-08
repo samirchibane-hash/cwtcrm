@@ -1,5 +1,5 @@
 import { useParams, useNavigate, Link, useLocation } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, ExternalLink, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Calendar, Upload, Package, Truck, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle } from 'lucide-react';
 import { Contact, Engagement, CompanyType, MarketType, LeadTier, REPS, getRepConfig } from '@/data/prospects';
 import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import { parseDateLoose, formatMmDdYyyy } from '@/lib/date';
@@ -766,6 +766,7 @@ const CompanyPage = () => {
 };
 
 const OrderHistorySection = ({ companyName, companyId }: { companyName: string; companyId: string }) => {
+  const navigate = useNavigate();
   const { orders } = useOrders();
   const companyOrders = orders.filter(o => o.customer === companyName);
 
@@ -805,12 +806,6 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
   const totalOrders = companyOrders.length;
   const lifetimeValue = companyOrders.reduce((sum, o) => sum + o.totalValue, 0);
 
-  // Per-company sequential order numbers (oldest = #1). companyOrders is sorted
-  // most-recent-first, so the newest row gets the highest number.
-  const orderNumberById = new Map(
-    companyOrders.map((o, idx) => [o.id, companyOrders.length - idx])
-  );
-
   return (
     <section className="content-card animate-fade-in" style={{ animationDelay: '250ms' }}>
       <div className="p-6 border-b border-border flex flex-wrap items-center justify-between gap-4">
@@ -841,7 +836,6 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
         <table className="w-full">
           <thead>
             <tr className="border-b border-border bg-muted/30">
-              <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Order</th>
               <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Date</th>
               <th className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Units</th>
               <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Model</th>
@@ -854,18 +848,13 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
             {companyOrders.map((order) => {
               const statusColors = getStatusColor(order.status);
               return (
-                <tr key={order.id} className="hover:bg-muted/30 transition-colors group">
+                <tr
+                  key={order.id}
+                  onClick={() => navigate(`/order/${order.id}`)}
+                  className="hover:bg-muted/30 transition-colors group cursor-pointer"
+                >
                   <td className="px-6 py-4">
-                    <Link
-                      to={`/order/${order.id}`}
-                      className="font-medium text-accent hover:underline flex items-center gap-1.5 whitespace-nowrap"
-                    >
-                      Order #{orderNumberById.get(order.id)}
-                      <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </Link>
-                  </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm font-mono text-muted-foreground">{order.placed}</span>
+                    <span className="text-sm font-mono text-foreground group-hover:text-accent transition-colors">{order.placed}</span>
                   </td>
                   <td className="px-6 py-4 text-center">
                     <Badge variant="outline" className="font-mono">{order.units}</Badge>
@@ -887,12 +876,12 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
                       {order.status}
                     </Badge>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2">
                       {order.invoice && order.invoice.startsWith('http') && (
-                        <a 
-                          href={order.invoice} 
-                          target="_blank" 
+                        <a
+                          href={order.invoice}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors"
                           title="View Invoice"
@@ -901,9 +890,9 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
                         </a>
                       )}
                       {order.tracking && (
-                        <a 
-                          href={order.tracking} 
-                          target="_blank" 
+                        <a
+                          href={order.tracking}
+                          target="_blank"
                           rel="noopener noreferrer"
                           className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-green-500/10 text-green-500 hover:bg-green-500/20 transition-colors"
                           title="Track Shipment"
