@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { Plus, Trash2, Package, Building2, FileText } from 'lucide-react';
+import { Plus, Trash2, Package, Building2, FileText, Check, ChevronsUpDown, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
@@ -17,6 +18,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Badge } from '@/components/ui/badge';
 import { useOrders } from '@/context/OrdersContext';
 import { useProductModels } from '@/context/ProductModelsContext';
@@ -58,6 +61,7 @@ const AddOrderDialog = ({
   const [invoice, setInvoice] = useState('');
   const [modelItems, setModelItems] = useState<DraftItem[]>([{ modelName: '', quantity: 1 }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
 
   const { addOrder } = useOrders();
   const { models: productModels, getModelByName } = useProductModels();
@@ -107,6 +111,14 @@ const AddOrderDialog = ({
       setCustomer(prospect.companyName);
     }
   };
+
+  // Unlink the selected company so a manual customer name can be typed instead
+  const clearCompany = () => {
+    setCompanyId('');
+    setCustomer('');
+  };
+
+  const selectedCompanyName = companyId ? prospects.find(p => p.id === companyId)?.companyName ?? '' : '';
 
   // ---- Live pricing (matches the view/edit panel) ----
   const priceItem = (item: DraftItem) => {
@@ -226,18 +238,56 @@ const AddOrderDialog = ({
                       <Building2 className="w-3.5 h-3.5" />
                       Link to Company <span className="font-normal opacity-70">(optional)</span>
                     </Label>
-                    <Select value={companyId} onValueChange={handleCompanySelect}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Search companies…" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {prospects.map((prospect) => (
-                          <SelectItem key={prospect.id} value={prospect.id}>
-                            {prospect.companyName}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <Popover open={companyPickerOpen} onOpenChange={setCompanyPickerOpen}>
+                      <PopoverTrigger asChild>
+                        <button
+                          type="button"
+                          role="combobox"
+                          aria-expanded={companyPickerOpen}
+                          className="flex items-center gap-2 h-10 w-full rounded-md border border-input bg-background px-3 text-sm text-left transition-colors hover:bg-muted/40 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        >
+                          <span className={cn('flex-1 truncate', !companyId && 'text-muted-foreground')}>
+                            {selectedCompanyName || 'Search companies…'}
+                          </span>
+                          {companyId ? (
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              aria-label="Unlink company"
+                              onClick={(e) => { e.stopPropagation(); clearCompany(); }}
+                              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); clearCompany(); } }}
+                              className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </span>
+                          ) : (
+                            <ChevronsUpDown className="w-4 h-4 shrink-0 text-muted-foreground" />
+                          )}
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                        <Command>
+                          <CommandInput placeholder="Search companies…" />
+                          <CommandList>
+                            <CommandEmpty>No company found.</CommandEmpty>
+                            <CommandGroup>
+                              {prospects.map((prospect) => (
+                                <CommandItem
+                                  key={prospect.id}
+                                  value={prospect.companyName}
+                                  onSelect={() => { handleCompanySelect(prospect.id); setCompanyPickerOpen(false); }}
+                                  className="flex items-center gap-2"
+                                >
+                                  <Check className={cn('w-4 h-4 shrink-0', companyId === prospect.id ? 'opacity-100' : 'opacity-0')} />
+                                  <span className="truncate">{prospect.companyName}</span>
+                                  {prospect.stage && <span className="ml-auto pl-2 text-xs text-muted-foreground shrink-0">{prospect.stage}</span>}
+                                </CommandItem>
+                              ))}
+                            </CommandGroup>
+                          </CommandList>
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 )}
 
