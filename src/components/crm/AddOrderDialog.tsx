@@ -1,11 +1,10 @@
 import { useState } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Package, Building2, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Sheet,
   SheetContent,
   SheetDescription,
-  SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
@@ -18,11 +17,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { useOrders } from '@/context/OrdersContext';
 import { useProductModels } from '@/context/ProductModelsContext';
 import { useProspects } from '@/context/ProspectsContext';
 import { useToast } from '@/hooks/use-toast';
-import { Order, OrderModelItem, OrderType } from '@/data/orders';
+import { defaultTierNames } from '@/data/productModels';
+import { Order, OrderModelItem, OrderType, getStatusColor, formatCurrency } from '@/data/orders';
 
 interface AddOrderDialogProps {
   defaultCompanyName?: string;
@@ -31,11 +32,22 @@ interface AddOrderDialogProps {
   onOrderCreated?: () => void;
 }
 
-const AddOrderDialog = ({ 
-  defaultCompanyName, 
+// Pricing tier index by quantity (mirrors OrderDetail)
+const getTierIndex = (quantity: number): number => {
+  if (quantity >= 100) return 4;
+  if (quantity >= 51) return 3;
+  if (quantity >= 26) return 2;
+  if (quantity >= 11) return 1;
+  return 0;
+};
+
+type DraftItem = { modelName: string; quantity: number; priceOverride?: number };
+
+const AddOrderDialog = ({
+  defaultCompanyName,
   defaultCompanyId,
   trigger,
-  onOrderCreated 
+  onOrderCreated,
 }: AddOrderDialogProps = {}) => {
   const [open, setOpen] = useState(false);
   const [customer, setCustomer] = useState(defaultCompanyName || '');
@@ -44,17 +56,15 @@ const AddOrderDialog = ({
   const [status, setStatus] = useState<Order['status']>('PO/Invoice');
   const [orderType, setOrderType] = useState<OrderType>('Standard');
   const [invoice, setInvoice] = useState('');
-  const [modelItems, setModelItems] = useState<Array<{ modelName: string; quantity: number; priceOverride?: number }>>([
-    { modelName: '', quantity: 1 },
-  ]);
+  const [modelItems, setModelItems] = useState<DraftItem[]>([{ modelName: '', quantity: 1 }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const { addOrder } = useOrders();
-  const { models: productModels } = useProductModels();
+  const { models: productModels, getModelByName } = useProductModels();
   const { prospects } = useProspects();
   const { toast } = useToast();
 
-  // Reset form when dialog opens (with defaults)
+  // Reset form when panel opens (with defaults)
   const handleOpenChange = (isOpen: boolean) => {
     if (isOpen) {
       setCustomer(defaultCompanyName || '');
@@ -83,7 +93,7 @@ const AddOrderDialog = ({
     if (field === 'quantity') {
       updated[index].quantity = Math.max(1, Number(value) || 1);
     } else if (field === 'priceOverride') {
-      updated[index].priceOverride = value === '' ? undefined : Number(value);
+      updated[index].priceOverride = value === '' ? undefined : Math.max(0, Number(value));
     } else {
       updated[index].modelName = value as string;
     }
@@ -98,45 +108,51 @@ const AddOrderDialog = ({
     }
   };
 
+  // ---- Live pricing (matches the view/edit panel) ----
+  const priceItem = (item: DraftItem) => {
+    const model = getModelByName(item.modelName);
+    const tierIndex = getTierIndex(item.quantity);
+    const tierUnitPrice = model?.pricingTiers[tierIndex]?.price || 0;
+    const unitPrice = item.priceOverride !== undefined ? item.priceOverride : tierUnitPrice;
+    return { model, tierIndex, tierUnitPrice, unitPrice, lineTotal: unitPrice * item.quantity };
+  };
+
+  const isZeroValueType = orderType === 'Sample' || orderType === 'Replacement';
+  const totalUnits = modelItems.reduce((sum, item) => sum + (item.quantity || 0), 0);
+  const rawTotal = modelItems.reduce((sum, item) => sum + priceItem(item).lineTotal, 0);
+  const orderTotal = isZeroValueType ? 0 : rawTotal;
+
   const handleSubmit = async () => {
     if (!customer.trim()) {
-      toast({
-        title: 'Validation Error',
-        description: 'Customer name is required.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Customer required', description: 'Add a customer name before creating the order.', variant: 'destructive' });
       return;
     }
 
     const validItems = modelItems.filter(item => item.modelName && item.quantity > 0);
     if (validItems.length === 0) {
-      toast({
-        title: 'Validation Error',
-        description: 'At least one model item is required.',
-        variant: 'destructive',
-      });
+      toast({ title: 'Add a product', description: 'Select at least one product model and quantity.', variant: 'destructive' });
       return;
     }
 
     setIsSubmitting(true);
-    
+
     const orderModelItems: OrderModelItem[] = validItems.map(item => ({
       modelName: item.modelName,
       quantity: item.quantity,
       priceOverride: item.priceOverride,
     }));
 
-    const totalUnits = orderModelItems.reduce((sum, item) => sum + item.quantity, 0);
+    const units = orderModelItems.reduce((sum, item) => sum + item.quantity, 0);
     const modelType = orderModelItems.map(item => `${item.quantity}x ${item.modelName}`).join(', ');
 
     const result = await addOrder({
       customer: customer.trim(),
       companyId: companyId || undefined,
       placed,
-      units: totalUnits,
+      units,
       modelType,
       modelItems: orderModelItems,
-      totalValue: 0, // Will be calculated by context
+      totalValue: 0, // Recalculated by context from pricing tiers
       invoice: invoice.trim(),
       status,
       tracking: '',
@@ -147,24 +163,15 @@ const AddOrderDialog = ({
     setIsSubmitting(false);
 
     if (result) {
-      toast({
-        title: 'Success',
-        description: `Order for ${customer} has been created.`,
-      });
-      // Reset form
-      setCustomer('');
-      setCompanyId('');
-      setPlaced(new Date().toLocaleDateString('en-US'));
-      setStatus('PO/Invoice');
-      setOrderType('Standard');
-      setInvoice('');
-      setModelItems([{ modelName: '', quantity: 1 }]);
+      toast({ title: 'Order created', description: `New order for ${customer} has been added.` });
       setOpen(false);
       onOrderCreated?.();
     }
   };
 
   const hasDefaultCompany = Boolean(defaultCompanyName);
+  const statusColors = getStatusColor(status);
+  const validItemCount = modelItems.filter(i => i.modelName).length;
 
   return (
     <Sheet open={open} onOpenChange={handleOpenChange}>
@@ -178,165 +185,251 @@ const AddOrderDialog = ({
       </SheetTrigger>
       <SheetContent side="right" className="w-full sm:max-w-2xl p-6 flex flex-col">
         <div className="flex h-full flex-col">
-          <SheetHeader className="shrink-0 pb-5 border-b border-border pr-8 text-left">
-            <SheetTitle>Create New Order</SheetTitle>
-            <SheetDescription>
-              Add a new order with product models and quantities.
-            </SheetDescription>
-          </SheetHeader>
-          <div className="flex-1 overflow-y-auto -mx-6 px-6 py-6 grid gap-4 content-start">
-          {!hasDefaultCompany && (
-            <div className="grid gap-2">
-              <Label htmlFor="company">Link to Company (Optional)</Label>
-              <Select value={companyId} onValueChange={handleCompanySelect}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a company or enter manually" />
-                </SelectTrigger>
-                <SelectContent>
-                  {prospects.map((prospect) => (
-                    <SelectItem key={prospect.id} value={prospect.id}>
-                      {prospect.companyName}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {/* Accessible title/description for screen readers; the visible header below is custom */}
+          <SheetTitle className="sr-only">Create New Order</SheetTitle>
+          <SheetDescription className="sr-only">Add a new order with product models, quantities, and pricing.</SheetDescription>
 
-          <div className="grid gap-2">
-            <Label htmlFor="customer">Customer Name *</Label>
-            <Input
-              id="customer"
-              value={customer}
-              onChange={(e) => setCustomer(e.target.value)}
-              placeholder="Enter customer name"
-              disabled={hasDefaultCompany}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="placed">Date Placed</Label>
-              <Input
-                id="placed"
-                value={placed}
-                onChange={(e) => setPlaced(e.target.value)}
-                placeholder="MM/DD/YYYY"
-              />
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="orderType">Order Type</Label>
-              <Select value={orderType} onValueChange={(value) => setOrderType(value as OrderType)}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Standard">Standard</SelectItem>
-                  <SelectItem value="Sample">Sample</SelectItem>
-                  <SelectItem value="Replacement">Replacement</SelectItem>
-                </SelectContent>
-              </Select>
+          {/* Header — mirrors the order detail panel */}
+          <div className="shrink-0 pb-5 border-b border-border pr-8">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-11 h-11 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                <Package className="w-5 h-5 text-muted-foreground" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">New Order</p>
+                <h1 className="text-xl font-semibold tracking-tight truncate">
+                  {customer.trim() || 'Create Order'}
+                </h1>
+                <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                  <Badge variant="secondary" className={`${statusColors.bg} ${statusColors.text} border-0`}>
+                    {status}
+                  </Badge>
+                  {isZeroValueType && (
+                    <Badge variant="secondary" className="bg-purple-500/10 text-purple-600 border-0">
+                      {orderType}
+                    </Badge>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="grid gap-2">
-              <Label htmlFor="status">Status</Label>
-              <Select value={status} onValueChange={(value) => setStatus(value as Order['status'])}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PO/Invoice">PO/Invoice</SelectItem>
-                  <SelectItem value="Paid">Paid</SelectItem>
-                  <SelectItem value="Partially Shipped">Partially Shipped</SelectItem>
-                  <SelectItem value="Delivered">Delivered</SelectItem>
-                  <SelectItem value="Loaner">Loaner</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="invoice">Invoice URL</Label>
-              <Input
-                id="invoice"
-                value={invoice}
-                onChange={(e) => setInvoice(e.target.value)}
-                placeholder="https://..."
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-2">
-            <div className="flex items-center justify-between">
-              <Label>Product Models *</Label>
-              <Button type="button" variant="outline" size="sm" onClick={addModelItem}>
-                <Plus className="h-3 w-3 mr-1" />
-                Add Item
-              </Button>
-            </div>
-            <div className="space-y-3">
-              {modelItems.map((item, index) => (
-                <div key={index} className="space-y-2 p-3 rounded-lg border bg-muted/30">
-                  <div className="flex gap-2 items-center">
-                    <Select
-                      value={item.modelName}
-                      onValueChange={(value) => updateModelItem(index, 'modelName', value)}
-                    >
-                      <SelectTrigger className="flex-1">
-                        <SelectValue placeholder="Select model" />
+          {/* Scrollable body */}
+          <div className="flex-1 overflow-y-auto -mx-6 px-6 py-6 space-y-6">
+            {/* Details */}
+            <section className="content-card p-6">
+              <h2 className="section-header">Details</h2>
+              <div className="space-y-4">
+                {!hasDefaultCompany && (
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5" />
+                      Link to Company <span className="font-normal opacity-70">(optional)</span>
+                    </Label>
+                    <Select value={companyId} onValueChange={handleCompanySelect}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Search companies…" />
                       </SelectTrigger>
                       <SelectContent>
-                        {productModels.map((model) => (
-                          <SelectItem key={model.id} value={model.name}>
-                            {model.name}
+                        {prospects.map((prospect) => (
+                          <SelectItem key={prospect.id} value={prospect.id}>
+                            {prospect.companyName}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                    <Input
-                      type="number"
-                      min="1"
-                      value={item.quantity}
-                      onChange={(e) => updateModelItem(index, 'quantity', e.target.value)}
-                      className="w-20"
-                      placeholder="Qty"
-                    />
-                    {modelItems.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => removeModelItem(index)}
-                        className="h-9 w-9 text-muted-foreground hover:text-destructive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Price/unit ($)</Label>
+                )}
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor="customer" className="text-xs text-muted-foreground">Customer *</Label>
+                  <Input
+                    id="customer"
+                    value={customer}
+                    onChange={(e) => setCustomer(e.target.value)}
+                    placeholder="Enter customer name"
+                    disabled={hasDefaultCompany}
+                  />
+                  {hasDefaultCompany && (
+                    <p className="text-xs text-muted-foreground">Scoped to this company profile.</p>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="placed" className="text-xs text-muted-foreground">Date Placed</Label>
                     <Input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={item.priceOverride !== undefined ? item.priceOverride : ''}
-                      onChange={(e) => updateModelItem(index, 'priceOverride', e.target.value)}
-                      placeholder="Auto from tier"
-                      className="flex-1"
+                      id="placed"
+                      value={placed}
+                      onChange={(e) => setPlaced(e.target.value)}
+                      placeholder="MM/DD/YYYY"
                     />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs text-muted-foreground">Order Type</Label>
+                    <Select value={orderType} onValueChange={(value) => setOrderType(value as OrderType)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Standard">Standard</SelectItem>
+                        <SelectItem value="Sample">Sample ($0)</SelectItem>
+                        <SelectItem value="Replacement">Replacement ($0)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label className="text-xs text-muted-foreground">Status</Label>
+                    <Select value={status} onValueChange={(value) => setStatus(value as Order['status'])}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PO/Invoice">PO/Invoice</SelectItem>
+                        <SelectItem value="Paid">Paid</SelectItem>
+                        <SelectItem value="Partially Shipped">Partially Shipped</SelectItem>
+                        <SelectItem value="Delivered">Delivered</SelectItem>
+                        <SelectItem value="Loaner">Loaner</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-              ))}
+              </div>
+            </section>
+
+            {/* Products — with live per-line pricing + running total */}
+            <section className="content-card p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="section-header mb-0">Products</h2>
+                <Button size="sm" variant="outline" onClick={addModelItem}>
+                  <Plus className="w-4 h-4 mr-1" />
+                  Add Model
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {modelItems.map((item, index) => {
+                  const { model, tierIndex, tierUnitPrice, unitPrice, lineTotal } = priceItem(item);
+                  const isManual = item.priceOverride !== undefined;
+                  return (
+                    <div key={index} className="p-4 rounded-lg border bg-muted/30 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <Select value={item.modelName} onValueChange={(value) => updateModelItem(index, 'modelName', value)}>
+                          <SelectTrigger className="flex-1">
+                            <SelectValue placeholder="Select model" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {productModels.map((m) => (
+                              <SelectItem key={m.id} value={m.name}>{m.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={(e) => updateModelItem(index, 'quantity', e.target.value)}
+                          className="w-20"
+                          placeholder="Qty"
+                          aria-label="Quantity"
+                        />
+                        {modelItems.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeModelItem(index)}
+                            className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 items-end">
+                        <div className="grid gap-1.5">
+                          <Label className="text-xs text-muted-foreground">
+                            Price/unit
+                            {isManual && (
+                              <button
+                                type="button"
+                                className="ml-2 text-accent hover:underline font-normal"
+                                onClick={() => updateModelItem(index, 'priceOverride', '')}
+                              >
+                                (reset)
+                              </button>
+                            )}
+                          </Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={isManual ? item.priceOverride : ''}
+                            onChange={(e) => updateModelItem(index, 'priceOverride', e.target.value)}
+                            placeholder={model ? `${formatCurrency(tierUnitPrice)} (auto)` : 'Select model'}
+                          />
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Line Total</p>
+                          <p className="font-semibold tabular-nums text-accent">{formatCurrency(isZeroValueType ? 0 : lineTotal)}</p>
+                        </div>
+                      </div>
+
+                      {model && (
+                        <p className="text-xs text-muted-foreground">
+                          {item.quantity} × {formatCurrency(unitPrice)}
+                          {isManual
+                            ? <span className="text-accent"> · manual price</span>
+                            : <> · {defaultTierNames[tierIndex]}</>}
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Running summary */}
+              <div className="pt-4 mt-4 border-t flex items-end justify-between">
+                <span className="text-sm text-muted-foreground">
+                  {totalUnits} {totalUnits === 1 ? 'unit' : 'units'}
+                  {validItemCount > 0 && <> · {validItemCount} {validItemCount === 1 ? 'model' : 'models'}</>}
+                </span>
+                <div className="text-right">
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Order Total</p>
+                  <p className="text-2xl font-bold text-accent leading-tight">
+                    {formatCurrency(orderTotal)}
+                    {isZeroValueType && <span className="ml-1.5 text-xs font-normal text-muted-foreground align-middle">({orderType})</span>}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            {/* Documents */}
+            <section className="content-card p-6">
+              <h2 className="section-header">Documents</h2>
+              <div className="grid gap-1.5">
+                <Label htmlFor="invoice" className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5" />
+                  Invoice URL <span className="font-normal opacity-70">(optional)</span>
+                </Label>
+                <Input
+                  id="invoice"
+                  value={invoice}
+                  onChange={(e) => setInvoice(e.target.value)}
+                  placeholder="https://…"
+                />
+                <p className="text-xs text-muted-foreground">Tracking links and file uploads can be added after the order is created.</p>
+              </div>
+            </section>
+          </div>
+
+          {/* Pinned footer */}
+          <div className="shrink-0 pt-4 border-t border-border flex items-center justify-between gap-2">
+            <span className="text-sm text-muted-foreground hidden sm:block">
+              {isZeroValueType ? `${orderType} order — $0` : <>Total <span className="font-semibold text-foreground tabular-nums">{formatCurrency(orderTotal)}</span></>}
+            </span>
+            <div className="flex items-center gap-2 ml-auto">
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button onClick={handleSubmit} disabled={isSubmitting}>
+                {isSubmitting ? 'Creating…' : 'Create Order'}
+              </Button>
             </div>
-          </div>
-          </div>
-          <div className="shrink-0 pt-4 border-t border-border flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmit} disabled={isSubmitting}>
-              {isSubmitting ? 'Creating...' : 'Create Order'}
-            </Button>
           </div>
         </div>
       </SheetContent>
