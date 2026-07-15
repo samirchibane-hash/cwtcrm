@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Link, useLocation, useSearchParams, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Search, Package, Truck, FileText, Filter, Building2, ExternalLink, ChevronUp, ChevronDown, ArrowUpDown, Download } from 'lucide-react';
 import { exportToCSV } from '@/lib/export-csv';
 import { parseDateLoose } from '@/lib/date';
@@ -24,7 +24,9 @@ import {
 import { Order, getStatusColor, formatCurrency } from '@/data/orders';
 import { useOrders } from '@/context/OrdersContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { DollarSign } from 'lucide-react';
+import OrderDetail from '@/components/OrderDetail';
 import ProductModelsDialog from './ProductModelsDialog';
 import AddOrderDialog from './AddOrderDialog';
 
@@ -36,9 +38,9 @@ const NONE_VALUE = '__none__';
 const OrdersTable = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
-  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') || '');
   const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get('status') || NONE_VALUE);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const { orders } = useOrders();
 
   // Initialize sort state from URL params
@@ -300,10 +302,10 @@ const OrdersTable = () => {
           </TableHeader>
           <TableBody>
             {filteredAndSortedOrders.map((order) => (
-              <TableRow 
-                key={order.id} 
+              <TableRow
+                key={order.id}
                 className="hover:bg-muted/30 transition-colors group cursor-pointer"
-                onClick={() => navigate(`/order/${order.id}`, { state: { from: `${location.pathname}${location.search}` } })}
+                onClick={() => setSelectedOrderId(order.id)}
               >
                 <TableCell className="text-muted-foreground">{order.placed}</TableCell>
                 <TableCell className="font-medium">
@@ -354,6 +356,19 @@ const OrdersTable = () => {
           <p>No orders found matching your criteria.</p>
         </div>
       )}
+
+      {/* Order detail slide-over — view/edit without leaving the Orders page */}
+      <Sheet open={!!selectedOrderId} onOpenChange={(open) => !open && setSelectedOrderId(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl p-6 flex flex-col">
+          {selectedOrderId && (
+            <OrderDetail
+              orderId={selectedOrderId}
+              variant="panel"
+              onDeleted={() => setSelectedOrderId(null)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 };
