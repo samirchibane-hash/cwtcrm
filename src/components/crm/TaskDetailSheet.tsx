@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect, useRef, KeyboardEvent } from 'react';
 import { format, isPast, isToday, parseISO } from 'date-fns';
 import {
   Plus, Trash2, X, ExternalLink, MessageSquare,
-  ChevronDown, Calendar, Building2, ShoppingCart, User,
+  ChevronsUpDown, Calendar, Building2, ShoppingCart, User,
   CheckCircle2, Circle, Clock, Loader2, Send,
   ArrowUp, ArrowRight, ArrowDown, Check
 } from 'lucide-react';
@@ -290,20 +290,33 @@ function ProspectCombobox({ value, label, onChange, onClear }: {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border hover:bg-muted/50 transition-colors w-full text-left">
-          <Building2 className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+        <button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          className="flex items-center gap-2 h-9 w-full rounded-lg border bg-background px-3 text-sm text-left transition-colors hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+        >
+          <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
           <span className={cn('flex-1 truncate', !label && 'text-muted-foreground')}>
             {label || 'Link company…'}
           </span>
-          {label && (
-            <button onClick={e => { e.stopPropagation(); onClear(); }} className="text-muted-foreground hover:text-destructive flex-shrink-0">
+          {label ? (
+            <span
+              role="button"
+              tabIndex={0}
+              aria-label="Unlink company"
+              onClick={e => { e.stopPropagation(); onClear(); }}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onClear(); } }}
+              className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+            >
               <X className="w-3.5 h-3.5" />
-            </button>
+            </span>
+          ) : (
+            <ChevronsUpDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           )}
-          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-0" align="start">
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command>
           <CommandInput placeholder="Search companies…" />
           <CommandList>
@@ -316,9 +329,9 @@ function ProspectCombobox({ value, label, onChange, onClear }: {
                   onSelect={() => { onChange(p.id, p.companyName); setOpen(false); }}
                   className="flex items-center gap-2"
                 >
-                  <Check className={cn('w-4 h-4', value === p.id ? 'opacity-100' : 'opacity-0')} />
-                  {p.companyName}
-                  {p.stage && <span className="ml-auto text-xs text-muted-foreground">{p.stage}</span>}
+                  <Check className={cn('w-4 h-4 shrink-0', value === p.id ? 'opacity-100' : 'opacity-0')} />
+                  <span className="flex-1 truncate">{p.companyName}</span>
+                  {p.stage && <span className="ml-auto pl-2 text-xs text-muted-foreground shrink-0">{p.stage}</span>}
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -330,6 +343,14 @@ function ProspectCombobox({ value, label, onChange, onClear }: {
 }
 
 // ─── Order Combobox ───────────────────────────────────────────────────────────
+
+// Concise "50× 2 GPM, 1× 10 GPM" summary of an order's models (falls back to modelType)
+function orderModelSummary(o: { modelItems?: { quantity: number; modelName: string }[]; modelType: string }) {
+  if (o.modelItems?.length) {
+    return o.modelItems.map(i => `${i.quantity}× ${i.modelName}`).join(', ');
+  }
+  return o.modelType;
+}
 
 function OrderCombobox({ value, label, onChange, onClear }: {
   value: string | null;
@@ -343,39 +364,58 @@ function OrderCombobox({ value, label, onChange, onClear }: {
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border hover:bg-muted/50 transition-colors w-full text-left">
-          <ShoppingCart className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+        <button
+          type="button"
+          role="combobox"
+          aria-expanded={open}
+          className="flex items-center gap-2 h-9 w-full rounded-lg border bg-background px-3 text-sm text-left transition-colors hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-1"
+        >
+          <ShoppingCart className="w-4 h-4 text-muted-foreground shrink-0" />
           <span className={cn('flex-1 truncate', !label && 'text-muted-foreground')}>
             {label || 'Link order…'}
           </span>
-          {label && (
-            <button onClick={e => { e.stopPropagation(); onClear(); }} className="text-muted-foreground hover:text-destructive flex-shrink-0">
+          {label ? (
+            <span
+              role="button"
+              tabIndex={0}
+              aria-label="Unlink order"
+              onClick={e => { e.stopPropagation(); onClear(); }}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onClear(); } }}
+              className="shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+            >
               <X className="w-3.5 h-3.5" />
-            </button>
+            </span>
+          ) : (
+            <ChevronsUpDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
           )}
-          <ChevronDown className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
         </button>
       </PopoverTrigger>
-      <PopoverContent className="w-72 p-0" align="start">
+      <PopoverContent className="w-[--radix-popover-trigger-width] min-w-[22rem] p-0" align="start">
         <Command>
           <CommandInput placeholder="Search orders…" />
           <CommandList>
             <CommandEmpty>No order found.</CommandEmpty>
             <CommandGroup>
-              {orders.map(o => (
-                <CommandItem
-                  key={o.id}
-                  value={o.customer || o.id}
-                  onSelect={() => { onChange(o.id, `${o.customer} · ${o.id.slice(0, 8)}`); setOpen(false); }}
-                  className="flex items-center gap-2"
-                >
-                  <Check className={cn('w-4 h-4', value === o.id ? 'opacity-100' : 'opacity-0')} />
-                  <div className="flex flex-col">
-                    <span className="text-sm">{o.customer}</span>
-                    <span className="text-xs text-muted-foreground">{o.id.slice(0, 8)} · {o.status}</span>
-                  </div>
-                </CommandItem>
-              ))}
+              {orders.map(o => {
+                const models = orderModelSummary(o);
+                return (
+                  <CommandItem
+                    key={o.id}
+                    // Searchable by customer, date, models, and status
+                    value={`${o.customer} ${o.placed} ${models} ${o.status}`}
+                    onSelect={() => { onChange(o.id, `${o.customer} · ${o.placed}`); setOpen(false); }}
+                    className="flex items-start gap-2"
+                  >
+                    <Check className={cn('w-4 h-4 mt-0.5 shrink-0', value === o.id ? 'opacity-100' : 'opacity-0')} />
+                    <div className="flex flex-col min-w-0">
+                      <span className="text-sm truncate">{o.customer}</span>
+                      <span className="text-xs text-muted-foreground truncate">
+                        {o.placed} · {models} · {o.status}
+                      </span>
+                    </div>
+                  </CommandItem>
+                );
+              })}
             </CommandGroup>
           </CommandList>
         </Command>
