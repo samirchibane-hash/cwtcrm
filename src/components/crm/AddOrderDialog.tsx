@@ -2,14 +2,13 @@ import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -168,23 +167,24 @@ const AddOrderDialog = ({
   const hasDefaultCompany = Boolean(defaultCompanyName);
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
+    <Sheet open={open} onOpenChange={handleOpenChange}>
+      <SheetTrigger asChild>
         {trigger || (
           <Button className="gap-2">
             <Plus className="h-4 w-4" />
             New Order
           </Button>
         )}
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Create New Order</DialogTitle>
-          <DialogDescription>
-            Add a new order with product models and quantities.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 py-4">
+      </SheetTrigger>
+      <SheetContent side="right" className="w-full sm:max-w-2xl p-6 flex flex-col">
+        <div className="flex h-full flex-col">
+          <SheetHeader className="shrink-0 pb-5 border-b border-border pr-8 text-left">
+            <SheetTitle>Create New Order</SheetTitle>
+            <SheetDescription>
+              Add a new order with product models and quantities.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex-1 overflow-y-auto -mx-6 px-6 py-6 grid gap-4 content-start">
           {!hasDefaultCompany && (
             <div className="grid gap-2">
               <Label htmlFor="company">Link to Company (Optional)</Label>
@@ -329,17 +329,18 @@ const AddOrderDialog = ({
               ))}
             </div>
           </div>
+          </div>
+          <div className="shrink-0 pt-4 border-t border-border flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmit} disabled={isSubmitting}>
+              {isSubmitting ? 'Creating...' : 'Create Order'}
+            </Button>
+          </div>
         </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setOpen(false)}>
-            Cancel
-          </Button>
-          <Button onClick={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? 'Creating...' : 'Create Order'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      </SheetContent>
+    </Sheet>
   );
 };
 
