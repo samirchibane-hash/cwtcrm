@@ -80,7 +80,11 @@ export async function sendMessage(
   return await res.json() as { id: string; threadId: string };
 }
 
-/** The RFC Message-ID, needed as In-Reply-To so the next touch threads correctly. */
+/**
+ * The RFC Message-ID, needed as In-Reply-To so the next touch threads correctly.
+ * Gmail returns this header as `Message-Id`, so the lookup must be
+ * case-insensitive — an exact match on `Message-ID` silently returns nothing.
+ */
 export async function getRfcMessageId(token: string, gmailId: string): Promise<string> {
   const res = await fetch(
     `https://gmail.googleapis.com/gmail/v1/users/me/messages/${gmailId}?format=metadata&metadataHeaders=Message-ID`,
@@ -88,7 +92,7 @@ export async function getRfcMessageId(token: string, gmailId: string): Promise<s
   );
   if (!res.ok) return '';
   const data = await res.json() as { payload?: { headers?: { name: string; value: string }[] } };
-  return data.payload?.headers?.find((h) => h.name === 'Message-ID')?.value ?? '';
+  return data.payload?.headers?.find((h) => h.name.toLowerCase() === 'message-id')?.value ?? '';
 }
 
 /**

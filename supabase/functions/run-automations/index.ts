@@ -257,7 +257,9 @@ serve(async (req) => {
 
       // Reply is the default; 'new' deliberately opens a fresh thread. The first
       // touch has nothing to reply to, so it always starts one regardless.
-      const hasThread = Boolean(e.gmail_thread_id && e.last_rfc_message_id);
+      // The thread id alone is enough to reply — a missing Message-ID costs us
+      // the In-Reply-To header but must not demote the touch to a new thread.
+      const hasThread = Boolean(e.gmail_thread_id);
       const startNewThread = step.send_as === 'new' || !hasThread;
       // Merge fields must be substituted in the subject too, not just the body.
       // thread_subject is stored already rendered.
