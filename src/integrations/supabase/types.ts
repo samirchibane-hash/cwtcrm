@@ -14,6 +14,426 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_log: {
+        Row: {
+          calls: number
+          created_at: string
+          date: string
+          emails: number
+          id: string
+          linkedin: number
+          logged_by: string
+          note: string | null
+          prospect_id: string | null
+        }
+        Insert: {
+          calls?: number
+          created_at?: string
+          date: string
+          emails?: number
+          id?: string
+          linkedin?: number
+          logged_by: string
+          note?: string | null
+          prospect_id?: string | null
+        }
+        Update: {
+          calls?: number
+          created_at?: string
+          date?: string
+          emails?: number
+          id?: string
+          linkedin?: number
+          logged_by?: string
+          note?: string | null
+          prospect_id?: string | null
+        }
+        Relationships: []
+      }
+      automation_settings: {
+        Row: {
+          daily_send_cap: number
+          enabled: boolean
+          id: boolean
+          max_sends_per_tick: number
+          send_days: number[]
+          send_window_end: number
+          send_window_start: number
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          daily_send_cap?: number
+          enabled?: boolean
+          id?: boolean
+          max_sends_per_tick?: number
+          send_days?: number[]
+          send_window_end?: number
+          send_window_start?: number
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          daily_send_cap?: number
+          enabled?: boolean
+          id?: boolean
+          max_sends_per_tick?: number
+          send_days?: number[]
+          send_window_end?: number
+          send_window_start?: number
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      daily_recommendations: {
+        Row: {
+          action_type: string
+          contact_method: string | null
+          contact_name: string | null
+          created_at: string
+          date: string
+          id: string
+          priority: string
+          prospect_id: string | null
+          reason: string
+          snooze_until: string | null
+          status: string
+          talking_point: string | null
+          updated_at: string
+        }
+        Insert: {
+          action_type: string
+          contact_method?: string | null
+          contact_name?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          priority: string
+          prospect_id?: string | null
+          reason: string
+          snooze_until?: string | null
+          status?: string
+          talking_point?: string | null
+          updated_at?: string
+        }
+        Update: {
+          action_type?: string
+          contact_method?: string | null
+          contact_name?: string | null
+          created_at?: string
+          date?: string
+          id?: string
+          priority?: string
+          prospect_id?: string | null
+          reason?: string
+          snooze_until?: string | null
+          status?: string
+          talking_point?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      email_threads: {
+        Row: {
+          contact_email: string
+          contact_name: string | null
+          created_at: string
+          gmail_message_id: string
+          gmail_thread_id: string
+          id: string
+          outreach_session_id: string | null
+          prospect_id: string
+          responded: boolean
+          responded_at: string | null
+          sent_at: string
+          sequence_number: number
+          skipped: boolean
+          subject: string
+        }
+        Insert: {
+          contact_email: string
+          contact_name?: string | null
+          created_at?: string
+          gmail_message_id: string
+          gmail_thread_id: string
+          id?: string
+          outreach_session_id?: string | null
+          prospect_id: string
+          responded?: boolean
+          responded_at?: string | null
+          sent_at?: string
+          sequence_number?: number
+          skipped?: boolean
+          subject: string
+        }
+        Update: {
+          contact_email?: string
+          contact_name?: string | null
+          created_at?: string
+          gmail_message_id?: string
+          gmail_thread_id?: string
+          id?: string
+          outreach_session_id?: string | null
+          prospect_id?: string
+          responded?: boolean
+          responded_at?: string | null
+          sent_at?: string
+          sequence_number?: number
+          skipped?: boolean
+          subject?: string
+        }
+        Relationships: []
+      }
+      outreach_sessions: {
+        Row: {
+          approved_email_ids: Json | null
+          approved_import_ids: Json | null
+          body_template: string | null
+          created_at: string | null
+          discovered_contacts: Json
+          email_body: string | null
+          email_mode: string | null
+          email_subject: string | null
+          followup_of_session_id: string | null
+          followup_sequence: number
+          hook: string | null
+          id: string
+          prospect_id: string | null
+          prospect_name: string
+          session_type: string
+          status: string
+          updated_at: string | null
+          wqa_body_template: string | null
+        }
+        Insert: {
+          approved_email_ids?: Json | null
+          approved_import_ids?: Json | null
+          body_template?: string | null
+          created_at?: string | null
+          discovered_contacts?: Json
+          email_body?: string | null
+          email_mode?: string | null
+          email_subject?: string | null
+          followup_of_session_id?: string | null
+          followup_sequence?: number
+          hook?: string | null
+          id?: string
+          prospect_id?: string | null
+          prospect_name: string
+          session_type?: string
+          status?: string
+          updated_at?: string | null
+          wqa_body_template?: string | null
+        }
+        Update: {
+          approved_email_ids?: Json | null
+          approved_import_ids?: Json | null
+          body_template?: string | null
+          created_at?: string | null
+          discovered_contacts?: Json
+          email_body?: string | null
+          email_mode?: string | null
+          email_subject?: string | null
+          followup_of_session_id?: string | null
+          followup_sequence?: number
+          hook?: string | null
+          id?: string
+          prospect_id?: string | null
+          prospect_name?: string
+          session_type?: string
+          status?: string
+          updated_at?: string | null
+          wqa_body_template?: string | null
+        }
+        Relationships: []
+      }
+      prospect_suggestions: {
+        Row: {
+          approved_company_ids: Json
+          created_at: string
+          decline_reasons: Json | null
+          declined_company_ids: Json | null
+          discovered_companies: Json
+          id: string
+          run_label: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          approved_company_ids?: Json
+          created_at?: string
+          decline_reasons?: Json | null
+          declined_company_ids?: Json | null
+          discovered_companies?: Json
+          id?: string
+          run_label?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          approved_company_ids?: Json
+          created_at?: string
+          decline_reasons?: Json | null
+          declined_company_ids?: Json | null
+          discovered_companies?: Json
+          id?: string
+          run_label?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      workflow_templates: {
+        Row: {
+          archived: boolean
+          created_at: string
+          created_by: string | null
+          derived_from_enrollment_id: string | null
+          description: string | null
+          exit_on_reply: boolean
+          id: string
+          name: string
+          steps: Json
+          updated_at: string
+        }
+        Insert: {
+          archived?: boolean
+          created_at?: string
+          created_by?: string | null
+          derived_from_enrollment_id?: string | null
+          description?: string | null
+          exit_on_reply?: boolean
+          id?: string
+          name: string
+          steps?: Json
+          updated_at?: string
+        }
+        Update: {
+          archived?: boolean
+          created_at?: string
+          created_by?: string | null
+          derived_from_enrollment_id?: string | null
+          description?: string | null
+          exit_on_reply?: boolean
+          id?: string
+          name?: string
+          steps?: Json
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      workflow_enrollments: {
+        Row: {
+          completed_at: string | null
+          contact_email: string
+          contact_name: string | null
+          created_at: string
+          current_step: number
+          enrolled_at: string
+          exit_on_reply: boolean
+          gmail_thread_id: string | null
+          id: string
+          last_error: string | null
+          last_rfc_message_id: string | null
+          next_run_at: string | null
+          prospect_id: string
+          prospect_name: string | null
+          status: string
+          steps: Json
+          template_id: string | null
+          template_name: string | null
+          thread_subject: string | null
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          contact_email: string
+          contact_name?: string | null
+          created_at?: string
+          current_step?: number
+          enrolled_at?: string
+          exit_on_reply?: boolean
+          gmail_thread_id?: string | null
+          id?: string
+          last_error?: string | null
+          last_rfc_message_id?: string | null
+          next_run_at?: string | null
+          prospect_id: string
+          prospect_name?: string | null
+          status?: string
+          steps?: Json
+          template_id?: string | null
+          template_name?: string | null
+          thread_subject?: string | null
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          contact_email?: string
+          contact_name?: string | null
+          created_at?: string
+          current_step?: number
+          enrolled_at?: string
+          exit_on_reply?: boolean
+          gmail_thread_id?: string | null
+          id?: string
+          last_error?: string | null
+          last_rfc_message_id?: string | null
+          next_run_at?: string | null
+          prospect_id?: string
+          prospect_name?: string | null
+          status?: string
+          steps?: Json
+          template_id?: string | null
+          template_name?: string | null
+          thread_subject?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      workflow_step_runs: {
+        Row: {
+          enrollment_id: string
+          error: string | null
+          gmail_message_id: string | null
+          gmail_thread_id: string | null
+          id: string
+          ran_at: string
+          rfc_message_id: string | null
+          status: string
+          step_id: string | null
+          step_index: number
+          subject: string | null
+        }
+        Insert: {
+          enrollment_id: string
+          error?: string | null
+          gmail_message_id?: string | null
+          gmail_thread_id?: string | null
+          id?: string
+          ran_at?: string
+          rfc_message_id?: string | null
+          status: string
+          step_id?: string | null
+          step_index: number
+          subject?: string | null
+        }
+        Update: {
+          enrollment_id?: string
+          error?: string | null
+          gmail_message_id?: string | null
+          gmail_thread_id?: string | null
+          id?: string
+          ran_at?: string
+          rfc_message_id?: string | null
+          status?: string
+          step_id?: string | null
+          step_index?: number
+          subject?: string | null
+        }
+        Relationships: []
+      }
       tasks: {
         Row: {
           id: string

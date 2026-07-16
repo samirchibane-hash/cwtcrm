@@ -1,5 +1,5 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Package, Truck, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle, Pencil, Copy, Check, CheckSquare } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Package, Truck, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle, Pencil, Copy, Check, CheckSquare, Zap, Pause, Play, Square as SquareIcon } from 'lucide-react';
 import { Contact, Engagement, CompanyType, MarketType, LeadTier, REPS, getRepConfig } from '@/data/prospects';
 import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import { parseDateLoose, formatMmDdYyyy } from '@/lib/date';
@@ -11,6 +11,8 @@ import MarketTypeBadge from '@/components/crm/MarketTypeBadge';
 import AddContactDialog from '@/components/crm/AddContactDialog';
 import EditContactDialog from '@/components/crm/EditContactDialog';
 import EditCompanyDetailsPanel from '@/components/crm/EditCompanyDetailsPanel';
+import EnrollInAutomationPanel from '@/components/crm/EnrollInAutomationPanel';
+import { useEnrollments, type Enrollment } from '@/hooks/useWorkflows';
 import EditNoteDialog from '@/components/crm/EditNoteDialog';
 import { EmailVerificationDialog } from '@/components/crm/EmailVerificationDialog';
 import AddOrderDialog from '@/components/crm/AddOrderDialog';
@@ -98,6 +100,11 @@ const CompanyPage = () => {
   const [lastContact, setLastContact] = useState('');
   const [engagementNotes, setEngagementNotes] = useState('');
   const [editPanelOpen, setEditPanelOpen] = useState(false);
+  const [enrollPanelOpen, setEnrollPanelOpen] = useState(false);
+  const [enrollContactId, setEnrollContactId] = useState<string | undefined>();
+  // The enroll panel and the rail's list hold separate hook state; bump this so
+  // a new enrollment shows up in the rail immediately.
+  const [enrollmentsVersion, setEnrollmentsVersion] = useState(0);
 
   const prospect = id ? getProspectById(id) : null;
   const { prospects } = useProspects();
@@ -550,6 +557,24 @@ const CompanyPage = () => {
                   {contacts.length > 0 && <span className="text-muted-foreground/60 font-normal">{contacts.length}</span>}
                 </h2>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl"
+                    disabled={!contacts.some(c => c.email)}
+                    title={
+                      contacts.some(c => c.email)
+                        ? 'Add a contact to an email automation'
+                        : 'Add a contact with an email address first'
+                    }
+                    onClick={() => {
+                      setEnrollContactId(undefined);
+                      setEnrollPanelOpen(true);
+                    }}
+                  >
+                    <Zap className="w-4 h-4 mr-2" />
+                    Automate
+                  </Button>
                   <EmailVerificationDialog
                     companyWebsite={website}
                     onEmailVerified={(email) => {
@@ -630,6 +655,17 @@ const CompanyPage = () => {
 
           {/* Right rail */}
           <div className="space-y-6">
+            {/* Email automations running for this company */}
+            <CompanyAutomationsSection
+              prospectId={prospect.id}
+              refreshKey={enrollmentsVersion}
+              onEnroll={(contactId) => {
+                setEnrollContactId(contactId);
+                setEnrollPanelOpen(true);
+              }}
+              canEnroll={contacts.some(c => c.email)}
+            />
+
             {/* Tasks for this company */}
             <CompanyTasksSection companyId={prospect.id} companyName={companyName} />
 
@@ -748,7 +784,139 @@ const CompanyPage = () => {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Add a contact to an email automation, editing the emails for this company */}
+      <Sheet open={enrollPanelOpen} onOpenChange={setEnrollPanelOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl p-6 flex flex-col">
+          {enrollPanelOpen && (
+            <EnrollInAutomationPanel
+              prospectId={prospect.id}
+              prospectName={companyName}
+              contacts={contacts}
+              initialContactId={enrollContactId}
+              onClose={() => setEnrollPanelOpen(false)}
+              onEnrolled={() => setEnrollmentsVersion(v => v + 1)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
     </div>
+  );
+};
+
+// Live email sequences for this company. Mirrors the Automations page controls
+// so a sequence can be paused or stopped without leaving the profile.
+const AUTOMATION_STATUS: Record<Enrollment['status'], { label: string; className: string }> = {
+  active: { label: 'Active', className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+  paused: { label: 'Paused', className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+  completed: { label: 'Done', className: 'bg-muted text-muted-foreground' },
+  replied: { label: 'Replied', className: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
+  stopped: { label: 'Stopped', className: 'bg-muted text-muted-foreground' },
+  failed: { label: 'Failed', className: 'bg-destructive/10 text-destructive' },
+};
+
+const CompanyAutomationsSection = ({
+  prospectId,
+  refreshKey,
+  onEnroll,
+  canEnroll,
+}: {
+  prospectId: string;
+  refreshKey: number;
+  onEnroll: (contactId?: string) => void;
+  canEnroll: boolean;
+}) => {
+  const { enrollments, reload, setStatus } = useEnrollments(prospectId);
+
+  useEffect(() => {
+    if (refreshKey > 0) reload();
+  }, [refreshKey, reload]);
+
+  const live = enrollments.filter(e => e.status === 'active' || e.status === 'paused');
+  const finished = enrollments.filter(e => e.status !== 'active' && e.status !== 'paused');
+
+  return (
+    <section className="content-card animate-fade-in">
+      <div className="flex items-center justify-between p-5 border-b border-border">
+        <h2 className="section-header mb-0 flex items-center gap-2">
+          <Zap className="w-4 h-4" />
+          Automations
+          {live.length > 0 && <span className="text-muted-foreground/60 font-normal">{live.length}</span>}
+        </h2>
+        {canEnroll && (
+          <Button variant="ghost" size="sm" className="rounded-xl" onClick={() => onEnroll()}>
+            <Plus className="w-4 h-4 mr-1" />
+            Add
+          </Button>
+        )}
+      </div>
+
+      {enrollments.length === 0 ? (
+        <div className="p-6 text-center">
+          <p className="text-sm text-muted-foreground">No sequences running</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">
+            Enroll a contact to start an automated email sequence.
+          </p>
+        </div>
+      ) : (
+        <div className="divide-y divide-border">
+          {[...live, ...finished].map(e => {
+            const status = AUTOMATION_STATUS[e.status];
+            const nextRun = e.nextRunAt ? parseDateLoose(e.nextRunAt) : null;
+            return (
+              <div key={e.id} className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{e.contactName || e.contactEmail}</p>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{e.templateName}</p>
+                  </div>
+                  <span className={`badge-soft shrink-0 ${status.className}`}>{status.label}</span>
+                </div>
+
+                <div className="flex items-center justify-between gap-2 mt-2">
+                  <p className="text-xs text-muted-foreground">
+                    Step {Math.min(e.currentStep + 1, e.steps.length)} of {e.steps.length}
+                    {e.status === 'active' && (
+                      <> · next {nextRun ? formatMmDdYyyy(nextRun) : 'soon'}</>
+                    )}
+                  </p>
+                  {(e.status === 'active' || e.status === 'paused') && (
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => setStatus(e.id, e.status === 'active' ? 'paused' : 'active')}
+                        aria-label={e.status === 'active' ? 'Pause sequence' : 'Resume sequence'}
+                      >
+                        {e.status === 'active' ? (
+                          <Pause className="w-3.5 h-3.5" />
+                        ) : (
+                          <Play className="w-3.5 h-3.5" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                        onClick={() => setStatus(e.id, 'stopped')}
+                        aria-label="Stop sequence"
+                      >
+                        <SquareIcon className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+
+                {e.lastError && (
+                  <p className="text-xs text-destructive mt-1.5 line-clamp-2">{e.lastError}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 };
 

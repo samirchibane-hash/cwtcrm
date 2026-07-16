@@ -10,6 +10,7 @@ import ActivityDashboard from '@/components/crm/ActivityDashboard';
 import { AIRecommendationsPage } from '@/components/crm/AIRecommendationsPage';
 import { OutreachAgentPage } from '@/components/crm/OutreachAgentPage';
 import { TasksPage } from '@/components/crm/TasksPage';
+import AutomationsPage from '@/components/crm/AutomationsPage';
 import { DailyBriefingPage } from '@/components/crm/DailyBriefingPage';
 import { Prospect } from '@/data/prospects';
 
@@ -21,7 +22,7 @@ const Index = () => {
   // Handle view query parameter (e.g., /?view=orders)
   useEffect(() => {
     const viewParam = searchParams.get('view');
-    if (viewParam && ['pipeline', 'prospects', 'agent', 'orders', 'reports', 'activity', 'tasks', 'briefing'].includes(viewParam)) {
+    if (viewParam && ['pipeline', 'prospects', 'agent', 'automations', 'orders', 'reports', 'activity', 'tasks', 'briefing'].includes(viewParam)) {
       setActiveView(viewParam);
     }
     // Support legacy params
@@ -44,6 +45,8 @@ const Index = () => {
         return <AIRecommendationsPage />;
       case 'agent':
         return <OutreachAgentPage />;
+      case 'automations':
+        return <AutomationsPage />;
       case 'orders':
         return <OrdersTable />;
       case 'reports':
@@ -63,6 +66,7 @@ const Index = () => {
       case 'pipeline': return 'Pipeline';
       case 'prospects': return 'AI Prospects';
       case 'agent': return 'Claude Agent';
+      case 'automations': return 'Automations';
       case 'orders': return 'Orders';
       case 'reports': return 'Reports';
       case 'activity': return 'Activity Tracker';
@@ -77,6 +81,7 @@ const Index = () => {
       case 'pipeline': return 'Manage and track all your prospects and customers';
       case 'prospects': return 'AI-recommended companies based on your existing pipeline';
       case 'agent': return 'Discover contacts, review, and launch outreach campaigns';
+      case 'automations': return 'Build email sequences that send themselves and stop when someone replies';
       case 'orders': return 'Track all customer orders and shipments';
       case 'reports': return 'Revenue analytics and business insights';
       case 'activity': return 'Aggregate call and email activity across all companies';
