@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { AlertCircle, BookmarkPlus, Send, Sparkles, User, Workflow, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -52,9 +53,10 @@ const EnrollInAutomationPanel = ({
   const { enroll } = useEnrollments(prospectId);
 
   const emailable = contacts.filter(c => c.email);
-  const [contactId, setContactId] = useState(
-    initialContactId ?? emailable[0]?.id ?? '',
-  );
+  const [contactIds, setContactIds] = useState<string[]>(() => {
+    const seed = initialContactId ?? emailable[0]?.id;
+    return seed ? [seed] : [];
+  });
   const [templateId, setTemplateId] = useState<string>('');
   const [steps, setSteps] = useState<WorkflowStep[]>([]);
   const [exitOnReply, setExitOnReply] = useState(true);
@@ -63,8 +65,19 @@ const EnrollInAutomationPanel = ({
   const [showSaveTemplate, setShowSaveTemplate] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState('');
 
-  const contact = emailable.find(c => c.id === contactId);
+  const selectedContacts = emailable.filter(c => contactIds.includes(c.id));
+  // The first pick drives the live preview and the section heading.
+  const contact = selectedContacts[0];
   const selectedTemplate = templates.find(t => t.id === templateId);
+
+  const toggleContact = (id: string) =>
+    setContactIds(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id],
+    );
+
+  const allSelected = emailable.length > 0 && contactIds.length === emailable.length;
+  const toggleAll = () =>
+    setContactIds(allSelected ? [] : emailable.map(c => c.id));
 
   const previewVars = useMemo(
     () => ({
@@ -106,7 +119,8 @@ const EnrollInAutomationPanel = ({
   }, [steps, selectedTemplate]);
 
   const errors = validateSteps(steps);
-  const canEnroll = Boolean(contact) && steps.length > 0 && errors.length === 0;
+  const canEnroll =
+    selectedContacts.length > 0 && steps.length > 0 && errors.length === 0;
 
   const handleSaveAsTemplate = async () => {
     if (!newTemplateName.trim()) return;
@@ -141,30 +155,49 @@ const EnrollInAutomationPanel = ({
   };
 
   const handleEnroll = async () => {
-    if (!contact?.email) return;
+    const targets = selectedContacts.filter(c => c.email);
+    if (targets.length === 0) return;
     setSaving(true);
-    const { enrollment, error } = await enroll({
-      template: selectedTemplate,
-      templateName: selectedTemplate?.name ?? 'Custom sequence',
-      prospectId,
-      prospectName,
-      contactEmail: contact.email,
-      contactName: contact.name,
-      steps,
-      exitOnReply,
-    });
+
+    const enrolled: string[] = [];
+    const failures: { name: string; error?: string }[] = [];
+    for (const c of targets) {
+      const { enrollment, error } = await enroll({
+        template: selectedTemplate,
+        templateName: selectedTemplate?.name ?? 'Custom sequence',
+        prospectId,
+        prospectName,
+        contactEmail: c.email!,
+        contactName: c.name,
+        // Same snapshot for everyone; per-contact variables resolve at send time.
+        steps,
+        exitOnReply,
+      });
+      if (error || !enrollment) failures.push({ name: c.name, error });
+      else enrolled.push(c.name);
+    }
+
     setSaving(false);
 
-    if (error || !enrollment) {
-      toast({ title: 'Could not enroll', description: error, variant: 'destructive' });
+    if (enrolled.length === 0) {
+      toast({
+        title: 'Could not enroll',
+        description: failures[0]?.error ?? 'No contacts were enrolled.',
+        variant: 'destructive',
+      });
       return;
     }
 
     const first = emailSteps(steps)[0];
-    toast({
-      title: `${contact.name} enrolled`,
-      description: `"${first?.subject || 'First email'}" sends on the next run.`,
-    });
+    const summary =
+      enrolled.length === 1
+        ? `${enrolled[0]} enrolled`
+        : `${enrolled.length} contacts enrolled`;
+    const description = failures.length
+      ? `${failures.length} skipped — ${failures[0].error ?? 'already enrolled'}.`
+      : `"${first?.subject || 'First email'}" sends on the next run.`;
+    toast({ title: summary, description });
+
     onEnrolled?.();
     onClose();
   };
@@ -206,19 +239,54 @@ const EnrollInAutomationPanel = ({
               </h2>
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Contact</Label>
-                  <Select value={contactId} onValueChange={setContactId}>
-                    <SelectTrigger className="rounded-xl">
-                      <SelectValue placeholder="Choose a contact" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {emailable.map(c => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.name} — {c.email}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center justify-between">
+                    <Label>
+                      Contacts
+                      {contactIds.length > 0 && (
+                        <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                          {contactIds.length} selected
+                        </span>
+                      )}
+                    </Label>
+                    {emailable.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={toggleAll}
+                        className="text-xs font-medium text-accent hover:underline"
+                      >
+                        {allSelected ? 'Clear all' : 'Select all'}
+                      </button>
+                    )}
+                  </div>
+                  <div className="rounded-xl border border-border divide-y divide-border overflow-hidden">
+                    {emailable.map(c => {
+                      const checked = contactIds.includes(c.id);
+                      return (
+                        <label
+                          key={c.id}
+                          className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
+                            checked ? 'bg-accent/5' : 'hover:bg-muted/40'
+                          }`}
+                        >
+                          <Checkbox
+                            checked={checked}
+                            onCheckedChange={() => toggleContact(c.id)}
+                          />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {c.name}
+                              {c.role && (
+                                <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                                  {c.role}
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">{c.email}</p>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
@@ -247,7 +315,7 @@ const EnrollInAutomationPanel = ({
                   <div className="pr-4">
                     <p className="text-sm font-medium">Stop when they reply</p>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      Remaining emails are cancelled as soon as {contact?.name?.split(' ')[0] || 'the contact'} responds.
+                      Remaining emails are cancelled for a contact as soon as they respond.
                     </p>
                   </div>
                   <Switch checked={exitOnReply} onCheckedChange={setExitOnReply} />
@@ -262,10 +330,20 @@ const EnrollInAutomationPanel = ({
                   <div>
                     <h2 className="section-header mb-1 flex items-center gap-2">
                       <Sparkles className="w-4 h-4 text-muted-foreground" />
-                      Emails for {contact?.name?.split(' ')[0] || 'this contact'}
+                      {selectedContacts.length > 1
+                        ? `Emails for ${selectedContacts.length} contacts`
+                        : `Emails for ${contact?.name?.split(' ')[0] || 'this contact'}`}
                     </h2>
                     <p className="text-xs text-muted-foreground">
-                      Edit freely — changes apply to this enrollment only, never the workflow.
+                      {selectedContacts.length > 1 ? (
+                        <>
+                          Personalized per contact with{' '}
+                          <code className="text-[11px]">{'{{firstName}}'}</code>. Changes apply to
+                          these enrollments only, never the workflow.
+                        </>
+                      ) : (
+                        'Edit freely — changes apply to this enrollment only, never the workflow.'
+                      )}
                     </p>
                   </div>
                   {isEdited && selectedTemplate && (
@@ -360,6 +438,7 @@ const EnrollInAutomationPanel = ({
             <>
               {emailSteps(steps).length} email{emailSteps(steps).length === 1 ? '' : 's'} over{' '}
               {totalDays(steps)} days
+              {selectedContacts.length > 1 && ` · ${selectedContacts.length} contacts`}
             </>
           )}
         </p>
@@ -369,7 +448,11 @@ const EnrollInAutomationPanel = ({
           </Button>
           <Button onClick={handleEnroll} disabled={!canEnroll || saving} className="rounded-xl">
             <Send className="w-4 h-4 mr-2" />
-            {saving ? 'Enrolling…' : 'Enroll & start'}
+            {saving
+              ? 'Enrolling…'
+              : selectedContacts.length > 1
+                ? `Enroll ${selectedContacts.length} & start`
+                : 'Enroll & start'}
           </Button>
         </div>
       </div>
