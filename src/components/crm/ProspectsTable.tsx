@@ -229,6 +229,64 @@ const LastContactFilterSection = ({
   );
 };
 
+const EngagementsFilterSection = ({
+  engagementsMin, engagementsMax, setEngagementsMin, setEngagementsMax, hasEngagementsFilter,
+}: {
+  engagementsMin: string; engagementsMax: string;
+  setEngagementsMin: (v: string) => void; setEngagementsMax: (v: string) => void;
+  hasEngagementsFilter: boolean;
+}) => {
+  const [open, setOpen] = useState(false);
+  const sanitize = (v: string) => v.replace(/[^0-9]/g, '');
+  return (
+    <div className="border-b border-border last:border-b-0">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center justify-between w-full p-3 hover:bg-muted/30 transition-colors"
+      >
+        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+          <ChevronRight className={cn("h-3 w-3 transition-transform", open && "rotate-90")} />
+          # of Engagements
+          {hasEngagementsFilter && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-accent text-accent-foreground font-medium normal-case">1</span>
+          )}
+        </span>
+      </button>
+      {open && (
+        <div className="px-3 pb-3 space-y-2">
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              placeholder="Min"
+              value={engagementsMin}
+              onChange={(e) => setEngagementsMin(sanitize(e.target.value))}
+              className="flex-1 h-8 text-xs"
+            />
+            <span className="text-xs text-muted-foreground">–</span>
+            <Input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              placeholder="Max"
+              value={engagementsMax}
+              onChange={(e) => setEngagementsMax(sanitize(e.target.value))}
+              className="flex-1 h-8 text-xs"
+            />
+          </div>
+          {hasEngagementsFilter && (
+            <button onClick={() => { setEngagementsMin(''); setEngagementsMax(''); }} className="text-[10px] text-muted-foreground hover:text-foreground transition-colors">
+              Clear range
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -262,9 +320,17 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const [verticalFilterMode, setVerticalFilterMode] = useState<'include' | 'exclude'>(() =>
     searchParams.get('verticalMode') === 'exclude' ? 'exclude' : 'include'
   );
-  const [lastContactFrom, setLastContactFrom] = useState<Date | undefined>(undefined);
-  const [lastContactTo, setLastContactTo] = useState<Date | undefined>(undefined);
+  const [lastContactFrom, setLastContactFrom] = useState<Date | undefined>(() => {
+    const val = searchParams.get('lastContactFrom');
+    return val ? new Date(val) : undefined;
+  });
+  const [lastContactTo, setLastContactTo] = useState<Date | undefined>(() => {
+    const val = searchParams.get('lastContactTo');
+    return val ? new Date(val) : undefined;
+  });
   const [lastContactCalendarOpen, setLastContactCalendarOpen] = useState<'from' | 'to' | null>(null);
+  const [engagementsMin, setEngagementsMin] = useState<string>(() => searchParams.get('engMin') || '');
+  const [engagementsMax, setEngagementsMax] = useState<string>(() => searchParams.get('engMax') || '');
   const [sortField, setSortField] = useState<SortField | null>(() => {
     const field = searchParams.get('sortField');
     if (field && ['companyName', 'contacts', 'state', 'type', 'leadTier', 'stage', 'lastContact', 'engagements'].includes(field)) {
@@ -298,6 +364,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         ...(typeFilterMode === 'exclude' && { typeMode: 'exclude' }),
         ...(stageFilterMode === 'exclude' && { stageMode: 'exclude' }),
         ...(verticalFilterMode === 'exclude' && { verticalMode: 'exclude' }),
+        ...(engagementsMin && { engMin: engagementsMin }),
+        ...(engagementsMax && { engMax: engagementsMax }),
       },
       ...(lastContactFrom && { lastContactFrom: lastContactFrom.toISOString() }),
       ...(lastContactTo && { lastContactTo: lastContactTo.toISOString() }),
@@ -322,6 +390,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     setVerticalFilterMode(preset.params.verticalMode === 'exclude' ? 'exclude' : 'include');
     setLastContactFrom(preset.lastContactFrom ? new Date(preset.lastContactFrom) : undefined);
     setLastContactTo(preset.lastContactTo ? new Date(preset.lastContactTo) : undefined);
+    setEngagementsMin(preset.params.engMin || '');
+    setEngagementsMax(preset.params.engMax || '');
   };
 
   const deletePreset = (id: string) => {
@@ -359,7 +429,19 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
 
     if (verticalFilterMode === 'exclude') newParams.set('verticalMode', 'exclude');
     else newParams.delete('verticalMode');
-    
+
+    if (lastContactFrom) newParams.set('lastContactFrom', lastContactFrom.toISOString());
+    else newParams.delete('lastContactFrom');
+
+    if (lastContactTo) newParams.set('lastContactTo', lastContactTo.toISOString());
+    else newParams.delete('lastContactTo');
+
+    if (engagementsMin) newParams.set('engMin', engagementsMin);
+    else newParams.delete('engMin');
+
+    if (engagementsMax) newParams.set('engMax', engagementsMax);
+    else newParams.delete('engMax');
+
     if (sortField && sortDirection) {
       newParams.set('sortField', sortField);
       newParams.set('sortDir', sortDirection);
@@ -370,7 +452,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     if (newParams.toString() !== searchParams.toString()) {
       setSearchParams(newParams, { replace: true });
     }
-  }, [searchQuery, typeFilter, stageFilter, verticalFilter, typeFilterMode, stageFilterMode, verticalFilterMode, sortField, sortDirection, searchParams, setSearchParams]);
+  }, [searchQuery, typeFilter, stageFilter, verticalFilter, typeFilterMode, stageFilterMode, verticalFilterMode, lastContactFrom, lastContactTo, engagementsMin, engagementsMax, sortField, sortDirection, searchParams, setSearchParams]);
 
   // Filter options: merge static constants with any custom stages present in actual data
   const types = COMPANY_TYPES.filter(t => t !== '');
@@ -387,7 +469,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const { allVerticals } = useProductVerticals();
 
   const hasLastContactFilter = lastContactFrom !== undefined || lastContactTo !== undefined;
-  const totalActiveFilters = typeFilter.length + stageFilter.length + verticalFilter.length + (hasLastContactFilter ? 1 : 0);
+  const hasEngagementsFilter = engagementsMin !== '' || engagementsMax !== '';
+  const totalActiveFilters = typeFilter.length + stageFilter.length + verticalFilter.length + (hasLastContactFilter ? 1 : 0) + (hasEngagementsFilter ? 1 : 0);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -449,7 +532,16 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         }
       }
 
-      return matchesSearch && matchesType && matchesStage && matchesVertical && matchesLastContact;
+      let matchesEngagements = true;
+      if (engagementsMin !== '' || engagementsMax !== '') {
+        const engagementCount = (prospect.engagements || []).length;
+        const min = engagementsMin !== '' ? parseInt(engagementsMin, 10) : null;
+        const max = engagementsMax !== '' ? parseInt(engagementsMax, 10) : null;
+        if (min !== null && !Number.isNaN(min) && engagementCount < min) matchesEngagements = false;
+        if (max !== null && !Number.isNaN(max) && engagementCount > max) matchesEngagements = false;
+      }
+
+      return matchesSearch && matchesType && matchesStage && matchesVertical && matchesLastContact && matchesEngagements;
     });
 
     if (sortField && sortDirection) {
@@ -499,7 +591,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     }
 
     return result;
-  }, [prospects, searchQuery, typeFilter, stageFilter, verticalFilter, typeFilterMode, stageFilterMode, verticalFilterMode, lastContactFrom, lastContactTo, sortField, sortDirection]);
+  }, [prospects, searchQuery, typeFilter, stageFilter, verticalFilter, typeFilterMode, stageFilterMode, verticalFilterMode, lastContactFrom, lastContactTo, engagementsMin, engagementsMax, sortField, sortDirection]);
 
   const handleRowClick = (prospect: Prospect) => {
     const prospectIds = filteredAndSortedProspects.map(p => p.id);
@@ -560,6 +652,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                       setVerticalFilterMode('include');
                       setLastContactFrom(undefined);
                       setLastContactTo(undefined);
+                      setEngagementsMin('');
+                      setEngagementsMax('');
                     }}
                     className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                   >
@@ -604,6 +698,14 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   lastContactCalendarOpen={lastContactCalendarOpen}
                   setLastContactCalendarOpen={setLastContactCalendarOpen}
                   hasLastContactFilter={hasLastContactFilter}
+                />
+                {/* # of Engagements Range - collapsible */}
+                <EngagementsFilterSection
+                  engagementsMin={engagementsMin}
+                  engagementsMax={engagementsMax}
+                  setEngagementsMin={setEngagementsMin}
+                  setEngagementsMax={setEngagementsMax}
+                  hasEngagementsFilter={hasEngagementsFilter}
                 />
               </div>
               {/* Saved Presets Footer */}
