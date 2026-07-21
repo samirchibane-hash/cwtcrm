@@ -173,15 +173,27 @@ export const getProspectById = (id: string): Prospect | undefined => {
   return prospects.find(p => p.id === id);
 };
 
+// Ordered by pipeline progression, then the tags that sit outside the funnel.
+// This is the full canonical set — every stage in use should live here so it is
+// selectable everywhere. Stages found only in data are merged in by useStageOptions.
 export const PIPELINE_STAGES = [
   'Contact Made',
   'Disco Call',
   'Sample Req',
   'Quotes',
+  'Purchase Order',
   'Closed Won',
-  'No Current Interest',
+  'Replenishment Order',
+  'Maintenance',
+  'Office Visit',
+  'International',
   'Longterm',
+  'No Current Interest',
 ];
+
+// "New Lead" is implied by an empty stage (see PipelineView), so it is never offered
+// as a choice; "Contacted" is legacy wording for "Contact Made".
+export const HIDDEN_STAGES = ['new lead', 'contacted'];
 
 export const getStageColor = (stage: string): { bg: string; text: string } => {
   const stageLower = stage.toLowerCase().trim();
@@ -193,6 +205,12 @@ export const getStageColor = (stage: string): { bg: string; text: string } => {
   if (stageLower === 'disco call') return { bg: 'bg-stage-disco', text: 'text-stage-disco-foreground' };
   if (stageLower === 'new lead') return { bg: 'bg-stage-new', text: 'text-stage-new-foreground' };
   if (stageLower === 'longterm') return { bg: 'bg-stage-longterm', text: 'text-stage-longterm-foreground' };
+  if (stageLower === 'purchase order') return { bg: 'bg-stage-purchase', text: 'text-stage-purchase-foreground' };
+  // "Replishment" is the legacy misspelling still present on older records.
+  if (stageLower === 'replenishment order' || stageLower === 'replishment order') return { bg: 'bg-stage-repeat', text: 'text-stage-repeat-foreground' };
+  if (stageLower === 'maintenance') return { bg: 'bg-stage-maintenance', text: 'text-stage-maintenance-foreground' };
+  if (stageLower === 'office visit') return { bg: 'bg-stage-visit', text: 'text-stage-visit-foreground' };
+  if (stageLower === 'international') return { bg: 'bg-stage-international', text: 'text-stage-international-foreground' };
   return { bg: 'bg-stage-new', text: 'text-stage-new-foreground' };
 };
 

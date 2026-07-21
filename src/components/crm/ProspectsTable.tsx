@@ -7,8 +7,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils';
 import { exportToCSV } from '@/lib/export-csv';
 import { useProspects } from '@/context/ProspectsContext';
-import { Prospect, COMPANY_TYPES, PIPELINE_STAGES, LEAD_TIERS } from '@/data/prospects';
+import { Prospect, COMPANY_TYPES, LEAD_TIERS } from '@/data/prospects';
 import { useProductVerticals } from '@/hooks/useProductVerticals';
+import { useStageOptions } from '@/hooks/useStageOptions';
 import { getProspectLastContactLabel, getProspectLastContactSortValue, getProspectLastContactDate } from '@/lib/prospect-last-contact';
 import StageBadge from './StageBadge';
 import { Input } from '@/components/ui/input';
@@ -456,14 +457,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
 
   // Filter options: merge static constants with any custom stages present in actual data
   const types = COMPANY_TYPES.filter(t => t !== '');
-  const EXCLUDED_STAGES = ['new lead', 'contacted'];
-  const stages = useMemo(() => {
-    const stagesFromData = prospects.flatMap(p =>
-      p.stage ? p.stage.split(',').map(s => s.trim()).filter(Boolean) : []
-    );
-    const merged = Array.from(new Set([...PIPELINE_STAGES, ...stagesFromData]));
-    return merged.filter(s => !EXCLUDED_STAGES.includes(s.toLowerCase()));
-  }, [prospects]);
+  const { allStages: stages } = useStageOptions();
   // Lead Tiers now live inside the Stage filter, listed ahead of the pipeline stages.
   const stageAndTierOptions = useMemo(() => [...LEAD_TIERS, ...stages], [stages]);
   const { allVerticals } = useProductVerticals();

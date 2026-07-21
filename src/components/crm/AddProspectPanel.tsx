@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, X, Building2, MapPin, GitBranch, Link2 } from 'lucide-react';
+import { Plus, Building2, MapPin, GitBranch, Link2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,8 @@ import {
 import { useProspects } from '@/context/ProspectsContext';
 import { useToast } from '@/hooks/use-toast';
 import { useProductVerticals } from '@/hooks/useProductVerticals';
-import { CompanyType, MarketType, PIPELINE_STAGES, COMPANY_TYPES, getStageColor } from '@/data/prospects';
+import { CompanyType, MarketType, COMPANY_TYPES } from '@/data/prospects';
+import StagePicker from '@/components/crm/StagePicker';
 
 const ADD_NEW_VALUE = '__add_new__';
 
@@ -32,7 +33,7 @@ const AddProspectPanel = ({ defaultType }: AddProspectPanelProps) => {
   const [zip, setZip] = useState('');
   const [type, setType] = useState<CompanyType | ''>(defaultType || '');
   const [marketType, setMarketType] = useState<string>('');
-  const [selectedStages, setSelectedStages] = useState<string[]>([]);
+  const [stage, setStage] = useState('');
   const [linkedIn, setLinkedIn] = useState('');
   const [website, setWebsite] = useState('');
   const [phone, setPhone] = useState('');
@@ -44,16 +45,6 @@ const AddProspectPanel = ({ defaultType }: AddProspectPanelProps) => {
   const { toast } = useToast();
   const { allVerticals, addVertical } = useProductVerticals();
 
-  const addStage = (stage: string) => {
-    if (!selectedStages.includes(stage)) {
-      setSelectedStages([...selectedStages, stage]);
-    }
-  };
-
-  const removeStage = (stage: string) => {
-    setSelectedStages(selectedStages.filter(s => s !== stage));
-  };
-
   const resetForm = () => {
     setCompanyName('');
     setStreet('');
@@ -63,7 +54,7 @@ const AddProspectPanel = ({ defaultType }: AddProspectPanelProps) => {
     setZip('');
     setType(defaultType || '');
     setMarketType('');
-    setSelectedStages([]);
+    setStage('');
     setLinkedIn('');
     setWebsite('');
     setPhone('');
@@ -106,7 +97,7 @@ const AddProspectPanel = ({ defaultType }: AddProspectPanelProps) => {
       type: type || '',
       marketType: (marketType || '') as MarketType,
       leadTier: '',
-      stage: selectedStages.length > 0 ? selectedStages.join(', ') : 'Contact Made',
+      stage: stage.trim() || 'Contact Made',
       lastContact: new Date().toLocaleDateString('en-US'),
       engagementNotes: '',
       linkedIn: linkedIn.trim(),
@@ -261,46 +252,11 @@ const AddProspectPanel = ({ defaultType }: AddProspectPanelProps) => {
                 <GitBranch className="w-4 h-4 text-muted-foreground" />
                 Pipeline Stages
               </h2>
-              <div className="space-y-2">
-                {selectedStages.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {selectedStages.map((stg) => {
-                      const colors = getStageColor(stg);
-                      return (
-                        <span
-                          key={stg}
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}
-                        >
-                          {stg}
-                          <button
-                            type="button"
-                            onClick={() => removeStage(stg)}
-                            className="hover:opacity-70 transition-opacity"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-                <Select
-                  value=""
-                  onValueChange={(value) => {
-                    if (value) addStage(value);
-                  }}
-                >
-                  <SelectTrigger className="rounded-xl">
-                    <SelectValue placeholder="Add a stage..." />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl bg-background">
-                    {PIPELINE_STAGES.filter(s => !selectedStages.includes(s)).map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Defaults to “Contact Made” if none selected.</p>
-              </div>
+              <StagePicker
+                value={stage}
+                onChange={setStage}
+                hint="Defaults to “Contact Made” if none selected."
+              />
             </section>
 
             {/* Location */}

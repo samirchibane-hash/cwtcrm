@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Building2, X, Plus, Save, MapPin, GitBranch, Link2 } from 'lucide-react';
-import { CompanyType, MarketType, LeadTier, COMPANY_TYPES, PIPELINE_STAGES, getStageColor } from '@/data/prospects';
+import { Building2, Plus, Save, MapPin, GitBranch, Link2 } from 'lucide-react';
+import { CompanyType, MarketType, LeadTier, COMPANY_TYPES } from '@/data/prospects';
+import StagePicker from '@/components/crm/StagePicker';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -42,24 +43,10 @@ const ADD_NEW_VALUE = '__add_new__';
 
 const EditCompanyDetailsPanel = ({ currentDetails, onSave, onClose }: EditCompanyDetailsPanelProps) => {
   const [details, setDetails] = useState<CompanyDetails>(currentDetails);
-  const [stageInput, setStageInput] = useState('');
   const [newMarketType, setNewMarketType] = useState('');
   const [showNewMarketInput, setShowNewMarketInput] = useState(false);
   const { toast } = useToast();
   const { allVerticals, addVertical } = useProductVerticals();
-
-  const selectedStages = details.stage ? details.stage.split(',').map(s => s.trim()).filter(Boolean) : [];
-
-  const addStage = (stage: string) => {
-    if (!selectedStages.includes(stage)) {
-      setDetails(prev => ({ ...prev, stage: [...selectedStages, stage].join(', ') }));
-    }
-    setStageInput('');
-  };
-
-  const removeStage = (stage: string) => {
-    setDetails(prev => ({ ...prev, stage: selectedStages.filter(s => s !== stage).join(', ') }));
-  };
 
   const handleAddNewMarketType = () => {
     if (newMarketType.trim()) {
@@ -230,45 +217,10 @@ const EditCompanyDetailsPanel = ({ currentDetails, onSave, onClose }: EditCompan
             <GitBranch className="w-4 h-4 text-muted-foreground" />
             Pipeline Stages
           </h2>
-          <div className="space-y-2">
-            {selectedStages.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-2">
-                {selectedStages.map((stage) => {
-                  const colors = getStageColor(stage);
-                  return (
-                    <span
-                      key={stage}
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${colors.bg} ${colors.text}`}
-                    >
-                      {stage}
-                      <button
-                        type="button"
-                        onClick={() => removeStage(stage)}
-                        className="hover:opacity-70 transition-opacity"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  );
-                })}
-              </div>
-            )}
-            <Select
-              value={stageInput}
-              onValueChange={(value) => {
-                if (value && value !== NONE_VALUE) addStage(value);
-              }}
-            >
-              <SelectTrigger className="rounded-xl">
-                <SelectValue placeholder="Add a stage..." />
-              </SelectTrigger>
-              <SelectContent className="rounded-xl bg-background">
-                {PIPELINE_STAGES.filter(s => !selectedStages.includes(s)).map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <StagePicker
+            value={details.stage}
+            onChange={(stage) => updateField('stage', stage)}
+          />
         </section>
 
         {/* Location */}
