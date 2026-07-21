@@ -8,8 +8,7 @@ import { useProspects } from '@/context/ProspectsContext';
 import StageBadge from '@/components/crm/StageBadge';
 import TypeBadge from '@/components/crm/TypeBadge';
 import MarketTypeBadge from '@/components/crm/MarketTypeBadge';
-import AddContactDialog from '@/components/crm/AddContactDialog';
-import EditContactDialog from '@/components/crm/EditContactDialog';
+import ContactDetailsPanel from '@/components/crm/ContactDetailsPanel';
 import EditCompanyDetailsPanel from '@/components/crm/EditCompanyDetailsPanel';
 import EnrollInAutomationPanel from '@/components/crm/EnrollInAutomationPanel';
 import { useEnrollments, type Enrollment } from '@/hooks/useWorkflows';
@@ -102,6 +101,9 @@ const CompanyPage = () => {
   const [editPanelOpen, setEditPanelOpen] = useState(false);
   const [enrollPanelOpen, setEnrollPanelOpen] = useState(false);
   const [enrollContactId, setEnrollContactId] = useState<string | undefined>();
+  const [contactPanelOpen, setContactPanelOpen] = useState(false);
+  // undefined = adding a new contact, otherwise the contact being edited
+  const [editingContact, setEditingContact] = useState<Contact | undefined>();
   // The enroll panel and the rail's list hold separate hook state; bump this so
   // a new enrollment shows up in the rail immediately.
   const [enrollmentsVersion, setEnrollmentsVersion] = useState(0);
@@ -258,16 +260,22 @@ const CompanyPage = () => {
     navigate('/?view=prospects');
   };
 
-  const handleAddContact = (newContact: Contact) => {
-    const updatedContacts = [...contacts, newContact];
-    setContacts(updatedContacts);
-    saveProspect({ contacts: updatedContacts });
+  const openAddContact = () => {
+    setEditingContact(undefined);
+    setContactPanelOpen(true);
   };
 
-  const handleUpdateContact = (updatedContact: Contact) => {
-    const updatedContacts = contacts.map(c =>
-      c.id === updatedContact.id ? updatedContact : c
-    );
+  const openEditContact = (contact: Contact) => {
+    setEditingContact(contact);
+    setContactPanelOpen(true);
+  };
+
+  // The panel handles both modes; route to add or update by whether we know the contact.
+  const handleSaveContact = (saved: Contact) => {
+    const exists = contacts.some(c => c.id === saved.id);
+    const updatedContacts = exists
+      ? contacts.map(c => (c.id === saved.id ? saved : c))
+      : [...contacts, saved];
     setContacts(updatedContacts);
     saveProspect({ contacts: updatedContacts });
   };
@@ -584,7 +592,16 @@ const CompanyPage = () => {
                       });
                     }}
                   />
-                  <AddContactDialog onAddContact={handleAddContact} />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 px-2"
+                    onClick={openAddContact}
+                    aria-label="Add contact"
+                    title="Add contact"
+                  >
+                    <Plus className="w-4 h-4" />
+                  </Button>
                 </div>
               </div>
 
@@ -595,23 +612,17 @@ const CompanyPage = () => {
                       key={contact.id}
                       contact={contact}
                       onToggleChampion={handleToggleChampion}
-                      onUpdate={handleUpdateContact}
-                      onDelete={handleDeleteContact}
+                      onEdit={openEditContact}
                     />
                   ))}
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
-                  <p className="text-sm">No contacts added yet</p>
-                  <AddContactDialog
-                    onAddContact={handleAddContact}
-                    trigger={
-                      <Button variant="outline" size="sm" className="mt-3">
-                        <Plus className="w-4 h-4 mr-2" />
-                        Add Contact
-                      </Button>
-                    }
-                  />
+                  <p className="text-sm">No contacts yet — add the people you sell to here.</p>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={openAddContact}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Contact
+                  </Button>
                 </div>
               )}
             </section>
@@ -780,6 +791,22 @@ const CompanyPage = () => {
               }}
               onSave={handleUpdateCompanyDetails}
               onClose={() => setEditPanelOpen(false)}
+            />
+          )}
+        </SheetContent>
+      </Sheet>
+
+      {/* Add / edit a contact — same slide-over treatment as company details */}
+      <Sheet open={contactPanelOpen} onOpenChange={setContactPanelOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-2xl p-6 flex flex-col">
+          {contactPanelOpen && (
+            <ContactDetailsPanel
+              // remount on target change so the form re-seeds its defaults
+              key={editingContact?.id ?? 'new-contact'}
+              contact={editingContact}
+              onSave={handleSaveContact}
+              onDelete={handleDeleteContact}
+              onClose={() => setContactPanelOpen(false)}
             />
           )}
         </SheetContent>
@@ -1046,11 +1073,10 @@ const CompanyTasksSection = ({ companyId, companyName }: { companyId: string; co
   );
 };
 
-const ContactRow =({ contact, onToggleChampion, onUpdate, onDelete }: {
+const ContactRow =({ contact, onToggleChampion, onEdit }: {
   contact: Contact;
   onToggleChampion: (id: string) => void;
-  onUpdate: (contact: Contact) => void;
-  onDelete: (id: string) => void;
+  onEdit: (contact: Contact) => void;
 }) => {
   return (
     <div className="flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors group">
@@ -1105,12 +1131,18 @@ const ContactRow =({ contact, onToggleChampion, onUpdate, onDelete }: {
           <Linkedin className="w-4 h-4" />
         </a>
       )}
-      <div className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        <EditContactDialog
-          contact={contact}
-          onUpdateContact={onUpdate}
-          onDeleteContact={onDelete}
-        />
+      {/* Visible on touch/small screens and on keyboard focus, not hover-only */}
+      <div className="shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 px-2"
+          onClick={() => onEdit(contact)}
+          aria-label={`Edit ${contact.name}`}
+          title={`Edit ${contact.name}`}
+        >
+          <Pencil className="w-4 h-4" />
+        </Button>
       </div>
     </div>
   );
