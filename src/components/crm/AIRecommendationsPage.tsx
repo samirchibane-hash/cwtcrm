@@ -136,7 +136,6 @@ export function AIRecommendationsPage() {
         companyName: rec.companyName,
         type: rec.companyType,
         marketType: rec.marketType,
-        leadTier: "",
         street: "",
         city: rec.geography || "",
         state: "",

@@ -88,7 +88,6 @@ export function AIRecommendationsDialog() {
         companyName: rec.companyName,
         type: rec.companyType,
         marketType: rec.marketType,
-        leadTier: '',
         street: '',
         city: '',
         state: "",

@@ -6,7 +6,6 @@ import {
   Engagement, 
   CompanyType, 
   MarketType,
-  LeadTier 
 } from '@/data/prospects';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -32,7 +31,6 @@ const mapRowToProspect = (row: any): Prospect => ({
   zip: row.zip || '',
   type: (row.type as CompanyType) || '',
   marketType: (row.market_type as MarketType) || '',
-  leadTier: (row.lead_tier as LeadTier) || '',
   stage: row.stage || '',
   lastContact: row.last_contact || '',
   engagementNotes: row.engagement_notes || '',
@@ -93,7 +91,6 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
         zip: prospect.zip || '',
         type: prospect.type,
         market_type: prospect.marketType,
-        lead_tier: prospect.leadTier || '',
         stage: prospect.stage,
         last_contact: prospect.lastContact,
         engagement_notes: prospect.engagementNotes,
@@ -134,7 +131,6 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
           zip: updatedProspect.zip || '',
           type: updatedProspect.type,
           market_type: updatedProspect.marketType,
-          lead_tier: updatedProspect.leadTier || '',
           stage: updatedProspect.stage,
           last_contact: updatedProspect.lastContact,
           engagement_notes: updatedProspect.engagementNotes,
@@ -194,7 +190,6 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
           zip: prospectData.zip || '',
           type: prospectData.type,
           market_type: prospectData.marketType,
-          lead_tier: prospectData.leadTier || '',
           stage: prospectData.stage,
           last_contact: prospectData.lastContact,
           engagement_notes: prospectData.engagementNotes,

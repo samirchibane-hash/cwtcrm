@@ -86,6 +86,12 @@ export default {
           "visit-foreground": "hsl(var(--stage-visit-foreground))",
           international: "hsl(var(--stage-international))",
           "international-foreground": "hsl(var(--stage-international-foreground))",
+          vip: "hsl(var(--stage-vip))",
+          "vip-foreground": "hsl(var(--stage-vip-foreground))",
+          customer: "hsl(var(--stage-customer))",
+          "customer-foreground": "hsl(var(--stage-customer-foreground))",
+          indirect: "hsl(var(--stage-indirect))",
+          "indirect-foreground": "hsl(var(--stage-indirect-foreground))",
         },
         type: {
           oem: "hsl(var(--type-oem))",

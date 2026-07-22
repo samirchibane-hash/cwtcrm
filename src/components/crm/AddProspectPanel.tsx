@@ -96,7 +96,6 @@ const AddProspectPanel = ({ defaultType }: AddProspectPanelProps) => {
       zip: zip.trim(),
       type: type || '',
       marketType: (marketType || '') as MarketType,
-      leadTier: '',
       stage: stage.trim() || 'Contact Made',
       lastContact: new Date().toLocaleDateString('en-US'),
       engagementNotes: '',

@@ -7,7 +7,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/component
 import { cn } from '@/lib/utils';
 import { exportToCSV } from '@/lib/export-csv';
 import { useProspects } from '@/context/ProspectsContext';
-import { Prospect, COMPANY_TYPES, LEAD_TIERS } from '@/data/prospects';
+import { Prospect, COMPANY_TYPES } from '@/data/prospects';
 import { useProductVerticals } from '@/hooks/useProductVerticals';
 import { useStageOptions } from '@/hooks/useStageOptions';
 import { getProspectLastContactLabel, getProspectLastContactSortValue, getProspectLastContactDate } from '@/lib/prospect-last-contact';
@@ -32,7 +32,7 @@ interface ProspectsTableProps {
   onSelectProspect: (prospect: Prospect) => void;
 }
 
-type SortField = 'companyName' | 'contacts' | 'state' | 'type' | 'leadTier' | 'stage' | 'lastContact' | 'engagements';
+type SortField = 'companyName' | 'contacts' | 'state' | 'type' | 'stage' | 'lastContact' | 'engagements';
 type SortDirection = 'asc' | 'desc' | null;
 
 interface ExportColumn {
@@ -46,7 +46,6 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'state', label: 'State', getValue: p => p.state || '' },
   { key: 'type', label: 'Business Model', getValue: p => p.type || '' },
   { key: 'marketType', label: 'Product Vertical', getValue: p => p.marketType || '' },
-  { key: 'leadTier', label: 'Lead Tier', getValue: p => p.leadTier || '' },
   { key: 'stage', label: 'Stage', getValue: p => p.stage || '' },
   { key: 'lastContact', label: 'Last Contact', getValue: p => p.lastContact || '' },
   { key: 'contacts', label: 'Contacts', getValue: p => (p.contacts || []).map(c => `${c.name} (${c.email || ''})`).join('; ') },
@@ -59,7 +58,7 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'notes', label: 'Notes', getValue: p => p.engagementNotes || '' },
 ];
 
-const DEFAULT_EXPORT_KEYS = ['company', 'state', 'type', 'marketType', 'leadTier', 'stage', 'lastContact', 'contacts', 'website', 'linkedIn'];
+const DEFAULT_EXPORT_KEYS = ['company', 'state', 'type', 'marketType', 'stage', 'lastContact', 'contacts', 'website', 'linkedIn'];
 
 const ExportColumnsPopover = ({ data }: { data: Prospect[] }) => {
   const [selectedKeys, setSelectedKeys] = useState<string[]>(DEFAULT_EXPORT_KEYS);
@@ -299,7 +298,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     return val ? val.split(',') : [];
   });
   const [stageFilter, setStageFilter] = useState<string[]>(() => {
-    // Stage now also carries Lead Tier values; merge any legacy `tier` param in.
+    // Lead Tier values are now ordinary stages; merge any legacy `tier` param in
+    // so old bookmarks and saved presets keep working.
     const stageVal = searchParams.get('stage');
     const tierVal = searchParams.get('tier');
     const merged = [
@@ -334,7 +334,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const [engagementsMax, setEngagementsMax] = useState<string>(() => searchParams.get('engMax') || '');
   const [sortField, setSortField] = useState<SortField | null>(() => {
     const field = searchParams.get('sortField');
-    if (field && ['companyName', 'contacts', 'state', 'type', 'leadTier', 'stage', 'lastContact', 'engagements'].includes(field)) {
+    if (field && ['companyName', 'contacts', 'state', 'type', 'stage', 'lastContact', 'engagements'].includes(field)) {
       return field as SortField;
     }
     return null;
@@ -458,8 +458,6 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   // Filter options: merge static constants with any custom stages present in actual data
   const types = COMPANY_TYPES.filter(t => t !== '');
   const { allStages: stages } = useStageOptions();
-  // Lead Tiers now live inside the Stage filter, listed ahead of the pipeline stages.
-  const stageAndTierOptions = useMemo(() => [...LEAD_TIERS, ...stages], [stages]);
   const { allVerticals } = useProductVerticals();
 
   const hasLastContactFilter = lastContactFrom !== undefined || lastContactTo !== undefined;
@@ -495,16 +493,12 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         typeFilterMode === 'include' ? typeFilter.includes(prospect.type) : !typeFilter.includes(prospect.type)
       );
       
-      // Stage filter now also holds Lead Tier values: tier values match the
-      // leadTier field exactly, everything else matches within the stage string.
-      const matchesStageOrTier = (value: string) =>
-        (LEAD_TIERS as readonly string[]).includes(value)
-          ? prospect.leadTier === value
-          : prospect.stage.toLowerCase().includes(value.toLowerCase());
+      const matchesStageValue = (value: string) =>
+        prospect.stage.toLowerCase().includes(value.toLowerCase());
       const matchesStage = stageFilter.length === 0 || (
         stageFilterMode === 'include'
-          ? stageFilter.some(matchesStageOrTier)
-          : !stageFilter.some(matchesStageOrTier)
+          ? stageFilter.some(matchesStageValue)
+          : !stageFilter.some(matchesStageValue)
       );
 
       const matchesVertical = verticalFilter.length === 0 || (
@@ -559,10 +553,6 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
           case 'type':
             aVal = (a.type || '').toLowerCase();
             bVal = (b.type || '').toLowerCase();
-            break;
-          case 'leadTier':
-            aVal = (a.leadTier || '').toLowerCase();
-            bVal = (b.leadTier || '').toLowerCase();
             break;
           case 'stage':
             aVal = (a.stage || '').toLowerCase();
@@ -665,10 +655,10 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   mode={typeFilterMode}
                   onModeChange={setTypeFilterMode}
                 />
-                {/* Stage (Lead Tiers listed first) */}
+                {/* Stage */}
                 <FilterSection
                   label="Stage"
-                  items={stageAndTierOptions}
+                  items={stages}
                   selected={stageFilter}
                   onToggle={(item, checked) => setStageFilter(prev => checked ? [...prev, item] : prev.filter(s => s !== item))}
                   mode={stageFilterMode}
@@ -846,7 +836,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   {prospect.type || '—'}
                 </td>
                 <td className="p-4">
-                  <StageBadge stage={prospect.stage} leadTier={prospect.leadTier} />
+                  <StageBadge stage={prospect.stage} />
                 </td>
                 <td className="p-4 text-sm font-mono text-muted-foreground">
                   {getProspectLastContactLabel(prospect) || '—'}

@@ -1,6 +1,6 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Package, Truck, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle, Pencil, Copy, Check, CheckSquare, Zap, Pause, Play, Square as SquareIcon } from 'lucide-react';
-import { Contact, Engagement, CompanyType, MarketType, LeadTier, REPS, getRepConfig } from '@/data/prospects';
+import { Contact, Engagement, CompanyType, MarketType, REPS, getRepConfig } from '@/data/prospects';
 import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import { parseDateLoose, formatMmDdYyyy } from '@/lib/date';
 import { Order, getStatusColor, formatCurrency } from '@/data/orders';
@@ -85,7 +85,6 @@ const CompanyPage = () => {
   const [companyName, setCompanyName] = useState('');
   const [companyType, setCompanyType] = useState<CompanyType>('');
   const [marketType, setMarketType] = useState<MarketType>('');
-  const [leadTier, setLeadTier] = useState<LeadTier>('');
   const [street, setStreet] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
@@ -160,7 +159,6 @@ const CompanyPage = () => {
       ));
       setCompanyType(prospect.type);
       setMarketType(prospect.marketType);
-      setLeadTier(prospect.leadTier);
       setStreet(prospect.street || '');
       setCity(prospect.city || '');
       setState(prospect.state);
@@ -204,7 +202,6 @@ const CompanyPage = () => {
     companyName: string;
     companyType: CompanyType;
     marketType: MarketType;
-    leadTier: LeadTier;
     street: string;
     city: string;
     state: string;
@@ -235,7 +232,6 @@ const CompanyPage = () => {
       engagements: updatedEngagements,
       type: updates.companyType ?? companyType,
       marketType: updates.marketType ?? marketType,
-      leadTier: updates.leadTier ?? leadTier,
       street: updates.street ?? street,
       city: updates.city ?? city,
       state: updates.state ?? state,
@@ -361,7 +357,6 @@ const CompanyPage = () => {
     companyName: string;
     companyType: CompanyType;
     marketType: MarketType;
-    leadTier: LeadTier;
     street: string;
     city: string;
     state: string;
@@ -376,7 +371,6 @@ const CompanyPage = () => {
     setCompanyName(details.companyName);
     setCompanyType(details.companyType);
     setMarketType(details.marketType);
-    setLeadTier(details.leadTier);
     setStreet(details.street);
     setCity(details.city);
     setState(details.state);
@@ -446,7 +440,7 @@ const CompanyPage = () => {
                 <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
                   <TypeBadge type={companyType} />
                   <MarketTypeBadge marketType={marketType} />
-                  <StageBadge stage={stage} leadTier={leadTier} maxVisible={3} />
+                  <StageBadge stage={stage} maxVisible={3} />
                 </div>
               </div>
 
@@ -777,7 +771,6 @@ const CompanyPage = () => {
                 companyName,
                 companyType,
                 marketType,
-                leadTier,
                 street,
                 city,
                 state,

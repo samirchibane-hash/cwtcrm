@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Building2, Plus, Save, MapPin, GitBranch, Link2 } from 'lucide-react';
-import { CompanyType, MarketType, LeadTier, COMPANY_TYPES } from '@/data/prospects';
+import { CompanyType, MarketType, COMPANY_TYPES } from '@/data/prospects';
 import StagePicker from '@/components/crm/StagePicker';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +19,6 @@ interface CompanyDetails {
   companyName: string;
   companyType: CompanyType;
   marketType: MarketType;
-  leadTier: LeadTier;
   street: string;
   city: string;
   state: string;

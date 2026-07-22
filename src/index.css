@@ -67,6 +67,13 @@
     --stage-visit-foreground: 0 0% 100%;
     --stage-international: 199 30% 38%;
     --stage-international-foreground: 0 0% 100%;
+    /* Relationship tags — outside the funnel, formerly Lead Tier. */
+    --stage-vip: 338 78% 46%;
+    --stage-vip-foreground: 0 0% 100%;
+    --stage-customer: 271 60% 40%;
+    --stage-customer-foreground: 0 0% 100%;
+    --stage-indirect: 271 25% 48%;
+    --stage-indirect-foreground: 0 0% 100%;
 
     --type-oem: 271 91% 65%;
     --type-oem-foreground: 0 0% 100%;

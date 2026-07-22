@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, ChevronUp, ChevronDown, Building2, User, Filter } from 'lucide-react';
-import { Prospect, LEAD_TIERS } from '@/data/prospects';
+import { CompanyType, Prospect } from '@/data/prospects';
 import { useProspects } from '@/context/ProspectsContext';
 import { useOrders } from '@/context/OrdersContext';
+import { useStageOptions } from '@/hooks/useStageOptions';
 import { getProspectLastContactSortValue, getProspectLastContactLabel } from '@/lib/prospect-last-contact';
-import LeadTierBadge from './LeadTierBadge';
+import StageBadge from './StageBadge';
 import AddProspectPanel from './AddProspectPanel';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -29,20 +30,25 @@ interface CustomersTableProps {
   onSelectProspect?: (prospect: Prospect) => void;
 }
 
-type SortField = 'companyName' | 'state' | 'lastContact' | 'orderCount' | 'ltv' | 'leadTier';
+// This view keys off a "Customer" business model that predates the CompanyType
+// union, so the value has to be asserted in rather than added to COMPANY_TYPES.
+const CUSTOMER_TYPE = 'Customer' as unknown as CompanyType;
+
+type SortField = 'companyName' | 'state' | 'lastContact' | 'orderCount' | 'ltv' | 'stage';
 type SortDirection = 'asc' | 'desc';
 
 const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
   const navigate = useNavigate();
   const { prospects, isLoading } = useProspects();
   const { orders } = useOrders();
+  const { allStages } = useStageOptions();
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState<SortField>('companyName');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
-  const [leadTierFilter, setLeadTierFilter] = useState<string[]>([]);
+  const [stageFilter, setStageFilter] = useState<string[]>([]);
 
   const customers = useMemo(() => {
-    return prospects.filter(p => (p.type as string) === 'Customer');
+    return prospects.filter(p => p.type === CUSTOMER_TYPE);
   }, [prospects]);
 
   const getOrderCount = (companyName: string) => {
@@ -56,11 +62,12 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
   };
 
   const filteredAndSortedCustomers = useMemo(() => {
-    let result = customers.filter(customer => {
+    const result = customers.filter(customer => {
       const matchesSearch = customer.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         customer.state.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesLeadTier = leadTierFilter.length === 0 || leadTierFilter.includes(customer.leadTier);
-      return matchesSearch && matchesLeadTier;
+      const matchesStage = stageFilter.length === 0 ||
+        stageFilter.some(s => customer.stage.toLowerCase().includes(s.toLowerCase()));
+      return matchesSearch && matchesStage;
     });
 
     result.sort((a, b) => {
@@ -76,9 +83,9 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
       } else if (sortField === 'lastContact') {
         aValue = getProspectLastContactSortValue(a);
         bValue = getProspectLastContactSortValue(b);
-      } else if (sortField === 'leadTier') {
-        aValue = a.leadTier || '';
-        bValue = b.leadTier || '';
+      } else if (sortField === 'stage') {
+        aValue = a.stage || '';
+        bValue = b.stage || '';
       } else {
         aValue = a[sortField] || '';
         bValue = b[sortField] || '';
@@ -98,7 +105,7 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
     });
 
     return result;
-  }, [customers, searchQuery, sortField, sortDirection, leadTierFilter, orders]);
+  }, [customers, searchQuery, sortField, sortDirection, stageFilter, orders]);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -149,31 +156,31 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="gap-2">
                 <Filter className="w-4 h-4" />
-                Lead Tier
-                {leadTierFilter.length > 0 && (
+                Stage
+                {stageFilter.length > 0 && (
                   <span className="bg-accent text-accent-foreground text-xs px-1.5 rounded-full">
-                    {leadTierFilter.length}
+                    {stageFilter.length}
                   </span>
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              {LEAD_TIERS.map((tier) => (
+            <DropdownMenuContent align="end" className="max-h-80 overflow-y-auto">
+              {allStages.map((stage) => (
                 <DropdownMenuCheckboxItem
-                  key={tier}
-                  checked={leadTierFilter.includes(tier)}
+                  key={stage}
+                  checked={stageFilter.includes(stage)}
                   onCheckedChange={(checked) => {
-                    setLeadTierFilter(prev => 
-                      checked ? [...prev, tier] : prev.filter(t => t !== tier)
+                    setStageFilter(prev =>
+                      checked ? [...prev, stage] : prev.filter(s => s !== stage)
                     );
                   }}
                 >
-                  {tier}
+                  {stage}
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-          <AddProspectPanel defaultType={"Customer" as any} />
+          <AddProspectPanel defaultType={CUSTOMER_TYPE} />
         </div>
       </div>
 
@@ -204,9 +211,9 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
               </TableHead>
               <TableHead 
                 className="cursor-pointer hover:text-foreground transition-colors"
-                onClick={() => handleSort('leadTier')}
+                onClick={() => handleSort('stage')}
               >
-                Lead Tier <SortIcon field="leadTier" />
+                Stage <SortIcon field="stage" />
               </TableHead>
               <TableHead 
                 className="cursor-pointer hover:text-foreground transition-colors"
@@ -234,7 +241,23 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
                 <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
                   <div className="flex flex-col items-center gap-2">
                     <Building2 className="w-8 h-8 opacity-50" />
-                    <span>No customers found</span>
+                    {searchQuery || stageFilter.length > 0 ? (
+                      <>
+                        <span>No customers match these filters.</span>
+                        <Button
+                          variant="link"
+                          size="sm"
+                          onClick={() => { setSearchQuery(''); setStageFilter([]); }}
+                        >
+                          Clear filters
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <span>No customers yet. Add one to start tracking orders and LTV.</span>
+                        <AddProspectPanel defaultType={CUSTOMER_TYPE} />
+                      </>
+                    )}
                   </div>
                 </TableCell>
               </TableRow>
@@ -271,7 +294,7 @@ const CustomersTable = ({ onSelectProspect }: CustomersTableProps) => {
                     </TableCell>
                     <TableCell className="text-muted-foreground">{customer.state || '—'}</TableCell>
                     <TableCell>
-                      <LeadTierBadge leadTier={customer.leadTier} />
+                      <StageBadge stage={customer.stage} />
                     </TableCell>
                     <TableCell>
                       {orderCount > 0 ? (

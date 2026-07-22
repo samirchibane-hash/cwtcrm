@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
-import { getStageColor } from '@/data/prospects';
+import { getStageColor, RELATIONSHIP_STAGES } from '@/data/prospects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -59,8 +59,14 @@ const StagePicker = ({ value, onChange, hint }: StagePickerProps) => {
   };
 
   const customSet = new Set(customStages.map(s => s.toLowerCase()));
-  const pipelineOptions = allStages.filter(s => !customSet.has(s.toLowerCase()) && !isSelected(s));
+  const relationshipSet = new Set(RELATIONSHIP_STAGES.map(s => s.toLowerCase()));
+  const pipelineOptions = allStages.filter(
+    s => !customSet.has(s.toLowerCase()) && !relationshipSet.has(s.toLowerCase()) && !isSelected(s)
+  );
+  const relationshipOptions = RELATIONSHIP_STAGES.filter(s => !isSelected(s));
   const customOptions = customStages.filter(s => !isSelected(s));
+  const hasOptions =
+    pipelineOptions.length > 0 || relationshipOptions.length > 0 || customOptions.length > 0;
 
   return (
     <div className="space-y-2">
@@ -128,7 +134,7 @@ const StagePicker = ({ value, onChange, hint }: StagePickerProps) => {
             <SelectValue placeholder="Add a stage..." />
           </SelectTrigger>
           <SelectContent className="rounded-xl bg-background">
-            {pipelineOptions.length === 0 && customOptions.length === 0 ? (
+            {!hasOptions ? (
               <div className="px-2 py-3 text-xs text-muted-foreground">
                 All stages added. Remove one above or create a new stage.
               </div>
@@ -138,6 +144,14 @@ const StagePicker = ({ value, onChange, hint }: StagePickerProps) => {
                   <SelectGroup>
                     <SelectLabel className="text-xs text-muted-foreground">Pipeline</SelectLabel>
                     {pipelineOptions.map((s) => (
+                      <SelectItem key={s} value={s}>{s}</SelectItem>
+                    ))}
+                  </SelectGroup>
+                )}
+                {relationshipOptions.length > 0 && (
+                  <SelectGroup>
+                    <SelectLabel className="text-xs text-muted-foreground">Relationship</SelectLabel>
+                    {relationshipOptions.map((s) => (
                       <SelectItem key={s} value={s}>{s}</SelectItem>
                     ))}
                   </SelectGroup>
