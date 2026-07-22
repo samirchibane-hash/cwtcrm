@@ -4,6 +4,8 @@ import {
   ChevronUp,
   Clock,
   CornerDownRight,
+  Eye,
+  EyeOff,
   Mail,
   Plus,
   Trash2,
@@ -37,6 +39,12 @@ const dayLabel = (offset: number) => (offset === 0 ? 'Immediately' : `Day ${offs
 
 const WorkflowStepEditor = ({ steps, onChange, previewVars }: WorkflowStepEditorProps) => {
   const [openId, setOpenId] = useState<string | null>(null);
+  // Previews stay collapsed until asked for — the editor is what people came for.
+  // Kept per step id so reopening a step remembers the choice for this session.
+  const [previewIds, setPreviewIds] = useState<string[]>([]);
+
+  const togglePreview = (id: string) =>
+    setPreviewIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
 
   const schedule = schedulePreview(steps);
   const offsetForIndex = (index: number) =>
@@ -145,6 +153,7 @@ const WorkflowStepEditor = ({ steps, onChange, previewVars }: WorkflowStepEditor
 
         const replies = willReply(steps, index);
         const inheritedSubject = threadSubjectFor(steps, index);
+        const showsPreview = previewIds.includes(step.id);
 
         return (
           <div key={step.id} className="content-card">
@@ -295,15 +304,40 @@ const WorkflowStepEditor = ({ steps, onChange, previewVars }: WorkflowStepEditor
                   </p>
                 </div>
 
-                {/* Merge preview */}
+                {/* Merge preview — opt-in, so the editor stays the default view */}
                 {previewVars && step.body.trim() !== '' && (
-                  <div className="rounded-xl bg-muted/40 p-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
-                      Preview for {previewVars.contactName || 'this contact'}
-                    </p>
-                    <p className="text-xs leading-relaxed whitespace-pre-wrap text-foreground/80">
-                      {renderPreview(step.body, previewVars)}
-                    </p>
+                  <div className="space-y-2">
+                    <button
+                      type="button"
+                      onClick={() => togglePreview(step.id)}
+                      aria-expanded={showsPreview}
+                      aria-controls={`preview-${step.id}`}
+                      className="inline-flex items-center gap-1.5 rounded-md text-xs font-medium text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+                    >
+                      {showsPreview ? (
+                        <EyeOff className="w-3.5 h-3.5" aria-hidden />
+                      ) : (
+                        <Eye className="w-3.5 h-3.5" aria-hidden />
+                      )}
+                      {showsPreview
+                        ? 'Hide preview'
+                        : `Preview for ${previewVars.firstName || previewVars.contactName || 'this contact'}`}
+                    </button>
+                    {showsPreview && (
+                      <div id={`preview-${step.id}`} className="rounded-xl bg-muted/40 p-3">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+                          Preview for {previewVars.contactName || 'this contact'}
+                        </p>
+                        {!replies && step.subject.trim() !== '' && (
+                          <p className="text-xs font-medium mb-1.5">
+                            {renderPreview(step.subject, previewVars)}
+                          </p>
+                        )}
+                        <p className="text-xs leading-relaxed whitespace-pre-wrap text-foreground/80">
+                          {renderPreview(step.body, previewVars)}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
