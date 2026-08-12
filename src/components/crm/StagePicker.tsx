@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
-import { getStageColor, RELATIONSHIP_STAGES } from '@/data/prospects';
+import { getStageColor, RELATIONSHIP_STAGES, RETIRED_STAGES } from '@/data/prospects';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -36,6 +36,7 @@ const StagePicker = ({ value, onChange, hint }: StagePickerProps) => {
   const { allStages, customStages, addStageOption } = useStageOptions();
   const [newStage, setNewStage] = useState('');
   const [showNewStageInput, setShowNewStageInput] = useState(false);
+  const [newStageError, setNewStageError] = useState('');
 
   const selectedStages = splitStages(value);
   const isSelected = (stage: string) =>
@@ -50,12 +51,22 @@ const StagePicker = ({ value, onChange, hint }: StagePickerProps) => {
     onChange(selectedStages.filter(s => s !== stage).join(', '));
   };
 
+  const closeNewStageInput = () => {
+    setShowNewStageInput(false);
+    setNewStage('');
+    setNewStageError('');
+  };
+
   const handleAddNewStage = () => {
+    // Retired stages must not come back in through the free-form escape hatch.
+    if (RETIRED_STAGES.includes(newStage.trim().toLowerCase())) {
+      setNewStageError(`"${newStage.trim()}" was removed from the pipeline and can't be re-added.`);
+      return;
+    }
     const trimmed = addStageOption(newStage);
     if (!trimmed) return;
     addStage(trimmed);
-    setNewStage('');
-    setShowNewStageInput(false);
+    closeNewStageInput();
   };
 
   const customSet = new Set(customStages.map(s => s.toLowerCase()));
@@ -95,29 +106,40 @@ const StagePicker = ({ value, onChange, hint }: StagePickerProps) => {
       )}
 
       {showNewStageInput ? (
-        <div className="flex gap-2">
-          <Input
-            value={newStage}
-            onChange={(e) => setNewStage(e.target.value)}
-            placeholder="New stage name"
-            aria-label="New stage name"
-            className="rounded-xl flex-1"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault();
-                handleAddNewStage();
-              }
-              if (e.key === 'Escape') {
-                e.preventDefault();
-                setShowNewStageInput(false);
-                setNewStage('');
-              }
-            }}
-            autoFocus
-          />
-          <Button size="sm" onClick={handleAddNewStage} disabled={!newStage.trim()} className="rounded-xl shrink-0">
-            Add
-          </Button>
+        <div className="space-y-1.5">
+          <div className="flex gap-2">
+            <Input
+              value={newStage}
+              onChange={(e) => {
+                setNewStage(e.target.value);
+                if (newStageError) setNewStageError('');
+              }}
+              placeholder="New stage name"
+              aria-label="New stage name"
+              aria-invalid={!!newStageError}
+              aria-describedby={newStageError ? 'new-stage-error' : undefined}
+              className="rounded-xl flex-1"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddNewStage();
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault();
+                  closeNewStageInput();
+                }
+              }}
+              autoFocus
+            />
+            <Button size="sm" onClick={handleAddNewStage} disabled={!newStage.trim()} className="rounded-xl shrink-0">
+              Add
+            </Button>
+          </div>
+          {newStageError && (
+            <p id="new-stage-error" role="alert" className="text-xs text-destructive">
+              {newStageError}
+            </p>
+          )}
         </div>
       ) : (
         <Select

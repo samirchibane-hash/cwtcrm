@@ -413,7 +413,7 @@ Action type guidance:
 - "call": Use when a quote was sent with no follow-up, the prospect responded to email and deserves a real conversation, or the contact has a phone number and email isn't working.
 - "email": Use when a follow-up email is clearly needed and calling isn't warranted yet.
 - "linkedin": Use when 2+ emails went unanswered and the contact has a LinkedIn URL — try a different channel.
-- "customer_checkin": Use for existing customers (lead_tier="Customer" or stage includes "Closed Won") who placed an order 30-90 days ago with no recent contact — check if they've tested/deployed the units.
+- "customer_checkin": Use for existing customers (stage includes "Customer", "Indirect Customer", or "VIP") who placed an order 30-90 days ago with no recent contact — check if they've tested/deployed the units.
 - "replenishment": Use for customers with a large order (10+ units) placed 90+ days ago with no recent follow-up — suggest reorder or check inventory.
 - "quote_followup": Use when stage is "Quotes" and last contact was more than 5 days ago.
 - "none": Use if no action is needed today (recently contacted, in progress, etc.).

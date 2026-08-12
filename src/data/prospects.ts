@@ -183,9 +183,6 @@ export const PIPELINE_STAGES = [
   'Sample Req',
   'Quotes',
   'Purchase Order',
-  'Closed Won',
-  'Replenishment Order',
-  'Maintenance',
   'Office Visit',
   'International',
   'Longterm',
@@ -193,24 +190,42 @@ export const PIPELINE_STAGES = [
   ...RELATIONSHIP_STAGES,
 ];
 
+// Stages that were removed from the product. Lowercased for comparison. Any value
+// still sitting on an older record is dropped on read (see stripRetiredStages), and
+// they are never offered as a choice again.
+export const RETIRED_STAGES = [
+  'closed won',
+  'closed', // legacy short form of "Closed Won"
+  'replenishment order',
+  'replishment order', // legacy misspelling on older records
+  'maintenance',
+];
+
 // "New Lead" is implied by an empty stage (see PipelineView), so it is never offered
 // as a choice; "Contacted" is legacy wording for "Contact Made".
-export const HIDDEN_STAGES = ['new lead', 'contacted'];
+export const HIDDEN_STAGES = ['new lead', 'contacted', ...RETIRED_STAGES];
+
+/**
+ * Drops retired stages from a comma-separated stage string. Applied wherever
+ * prospects enter the app so a retired value can never render or be re-saved.
+ */
+export const stripRetiredStages = (stage: string): string =>
+  (stage || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s && !RETIRED_STAGES.includes(s.toLowerCase()))
+    .join(', ');
 
 export const getStageColor = (stage: string): { bg: string; text: string } => {
   const stageLower = stage.toLowerCase().trim();
   if (stageLower === 'quotes') return { bg: 'bg-stage-quotes', text: 'text-stage-quotes-foreground' };
   if (stageLower === 'contact made') return { bg: 'bg-stage-contact', text: 'text-stage-contact-foreground' };
   if (stageLower === 'no current interest') return { bg: 'bg-stage-lost', text: 'text-stage-lost-foreground' };
-  if (stageLower === 'closed won' || stageLower === 'closed') return { bg: 'bg-stage-closed', text: 'text-stage-closed-foreground' };
   if (stageLower === 'sample req') return { bg: 'bg-stage-sample', text: 'text-stage-sample-foreground' };
   if (stageLower === 'disco call') return { bg: 'bg-stage-disco', text: 'text-stage-disco-foreground' };
   if (stageLower === 'new lead') return { bg: 'bg-stage-new', text: 'text-stage-new-foreground' };
   if (stageLower === 'longterm') return { bg: 'bg-stage-longterm', text: 'text-stage-longterm-foreground' };
   if (stageLower === 'purchase order') return { bg: 'bg-stage-purchase', text: 'text-stage-purchase-foreground' };
-  // "Replishment" is the legacy misspelling still present on older records.
-  if (stageLower === 'replenishment order' || stageLower === 'replishment order') return { bg: 'bg-stage-repeat', text: 'text-stage-repeat-foreground' };
-  if (stageLower === 'maintenance') return { bg: 'bg-stage-maintenance', text: 'text-stage-maintenance-foreground' };
   if (stageLower === 'office visit') return { bg: 'bg-stage-visit', text: 'text-stage-visit-foreground' };
   if (stageLower === 'international') return { bg: 'bg-stage-international', text: 'text-stage-international-foreground' };
   // Check "indirect customer" before "customer" so the longer label wins.

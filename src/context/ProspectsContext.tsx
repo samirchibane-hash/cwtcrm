@@ -4,8 +4,9 @@ import {
   Prospect, 
   Contact, 
   Engagement, 
-  CompanyType, 
+  CompanyType,
   MarketType,
+  stripRetiredStages,
 } from '@/data/prospects';
 import { supabase } from '@/integrations/supabase/client';
 import { normalizeRecords } from '@/lib/prospect-records';
@@ -32,7 +33,7 @@ const mapRowToProspect = (row: any): Prospect => ({
   zip: row.zip || '',
   type: (row.type as CompanyType) || '',
   marketType: (row.market_type as MarketType) || '',
-  stage: row.stage || '',
+  stage: stripRetiredStages(row.stage),
   lastContact: row.last_contact || '',
   engagementNotes: row.engagement_notes || '',
   linkedIn: row.linkedin || '',
