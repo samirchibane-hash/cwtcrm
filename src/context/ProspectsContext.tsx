@@ -8,6 +8,7 @@ import {
   MarketType,
 } from '@/data/prospects';
 import { supabase } from '@/integrations/supabase/client';
+import { normalizeRecords } from '@/lib/prospect-records';
 import { useToast } from '@/hooks/use-toast';
 
 interface ProspectsContextType {
@@ -38,8 +39,8 @@ const mapRowToProspect = (row: any): Prospect => ({
   website: row.website || '',
   googleMapsUrl: row.google_maps_url || '',
   phone: row.phone || '',
-  contacts: (row.contacts as unknown as Contact[]) || [],
-  engagements: (row.engagements as unknown as Engagement[]) || [],
+  contacts: normalizeRecords<Contact>(row.contacts, 'contact', row.id),
+  engagements: normalizeRecords<Engagement>(row.engagements, 'eng', row.id),
 });
 
 export const ProspectsProvider = ({ children }: { children: ReactNode }) => {

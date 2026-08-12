@@ -41,6 +41,18 @@ import { useProspectActivityLog } from '@/hooks/useActivityLog';
 
 const normalizeUrl = (url: string) => (url.startsWith('http') ? url : `https://${url}`);
 
+// Newest first. Engagement dates arrive in mixed formats (ISO from scripts, M/D/YYYY
+// from the composer) and some legacy rows have none at all — undated entries sort last
+// rather than throwing.
+const byDateDesc = (a: { date?: string }, b: { date?: string }) => {
+  const at = parseDateLoose(a.date ?? '')?.getTime();
+  const bt = parseDateLoose(b.date ?? '')?.getTime();
+  if (at === undefined && bt === undefined) return 0;
+  if (at === undefined) return 1;
+  if (bt === undefined) return -1;
+  return bt - at;
+};
+
 // Small inline copy-to-clipboard affordance; swaps to a check on success
 const CopyButton = ({ value, label }: { value: string; label: string }) => {
   const [copied, setCopied] = useState(false);
@@ -127,7 +139,7 @@ const CompanyPage = () => {
     const seen = new Set<string>();
     return merged
       .filter(e => { if (seen.has(e.id)) return false; seen.add(e.id); return true; })
-      .sort((a, b) => b.date.localeCompare(a.date));
+      .sort(byDateDesc);
   }, [engagements, activityLogEntries]);
 
   const companyOrders = useMemo(
@@ -148,15 +160,9 @@ const CompanyPage = () => {
   useEffect(() => {
     if (prospect) {
       setCompanyName(prospect.companyName);
-      // Ensure all contacts have unique IDs
-      const contactsWithIds = prospect.contacts.map((c, idx) => ({
-        ...c,
-        id: c.id || `contact-${Date.now()}-${idx}`,
-      }));
-      setContacts(contactsWithIds);
-      setEngagements([...prospect.engagements].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      ));
+      // ids are guaranteed by the context's row normalizer
+      setContacts(prospect.contacts);
+      setEngagements([...prospect.engagements].sort(byDateDesc));
       setCompanyType(prospect.type);
       setMarketType(prospect.marketType);
       setStreet(prospect.street || '');
@@ -217,13 +223,11 @@ const CompanyPage = () => {
     let derivedLastContact = lastContact;
     if (updates.engagements && updates.engagements.length > 0) {
       // Find the most recent engagement date and convert to M/D/YYYY
-      const sorted = [...updates.engagements].sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
-      );
-      const mostRecent = sorted[0].date;
-      derivedLastContact = new Date(mostRecent + (mostRecent.includes('T') ? '' : 'T00:00:00'))
-        .toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
-      setLastContact(derivedLastContact);
+      const mostRecent = parseDateLoose([...updates.engagements].sort(byDateDesc)[0].date ?? '');
+      if (mostRecent) {
+        derivedLastContact = mostRecent.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+        setLastContact(derivedLastContact);
+      }
     }
     updateProspect({
       id: prospect.id,

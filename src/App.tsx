@@ -9,6 +9,7 @@ import { ProspectsProvider } from "@/context/ProspectsContext";
 import { TasksProvider } from "@/context/TasksContext";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import ErrorBoundary from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import CompanyPage from "./pages/CompanyPage";
 import OrderPage from "./pages/OrderPage";
@@ -28,6 +29,7 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
+              <ErrorBoundary>
               <Routes>
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/" element={
@@ -48,6 +50,7 @@ const App = () => (
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
+              </ErrorBoundary>
             </BrowserRouter>
           </TooltipProvider>
           </TasksProvider>
