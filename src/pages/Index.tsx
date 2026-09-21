@@ -11,7 +11,6 @@ import { AIRecommendationsPage } from '@/components/crm/AIRecommendationsPage';
 import { OutreachAgentPage } from '@/components/crm/OutreachAgentPage';
 import { TasksPage } from '@/components/crm/TasksPage';
 import AutomationsPage from '@/components/crm/AutomationsPage';
-import { DailyBriefingPage } from '@/components/crm/DailyBriefingPage';
 import { Prospect } from '@/data/prospects';
 
 const Index = () => {
@@ -22,11 +21,11 @@ const Index = () => {
   // Handle view query parameter (e.g., /?view=orders)
   useEffect(() => {
     const viewParam = searchParams.get('view');
-    if (viewParam && ['pipeline', 'prospects', 'agent', 'automations', 'orders', 'reports', 'activity', 'tasks', 'briefing'].includes(viewParam)) {
+    if (viewParam && ['pipeline', 'prospects', 'agent', 'automations', 'orders', 'reports', 'activity', 'tasks'].includes(viewParam)) {
       setActiveView(viewParam);
     }
-    // Support legacy params
-    if (viewParam === 'prospects' || viewParam === 'customers' || viewParam === 'dashboard') {
+    // Support legacy params (briefing = retired Daily Briefing tab)
+    if (viewParam === 'prospects' || viewParam === 'customers' || viewParam === 'dashboard' || viewParam === 'briefing') {
       setActiveView('pipeline');
     }
   }, [searchParams]);
@@ -37,8 +36,6 @@ const Index = () => {
 
   const renderView = () => {
     switch (activeView) {
-      case 'briefing':
-        return <DailyBriefingPage />;
       case 'pipeline':
         return <ProspectsTable onSelectProspect={handleSelectProspect} />;
       case 'prospects':
@@ -62,7 +59,6 @@ const Index = () => {
 
   const getViewTitle = () => {
     switch (activeView) {
-      case 'briefing': return 'Daily Briefing';
       case 'pipeline': return 'Pipeline';
       case 'prospects': return 'AI Prospects';
       case 'agent': return 'Claude Agent';
@@ -77,7 +73,6 @@ const Index = () => {
 
   const getViewSubtitle = () => {
     switch (activeView) {
-      case 'briefing': return 'Your AI-powered action list — who to call, email, or connect with today';
       case 'pipeline': return 'Manage and track all your prospects and customers';
       case 'prospects': return 'AI-recommended companies based on your existing pipeline';
       case 'agent': return 'Discover contacts, review, and launch outreach campaigns';
