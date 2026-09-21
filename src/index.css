@@ -78,6 +78,20 @@
     --type-ecommerce: 330 81% 60%;
     --type-ecommerce-foreground: 0 0% 100%;
 
+    /* Order status: base hue (dots, 10% tint) + foreground for text on that tint */
+    --order-po: 25 95% 53%;
+    --order-po-foreground: 21 90% 36%;
+    --order-invoiced: 239 84% 67%;
+    --order-invoiced-foreground: 243 75% 50%;
+    --order-paid: 211 100% 50%;
+    --order-paid-foreground: 211 100% 36%;
+    --order-partial: 45 93% 47%;
+    --order-partial-foreground: 32 95% 30%;
+    --order-delivered: 142 71% 45%;
+    --order-delivered-foreground: 142 72% 26%;
+    --order-loaner: 271 70% 60%;
+    --order-loaner-foreground: 272 60% 45%;
+
     --sidebar-background: 0 0% 100%;
     --sidebar-foreground: 0 0% 9%;
     --sidebar-primary: 211 100% 50%;
@@ -125,6 +139,13 @@
     --sidebar-accent-foreground: 0 0% 98%;
     --sidebar-border: 0 0% 18%;
     --sidebar-ring: 211 100% 50%;
+
+    --order-po-foreground: 27 96% 65%;
+    --order-invoiced-foreground: 234 89% 78%;
+    --order-paid-foreground: 211 100% 70%;
+    --order-partial-foreground: 48 96% 60%;
+    --order-delivered-foreground: 142 69% 58%;
+    --order-loaner-foreground: 270 95% 80%;
   }
 }
 

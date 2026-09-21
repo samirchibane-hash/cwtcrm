@@ -17,6 +17,53 @@ export interface OrderAttachment {
   uploadedAt: string; // ISO timestamp
 }
 
+// ---- Order status settings: single source of truth for every status picker, badge, filter and sort ----
+// Listed in lifecycle order (sorting by status follows this, not the alphabet). Loaner sits outside the flow.
+export const ORDER_STATUSES = ['PO Received', 'Invoiced', 'Paid', 'Partially Shipped', 'Delivered', 'Loaner'] as const;
+export type OrderStatus = typeof ORDER_STATUSES[number];
+
+export const ORDER_STATUS_META: Record<OrderStatus, { description: string; badge: string; dot: string }> = {
+  'PO Received':       { description: 'Customer PO is in hand; no invoice sent yet.', badge: 'bg-order-po/10 text-order-po-foreground', dot: 'bg-order-po' },
+  'Invoiced':          { description: 'Invoice sent; waiting on payment.', badge: 'bg-order-invoiced/10 text-order-invoiced-foreground', dot: 'bg-order-invoiced' },
+  'Paid':              { description: 'Payment received; not shipped yet.', badge: 'bg-order-paid/10 text-order-paid-foreground', dot: 'bg-order-paid' },
+  'Partially Shipped': { description: 'Some units have shipped; balance is outstanding.', badge: 'bg-order-partial/10 text-order-partial-foreground', dot: 'bg-order-partial' },
+  'Delivered':         { description: 'All units shipped and received.', badge: 'bg-order-delivered/10 text-order-delivered-foreground', dot: 'bg-order-delivered' },
+  'Loaner':            { description: 'Units on loan; not a sale.', badge: 'bg-order-loaner/10 text-order-loaner-foreground', dot: 'bg-order-loaner' },
+};
+
+/** Statuses that still need work before the order is done. */
+export const OPEN_ORDER_STATUSES: readonly OrderStatus[] = ['PO Received', 'Invoiced', 'Paid', 'Partially Shipped'];
+
+export const DEFAULT_ORDER_STATUS: OrderStatus = 'PO Received';
+
+export const isOrderStatus = (value: unknown): value is OrderStatus =>
+  typeof value === 'string' && (ORDER_STATUSES as readonly string[]).includes(value);
+
+/**
+ * Map a stored status onto the current set. The retired combined "PO/Invoice" status
+ * becomes "Invoiced" when an invoice link exists, otherwise "PO Received".
+ */
+export const normalizeOrderStatus = (raw: unknown, invoice = ''): OrderStatus => {
+  if (isOrderStatus(raw)) return raw;
+  if (raw === 'PO/Invoice') return invoice.trim().startsWith('http') ? 'Invoiced' : 'PO Received';
+  return DEFAULT_ORDER_STATUS;
+};
+
+export interface ShipmentItem {
+  modelName: string;
+  quantity: number;
+}
+
+/** One physical shipment against an order. Several of these make a partial-shipment history. */
+export interface OrderShipment {
+  id: string;
+  shippedOn: string; // yyyy-MM-dd
+  items: ShipmentItem[];
+  tracking?: string;
+  note?: string;
+  createdAt: string; // ISO timestamp
+}
+
 export interface Order {
   id: string;
   customer: string;
@@ -26,13 +73,65 @@ export interface Order {
   modelType: string;
   modelItems: OrderModelItem[]; // Parsed model items for pricing
   totalValue: number; // Calculated from pricing tiers
-  invoice: string;
-  status: 'Delivered' | 'Partially Shipped' | 'Paid' | 'PO/Invoice' | 'Loaner';
+  invoice: string; // Invoice link (persisted in the legacy `po_number` column)
+  poNumber?: string; // Customer purchase order number
+  status: OrderStatus;
   tracking: string;
   orderUpdates: string;
   orderType?: OrderType; // Sample/Replacement orders have $0 value
   attachments?: OrderAttachment[]; // Uploaded files (POs, invoices, docs)
+  shipments?: OrderShipment[]; // Shipment log; drives shipped/remaining units
 }
+
+export interface ShipmentLine {
+  modelName: string;
+  ordered: number;
+  shipped: number;
+  remaining: number;
+}
+
+export interface ShipmentProgress {
+  lines: ShipmentLine[];
+  ordered: number;
+  shipped: number;
+  remaining: number;
+}
+
+/** Ordered vs shipped units per model (models ordered on separate lines are merged). */
+export const getShipmentProgress = (
+  order: Pick<Order, 'modelItems' | 'shipments'>,
+): ShipmentProgress => {
+  const byModel = new Map<string, ShipmentLine>();
+  const lineFor = (modelName: string) => {
+    let line = byModel.get(modelName);
+    if (!line) {
+      line = { modelName, ordered: 0, shipped: 0, remaining: 0 };
+      byModel.set(modelName, line);
+    }
+    return line;
+  };
+  for (const item of order.modelItems) lineFor(item.modelName).ordered += item.quantity || 0;
+  for (const shipment of order.shipments ?? []) {
+    for (const item of shipment.items) lineFor(item.modelName).shipped += item.quantity || 0;
+  }
+  const lines = [...byModel.values()].map(l => ({ ...l, remaining: Math.max(0, l.ordered - l.shipped) }));
+  const ordered = lines.reduce((sum, l) => sum + l.ordered, 0);
+  const shipped = lines.reduce((sum, l) => sum + l.shipped, 0);
+  return { lines, ordered, shipped, remaining: lines.reduce((sum, l) => sum + l.remaining, 0) };
+};
+
+/**
+ * Status an order should move to once its shipment log changes, or null to leave it alone.
+ * Loaners keep their status, and an empty log never changes the status.
+ */
+export const getStatusForShipments = (
+  current: OrderStatus,
+  progress: ShipmentProgress,
+): OrderStatus | null => {
+  if (current === 'Loaner' || progress.shipped === 0 || progress.ordered === 0) return null;
+  const next: OrderStatus = progress.remaining === 0 ? 'Delivered' : 'Partially Shipped';
+  return next === current ? null : next;
+};
 
 // Get pricing tier based on quantity
 const getTierPrice = (modelName: string, quantity: number): number => {
@@ -158,7 +257,7 @@ const unsortedOrders: Order[] = [
   { id: '34', customer: "O'Land Station", companyId: getCompanyId("O'Land Station"), placed: '12/16/2025', ...parseTotal('(1) 2 GPM'), invoice: 'https://connect.intuit.com/t/scs-v1-154c89d401594611a1710c3c3d9d0e62f0587e55242e4efa98d9bcb671ddb42ee339b6b6d47a47d392eecee26bfdbb5c', status: 'Delivered', tracking: 'https://www.fedex.com/wtrk/track/?trknbr=887157982938', orderUpdates: 'To Belize but not paid as of 1/6/26' },
   { id: '35', customer: 'Futuramic Omaha Water', companyId: getCompanyId('Futuramic Omaha Water'), placed: '1/6/2026', ...parseTotal('(6) 10 GPM'), invoice: 'https://connect.intuit.com/t/scs-v1-4ab87712db8f448c811b97c6ddf8c8a1584e9accb2b6437595eb444755aac1ea00a7071d70a345e28da0857a07a5e0ef', status: 'Paid', tracking: '', orderUpdates: '' },
   { id: '36', customer: 'Grande Ice', companyId: getCompanyId('Grande Ice'), placed: '12/11/2025', ...parseTotal('(10) 4 GPM'), invoice: 'https://connect.intuit.com/t/scs-v1-3cf8b5c3b15d414eb8e622df436852de0b78c34800c443c1ab5c50cf8f1efbd0e5e37cbdb23e403281389246721334ec', status: 'Paid', tracking: '', orderUpdates: '' },
-  { id: '37', customer: 'US Water Systems', companyId: getCompanyId('US Water Systems'), placed: '1/21/2026', ...parseTotal('(50) 2 GPM'), invoice: '', status: 'PO/Invoice', tracking: '', orderUpdates: '' },
+  { id: '37', customer: 'US Water Systems', companyId: getCompanyId('US Water Systems'), placed: '1/21/2026', ...parseTotal('(50) 2 GPM'), invoice: '', status: 'PO Received', tracking: '', orderUpdates: '' },
 ];
 
 // Sort orders by date (most recent first)
@@ -190,18 +289,8 @@ export const getOrderStats = () => {
   const totalUnits = orders.reduce((sum, o) => sum + o.units, 0);
   const totalValue = orders.reduce((sum, o) => sum + o.totalValue, 0);
   const delivered = orders.filter(o => o.status === 'Delivered').length;
-  const pending = orders.filter(o => o.status === 'Partially Shipped' || o.status === 'Paid' || o.status === 'PO/Invoice').length;
+  const pending = orders.filter(o => OPEN_ORDER_STATUSES.includes(o.status)).length;
   
   return { totalOrders, totalUnits, totalValue, delivered, pending };
 };
 
-export const getStatusColor = (status: Order['status']): { bg: string; text: string } => {
-  switch (status) {
-    case 'Delivered': return { bg: 'bg-green-500/10', text: 'text-green-600' };
-    case 'Partially Shipped': return { bg: 'bg-yellow-500/10', text: 'text-yellow-600' };
-    case 'Paid': return { bg: 'bg-blue-500/10', text: 'text-blue-600' };
-    case 'PO/Invoice': return { bg: 'bg-orange-500/10', text: 'text-orange-600' };
-    case 'Loaner': return { bg: 'bg-purple-500/10', text: 'text-purple-600' };
-    default: return { bg: 'bg-muted', text: 'text-muted-foreground' };
-  }
-};

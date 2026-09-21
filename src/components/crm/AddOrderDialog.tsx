@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Trash2, Package, Building2, FileText, Check, ChevronsUpDown, X } from 'lucide-react';
+import { Plus, Trash2, Package, Building2, FileText, Hash, Check, ChevronsUpDown, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,7 +26,8 @@ import { useProductModels } from '@/context/ProductModelsContext';
 import { useProspects } from '@/context/ProspectsContext';
 import { useToast } from '@/hooks/use-toast';
 import { defaultTierNames } from '@/data/productModels';
-import { Order, OrderModelItem, OrderType, getStatusColor, formatCurrency } from '@/data/orders';
+import { OrderModelItem, OrderStatus, OrderType, DEFAULT_ORDER_STATUS, ORDER_STATUS_META, formatCurrency } from '@/data/orders';
+import OrderStatusBadge, { OrderStatusSelectItems } from './OrderStatusBadge';
 
 interface AddOrderDialogProps {
   defaultCompanyName?: string;
@@ -56,9 +57,10 @@ const AddOrderDialog = ({
   const [customer, setCustomer] = useState(defaultCompanyName || '');
   const [companyId, setCompanyId] = useState(defaultCompanyId || '');
   const [placed, setPlaced] = useState(new Date().toLocaleDateString('en-US'));
-  const [status, setStatus] = useState<Order['status']>('PO/Invoice');
+  const [status, setStatus] = useState<OrderStatus>(DEFAULT_ORDER_STATUS);
   const [orderType, setOrderType] = useState<OrderType>('Standard');
   const [invoice, setInvoice] = useState('');
+  const [poNumber, setPoNumber] = useState('');
   const [modelItems, setModelItems] = useState<DraftItem[]>([{ modelName: '', quantity: 1 }]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [companyPickerOpen, setCompanyPickerOpen] = useState(false);
@@ -74,9 +76,10 @@ const AddOrderDialog = ({
       setCustomer(defaultCompanyName || '');
       setCompanyId(defaultCompanyId || '');
       setPlaced(new Date().toLocaleDateString('en-US'));
-      setStatus('PO/Invoice');
+      setStatus(DEFAULT_ORDER_STATUS);
       setOrderType('Standard');
       setInvoice('');
+      setPoNumber('');
       setModelItems([{ modelName: '', quantity: 1 }]);
     }
     setOpen(isOpen);
@@ -166,6 +169,7 @@ const AddOrderDialog = ({
       modelItems: orderModelItems,
       totalValue: 0, // Recalculated by context from pricing tiers
       invoice: invoice.trim(),
+      poNumber: poNumber.trim(),
       status,
       tracking: '',
       orderUpdates: '',
@@ -182,7 +186,6 @@ const AddOrderDialog = ({
   };
 
   const hasDefaultCompany = Boolean(defaultCompanyName);
-  const statusColors = getStatusColor(status);
   const validItemCount = modelItems.filter(i => i.modelName).length;
 
   return (
@@ -213,11 +216,9 @@ const AddOrderDialog = ({
                   {customer.trim() || 'Create Order'}
                 </h1>
                 <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                  <Badge variant="secondary" className={`${statusColors.bg} ${statusColors.text} border-0`}>
-                    {status}
-                  </Badge>
+                  <OrderStatusBadge status={status} />
                   {isZeroValueType && (
-                    <Badge variant="secondary" className="bg-purple-500/10 text-purple-600 border-0">
+                    <Badge variant="outline" className="text-xs font-medium">
                       {orderType}
                     </Badge>
                   )}
@@ -327,17 +328,14 @@ const AddOrderDialog = ({
                     </Select>
                   </div>
                   <div className="grid gap-1.5">
-                    <Label className="text-xs text-muted-foreground">Status</Label>
-                    <Select value={status} onValueChange={(value) => setStatus(value as Order['status'])}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
+                    <Label htmlFor="order-status" className="text-xs text-muted-foreground">Status</Label>
+                    <Select value={status} onValueChange={(value) => setStatus(value as OrderStatus)}>
+                      <SelectTrigger id="order-status"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="PO/Invoice">PO/Invoice</SelectItem>
-                        <SelectItem value="Paid">Paid</SelectItem>
-                        <SelectItem value="Partially Shipped">Partially Shipped</SelectItem>
-                        <SelectItem value="Delivered">Delivered</SelectItem>
-                        <SelectItem value="Loaner">Loaner</SelectItem>
+                        <OrderStatusSelectItems />
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">{ORDER_STATUS_META[status].description}</p>
                   </div>
                 </div>
               </div>
@@ -453,19 +451,33 @@ const AddOrderDialog = ({
             {/* Documents */}
             <section className="content-card p-6">
               <h2 className="section-header">Documents</h2>
-              <div className="grid gap-1.5">
-                <Label htmlFor="invoice" className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5" />
-                  Invoice URL <span className="font-normal opacity-70">(optional)</span>
-                </Label>
-                <Input
-                  id="invoice"
-                  value={invoice}
-                  onChange={(e) => setInvoice(e.target.value)}
-                  placeholder="https://…"
-                />
-                <p className="text-xs text-muted-foreground">Tracking links and file uploads can be added after the order is created.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid gap-1.5">
+                  <Label htmlFor="po-number" className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <Hash className="w-3.5 h-3.5" />
+                    PO # <span className="font-normal opacity-70">(optional)</span>
+                  </Label>
+                  <Input
+                    id="po-number"
+                    value={poNumber}
+                    onChange={(e) => setPoNumber(e.target.value)}
+                    placeholder="e.g. PO-10482"
+                  />
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="invoice" className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5" />
+                    Invoice URL <span className="font-normal opacity-70">(optional)</span>
+                  </Label>
+                  <Input
+                    id="invoice"
+                    value={invoice}
+                    onChange={(e) => setInvoice(e.target.value)}
+                    placeholder="https://…"
+                  />
+                </div>
               </div>
+              <p className="mt-3 text-xs text-muted-foreground">Shipments, tracking links and file uploads can be added after the order is created.</p>
             </section>
           </div>
 

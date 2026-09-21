@@ -3,7 +3,8 @@ import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, Me
 import { Contact, Engagement, CompanyType, MarketType, REPS, getRepConfig } from '@/data/prospects';
 import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import { parseDateLoose, formatMmDdYyyy } from '@/lib/date';
-import { Order, getStatusColor, formatCurrency } from '@/data/orders';
+import { Order, formatCurrency } from '@/data/orders';
+import OrderStatusBadge, { ShipmentProgressText } from '@/components/crm/OrderStatusBadge';
 import { useProspects } from '@/context/ProspectsContext';
 import StageBadge from '@/components/crm/StageBadge';
 import TypeBadge from '@/components/crm/TypeBadge';
@@ -17,6 +18,7 @@ import { EmailVerificationDialog } from '@/components/crm/EmailVerificationDialo
 import AddOrderDialog from '@/components/crm/AddOrderDialog';
 import OrderDetail from '@/components/OrderDetail';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { keepLocalEscape } from '@/lib/escape-scope';
 import { useOrders } from '@/context/OrdersContext';
 import { useTasks, Task, TaskStatus } from '@/context/TasksContext';
 import { useAuth } from '@/hooks/useAuth';
@@ -1226,7 +1228,6 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
           </thead>
           <tbody className="divide-y divide-border">
             {companyOrders.map((order) => {
-              const statusColors = getStatusColor(order.status);
               return (
                 <tr
                   key={order.id}
@@ -1252,9 +1253,10 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
                     )}
                   </td>
                   <td className="px-6 py-4">
-                    <Badge variant="secondary" className={`${statusColors.bg} ${statusColors.text} border-0`}>
-                      {order.status}
-                    </Badge>
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <OrderStatusBadge status={order.status} />
+                      <ShipmentProgressText order={order} />
+                    </div>
                   </td>
                   <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2">
@@ -1294,7 +1296,7 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
 
       {/* Order detail slide-over — keeps the user on the company profile */}
       <Sheet open={!!selectedOrderId} onOpenChange={(open) => !open && setSelectedOrderId(null)}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl p-6 flex flex-col">
+        <SheetContent side="right" className="w-full sm:max-w-2xl p-6 flex flex-col" onEscapeKeyDown={keepLocalEscape}>
           {selectedOrderId && (
             <OrderDetail
               orderId={selectedOrderId}

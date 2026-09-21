@@ -1,16 +1,31 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { orders as initialOrders, Order, OrderModelItem, OrderAttachment } from '@/data/orders';
+import { orders as initialOrders, Order, OrderModelItem, OrderAttachment, normalizeOrderStatus } from '@/data/orders';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface OrdersContextType {
   orders: Order[];
-  updateOrder: (order: Order) => void;
+  /** Resolves to false (after showing an error toast) when the save fails. */
+  updateOrder: (order: Order) => Promise<boolean>;
   deleteOrder: (id: string) => void;
   getOrderById: (id: string) => Order | undefined;
   addOrder: (order: Omit<Order, 'id'>) => Promise<Order | null>;
   isLoading: boolean;
 }
+
+// Fields without their own column ride along as a trailing meta entry in `model_items`
+const buildModelItemsJson = (order: Pick<Order, 'modelItems' | 'tracking' | 'orderUpdates' | 'poNumber' | 'shipments'>) =>
+  JSON.parse(JSON.stringify([
+    ...order.modelItems,
+    {
+      tracking: order.tracking || '',
+      orderUpdates: order.orderUpdates || '',
+      poNumber: order.poNumber || '',
+      shipments: order.shipments || [],
+    },
+  ]));
+
+type OrderMeta = Partial<Pick<Order, 'tracking' | 'orderUpdates' | 'poNumber' | 'shipments'>>;
 
 const OrdersContext = createContext<OrdersContextType | undefined>(undefined);
 
@@ -33,11 +48,12 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
         if (data && data.length > 0) {
           // Map database format to app format
           const mappedOrders: Order[] = data.map(row => {
-            const modelItemsRaw = row.model_items as unknown as any[];
-            // Extract tracking/orderUpdates from the last item if present
-            const metaItem = modelItemsRaw?.find((item: any) => 'tracking' in item || 'orderUpdates' in item);
-            const modelItems = (modelItemsRaw?.filter((item: any) => 'quantity' in item) || []) as OrderModelItem[];
+            const modelItemsRaw = (Array.isArray(row.model_items) ? row.model_items : []) as Record<string, unknown>[];
+            // Extract tracking/orderUpdates/poNumber/shipments from the trailing meta entry if present
+            const metaItem = modelItemsRaw.find(item => item && ('tracking' in item || 'orderUpdates' in item)) as OrderMeta | undefined;
+            const modelItems = modelItemsRaw.filter(item => item && 'quantity' in item) as unknown as OrderModelItem[];
             
+            const invoice = row.po_number || '';
             return {
               id: row.id,
               customer: row.company,
@@ -46,10 +62,12 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
               modelType: row.model_type || '',
               modelItems,
               totalValue: Number(row.total_value) || 0,
-              invoice: row.po_number || '',
-              status: row.status as Order['status'],
+              invoice,
+              poNumber: metaItem?.poNumber || '',
+              status: normalizeOrderStatus(row.status, invoice),
               tracking: metaItem?.tracking || '',
               orderUpdates: metaItem?.orderUpdates || '',
+              shipments: metaItem?.shipments || [],
               orderType: (row.order_type as Order['orderType']) || 'Standard',
               attachments: (row.attachments as unknown as OrderAttachment[]) || [],
             };
@@ -86,10 +104,7 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
         status: order.status,
         order_type: order.orderType || 'Standard',
         model_type: order.modelType,
-        model_items: JSON.parse(JSON.stringify([
-          ...order.modelItems,
-          { tracking: order.tracking, orderUpdates: order.orderUpdates }
-        ])),
+        model_items: buildModelItemsJson(order),
         total_value: order.totalValue,
       }));
 
@@ -109,7 +124,7 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  const updateOrder = async (updatedOrder: Order) => {
+  const updateOrder = async (updatedOrder: Order): Promise<boolean> => {
     try {
       const { error } = await supabase
         .from('orders')
@@ -120,10 +135,7 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
           status: updatedOrder.status,
           order_type: updatedOrder.orderType || 'Standard',
           model_type: updatedOrder.modelType,
-          model_items: JSON.parse(JSON.stringify([
-            ...updatedOrder.modelItems,
-            { tracking: updatedOrder.tracking, orderUpdates: updatedOrder.orderUpdates }
-          ])),
+          model_items: buildModelItemsJson(updatedOrder),
           total_value: updatedOrder.totalValue,
           attachments: JSON.parse(JSON.stringify(updatedOrder.attachments || [])),
         })
@@ -132,6 +144,7 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
       if (error) throw error;
 
       setOrders(prev => prev.map(o => o.id === updatedOrder.id ? updatedOrder : o));
+      return true;
     } catch (error) {
       console.error('Failed to update order:', error);
       toast({
@@ -139,6 +152,7 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
         description: 'Failed to update order.',
         variant: 'destructive',
       });
+      return false;
     }
   };
 
@@ -184,10 +198,7 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
           status: orderData.status,
           order_type: orderData.orderType || 'Standard',
           model_type: orderData.modelType,
-          model_items: JSON.parse(JSON.stringify([
-            ...orderData.modelItems,
-            { tracking: orderData.tracking || '', orderUpdates: orderData.orderUpdates || '' }
-          ])),
+          model_items: buildModelItemsJson(orderData),
           total_value: totalValue,
         })
         .select()
@@ -204,9 +215,11 @@ export const OrdersProvider = ({ children }: { children: ReactNode }) => {
         modelItems: orderData.modelItems,
         totalValue: Number(data.total_value) || 0,
         invoice: data.po_number || '',
-        status: data.status as Order['status'],
+        poNumber: orderData.poNumber || '',
+        status: normalizeOrderStatus(data.status, data.po_number || ''),
         tracking: orderData.tracking || '',
         orderUpdates: orderData.orderUpdates || '',
+        shipments: orderData.shipments || [],
         orderType: (data.order_type as Order['orderType']) || 'Standard',
         attachments: (data.attachments as unknown as OrderAttachment[]) || [],
       };

@@ -21,10 +21,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Order, getStatusColor, formatCurrency } from '@/data/orders';
+import { ORDER_STATUSES, OPEN_ORDER_STATUSES, formatCurrency, getShipmentProgress, isOrderStatus } from '@/data/orders';
+import OrderStatusBadge, { OrderStatusSelectItems, ShipmentProgressText } from './OrderStatusBadge';
 import { useOrders } from '@/context/OrdersContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
+import { keepLocalEscape } from '@/lib/escape-scope';
 import { DollarSign } from 'lucide-react';
 import OrderDetail from '@/components/OrderDetail';
 import ProductModelsDialog from './ProductModelsDialog';
@@ -39,7 +41,11 @@ const OrdersTable = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const [searchTerm, setSearchTerm] = useState(() => searchParams.get('q') || '');
-  const [statusFilter, setStatusFilter] = useState<string>(() => searchParams.get('status') || NONE_VALUE);
+  // Unknown values (e.g. old links to the retired "PO/Invoice" status) fall back to all statuses
+  const [statusFilter, setStatusFilter] = useState<string>(() => {
+    const status = searchParams.get('status');
+    return isOrderStatus(status) ? status : NONE_VALUE;
+  });
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const { orders } = useOrders();
 
@@ -84,7 +90,7 @@ const OrdersTable = () => {
     const totalUnits = orders.reduce((sum, o) => sum + o.units, 0);
     const totalValue = orders.reduce((sum, o) => sum + o.totalValue, 0);
     const delivered = orders.filter(o => o.status === 'Delivered').length;
-    const pending = orders.filter(o => o.status === 'Partially Shipped' || o.status === 'Paid' || o.status === 'PO/Invoice').length;
+    const pending = orders.filter(o => OPEN_ORDER_STATUSES.includes(o.status)).length;
     return { totalOrders, totalUnits, totalValue, delivered, pending };
   }, [orders]);
 
@@ -107,9 +113,11 @@ const OrdersTable = () => {
 
   const filteredAndSortedOrders = useMemo(() => {
     let result = orders.filter((order) => {
+      const term = searchTerm.toLowerCase();
       const matchesSearch =
-        order.customer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        order.modelType.toLowerCase().includes(searchTerm.toLowerCase());
+        order.customer.toLowerCase().includes(term) ||
+        order.modelType.toLowerCase().includes(term) ||
+        (order.poNumber ?? '').toLowerCase().includes(term);
       const matchesStatus = statusFilter === NONE_VALUE || order.status === statusFilter;
       return matchesSearch && matchesStatus;
     });
@@ -145,8 +153,9 @@ const OrdersTable = () => {
             bVal = b.totalValue;
             break;
           case 'status':
-            aVal = a.status.toLowerCase();
-            bVal = b.status.toLowerCase();
+            // Lifecycle order (PO Received → Delivered), not alphabetical
+            aVal = ORDER_STATUSES.indexOf(a.status);
+            bVal = ORDER_STATUSES.indexOf(b.status);
             break;
         }
 
@@ -165,15 +174,6 @@ const OrdersTable = () => {
 
     return result;
   }, [orders, searchTerm, statusFilter, sortField, sortDirection]);
-
-  const StatusBadge = ({ status }: { status: Order['status'] }) => {
-    const colors = getStatusColor(status);
-    return (
-      <Badge variant="secondary" className={`${colors.bg} ${colors.text} border-0`}>
-        {status}
-      </Badge>
-    );
-  };
 
   return (
     <div className="space-y-6">
@@ -211,15 +211,15 @@ const OrdersTable = () => {
             <CardTitle className="text-sm font-medium text-muted-foreground">Delivered</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-green-600">{stats.delivered}</div>
+            <div className="text-2xl font-bold text-order-delivered-foreground">{stats.delivered}</div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Pending</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Open</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">{stats.pending}</div>
+            <div className="text-2xl font-bold text-order-partial-foreground">{stats.pending}</div>
           </CardContent>
         </Card>
       </div>
@@ -229,7 +229,7 @@ const OrdersTable = () => {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by customer or model..."
+            placeholder="Search customer, model, or PO #..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
@@ -242,24 +242,22 @@ const OrdersTable = () => {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={NONE_VALUE}>All Statuses</SelectItem>
-            <SelectItem value="Delivered">Delivered</SelectItem>
-            <SelectItem value="Partially Shipped">Partially Shipped</SelectItem>
-            <SelectItem value="Paid">Paid</SelectItem>
-            <SelectItem value="PO/Invoice">PO/Invoice</SelectItem>
-            <SelectItem value="Loaner">Loaner</SelectItem>
+            <OrderStatusSelectItems />
           </SelectContent>
         </Select>
         <Button
           variant="outline"
           size="sm"
           onClick={() => {
-            const headers = ['Customer', 'Date Placed', 'Units', 'Model Type', 'Total Value', 'PO/Invoice', 'Status', 'Order Type', 'Tracking'];
+            const headers = ['Customer', 'Date Placed', 'Units', 'Units Shipped', 'Model Type', 'Total Value', 'PO #', 'Invoice', 'Status', 'Order Type', 'Tracking'];
             const rows = filteredAndSortedOrders.map(o => [
               o.customer,
               o.placed,
               String(o.units),
+              String(getShipmentProgress(o).shipped),
               o.modelType,
               String(o.totalValue),
+              o.poNumber || '',
               o.invoice || '',
               o.status,
               o.orderType || 'Standard',
@@ -342,7 +340,10 @@ const OrdersTable = () => {
                   </span>
                 </TableCell>
                 <TableCell>
-                  <StatusBadge status={order.status} />
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <OrderStatusBadge status={order.status} />
+                    <ShipmentProgressText order={order} />
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -353,13 +354,22 @@ const OrdersTable = () => {
       {filteredAndSortedOrders.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
-          <p>No orders found matching your criteria.</p>
+          {searchTerm || statusFilter !== NONE_VALUE ? (
+            <>
+              <p className="mb-3">No orders match these filters.</p>
+              <Button variant="outline" size="sm" onClick={() => { setSearchTerm(''); setStatusFilter(NONE_VALUE); }}>
+                Clear filters
+              </Button>
+            </>
+          ) : (
+            <p>No orders yet. Use New Order to log the first one.</p>
+          )}
         </div>
       )}
 
       {/* Order detail slide-over — view/edit without leaving the Orders page */}
       <Sheet open={!!selectedOrderId} onOpenChange={(open) => !open && setSelectedOrderId(null)}>
-        <SheetContent side="right" className="w-full sm:max-w-2xl p-6 flex flex-col">
+        <SheetContent side="right" className="w-full sm:max-w-2xl p-6 flex flex-col" onEscapeKeyDown={keepLocalEscape}>
           {selectedOrderId && (
             <OrderDetail
               orderId={selectedOrderId}

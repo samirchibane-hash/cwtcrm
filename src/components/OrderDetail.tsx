@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, type ComponentType } from 'react';
 import { Link } from 'react-router-dom';
-import { Package, Building2, Truck, FileText, Save, Plus, Trash2, AlertTriangle, Upload, Download, Pencil, Check, X, Loader2 } from 'lucide-react';
-import { Order, OrderModelItem, OrderType, OrderAttachment, getStatusColor, formatCurrency } from '@/data/orders';
+import { Package, Building2, Truck, FileText, Hash, Save, Plus, Trash2, AlertTriangle, Upload, Download, Pencil, Check, X, Loader2 } from 'lucide-react';
+import { Order, OrderModelItem, OrderStatus, OrderType, OrderAttachment, formatCurrency } from '@/data/orders';
+import OrderStatusBadge, { OrderStatusSelectItems, ShipmentProgressText } from '@/components/crm/OrderStatusBadge';
+import OrderShipments from '@/components/crm/OrderShipments';
 import { defaultTierNames } from '@/data/productModels';
 import { useProductModels } from '@/context/ProductModelsContext';
 import { useOrders } from '@/context/OrdersContext';
@@ -75,7 +77,7 @@ const InlineLink = ({ icon: Icon, actionLabel, value, placeholder, onSave }: {
 
   if (editing) {
     return (
-      <div className="mt-1 flex items-center gap-2">
+      <div data-escape-scope className="mt-1 flex items-center gap-2">
         <Input
           autoFocus
           value={draft}
@@ -87,8 +89,8 @@ const InlineLink = ({ icon: Icon, actionLabel, value, placeholder, onSave }: {
             if (e.key === 'Escape') setEditing(false);
           }}
         />
-        <Button size="sm" className="h-9 px-2.5" onClick={commit}><Check className="w-4 h-4" /></Button>
-        <Button size="sm" variant="ghost" className="h-9 px-2.5" onClick={() => setEditing(false)}><X className="w-4 h-4" /></Button>
+        <Button size="sm" className="h-9 px-2.5" onClick={commit} aria-label="Save"><Check className="w-4 h-4" /></Button>
+        <Button size="sm" variant="ghost" className="h-9 px-2.5" onClick={() => setEditing(false)} aria-label="Cancel"><X className="w-4 h-4" /></Button>
       </div>
     );
   }
@@ -101,7 +103,7 @@ const InlineLink = ({ icon: Icon, actionLabel, value, placeholder, onSave }: {
           <span className="truncate">{actionLabel}</span>
         </a>
       ) : value ? (
-        <span className="text-sm text-muted-foreground truncate">{value}</span>
+        <span className="text-sm text-foreground font-mono truncate">{value}</span>
       ) : (
         <button onClick={() => setEditing(true)} className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors">
           <Plus className="w-3.5 h-3.5" />
@@ -111,8 +113,9 @@ const InlineLink = ({ icon: Icon, actionLabel, value, placeholder, onSave }: {
       {value && (
         <button
           onClick={() => setEditing(true)}
-          className="shrink-0 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
+          className="shrink-0 rounded text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring [@media(hover:none)]:opacity-100 transition-opacity"
           title="Edit"
+          aria-label="Edit"
         >
           <Pencil className="w-3.5 h-3.5" />
         </button>
@@ -156,6 +159,9 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
   const order = getOrderById(orderId);
 
   const [formData, setFormData] = useState<Order | null>(null);
+  // Latest form state for async callbacks (e.g. a toast's Undo) that outlive the render they came from
+  const latestFormData = useRef<Order | null>(null);
+  latestFormData.current = formData;
   const [modelItems, setModelItems] = useState<EditableModelItem[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -196,7 +202,6 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
     );
   }
 
-  const statusColors = getStatusColor(formData.status);
   const isSpecialType = formData.orderType && formData.orderType !== 'Standard';
 
   const handleSave = () => {
@@ -218,7 +223,7 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
     setIsEditing(false);
   };
 
-  const handleChange = (field: keyof Order, value: string) => {
+  const handleChange = (field: Exclude<keyof Order, 'status'>, value: string) => {
     setFormData(prev => prev ? { ...prev, [field]: value } : null);
   };
 
@@ -264,11 +269,15 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
     setIsEditing(false);
   };
 
-  // Persist a small change immediately (inline edits, uploads) without full edit mode
-  const persistPatch = (patch: Partial<Order>) => {
-    const next = { ...(formData ?? order), ...patch };
+  // Persist a small change immediately (inline edits, uploads, shipments) without full edit mode.
+  // Optimistic: the panel updates at once and rolls back if the save fails.
+  const persistPatch = async (patch: Partial<Order>): Promise<boolean> => {
+    const previous = latestFormData.current ?? order;
+    const next = { ...previous, ...patch };
     setFormData(next);
-    updateOrder(next);
+    const ok = await updateOrder(next);
+    if (!ok) setFormData(previous);
+    return ok;
   };
 
   const attachments = formData.attachments || [];
@@ -278,7 +287,7 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
     setUploading(true);
     const added: OrderAttachment[] = [];
     for (const file of Array.from(files)) {
-      const safeName = file.name.replace(/[^\w.\-]+/g, '_');
+      const safeName = file.name.replace(/[^\w.-]+/g, '_');
       const path = `${order.id}/${Date.now()}-${safeName}`;
       const { error } = await supabase.storage.from('order-attachments').upload(path, file, { upsert: false });
       if (error) {
@@ -338,11 +347,10 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
                 </span>
               )
             )}
-            <Badge variant="secondary" className={`${statusColors.bg} ${statusColors.text} border-0`}>
-              {formData.status}
-            </Badge>
+            <OrderStatusBadge status={formData.status} />
+            <ShipmentProgressText order={formData} />
             {isSpecialType && (
-              <Badge variant="secondary" className="bg-purple-500/10 text-purple-600 border-0">
+              <Badge variant="outline" className="text-xs font-medium">
                 {formData.orderType}
               </Badge>
             )}
@@ -363,7 +371,7 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
           <>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button size="sm" variant="outline" className="text-destructive hover:text-destructive">
+                <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" aria-label="Delete order">
                   <Trash2 className="w-4 h-4" />
                 </Button>
               </AlertDialogTrigger>
@@ -380,7 +388,7 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    Delete
+                    Delete order
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -418,14 +426,13 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
         </div>
         <div>
           <Label className="text-xs text-muted-foreground">Status</Label>
-          <Select value={formData.status} onValueChange={(value) => handleChange('status', value)}>
+          <Select
+            value={formData.status}
+            onValueChange={(value) => setFormData(prev => prev ? { ...prev, status: value as OrderStatus } : null)}
+          >
             <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="Delivered">Delivered</SelectItem>
-              <SelectItem value="Partially Shipped">Partially Shipped</SelectItem>
-              <SelectItem value="Paid">Paid</SelectItem>
-              <SelectItem value="PO/Invoice">PO/Invoice</SelectItem>
-              <SelectItem value="Loaner">Loaner</SelectItem>
+              <OrderStatusSelectItems />
             </SelectContent>
           </Select>
         </div>
@@ -599,7 +606,21 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
         )}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div>
+          <Label className="text-xs text-muted-foreground">PO #</Label>
+          {isEditing ? (
+            <Input value={formData.poNumber ?? ''} onChange={(e) => handleChange('poNumber', e.target.value)} className="mt-1" placeholder="e.g. PO-10482" />
+          ) : (
+            <InlineLink
+              icon={Hash}
+              actionLabel="PO"
+              value={formData.poNumber ?? ''}
+              placeholder="Add PO number"
+              onSave={(v) => { void persistPatch({ poNumber: v }); }}
+            />
+          )}
+        </div>
         <div>
           <Label className="text-xs text-muted-foreground">Invoice</Label>
           {isEditing ? (
@@ -610,7 +631,7 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
               actionLabel="View Invoice"
               value={formData.invoice}
               placeholder="Add invoice link"
-              onSave={(v) => persistPatch({ invoice: v })}
+              onSave={(v) => { void persistPatch({ invoice: v }); }}
             />
           )}
         </div>
@@ -624,7 +645,7 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
               actionLabel="Track Shipment"
               value={formData.tracking}
               placeholder="Add tracking link"
-              onSave={(v) => persistPatch({ tracking: v })}
+              onSave={(v) => { void persistPatch({ tracking: v }); }}
             />
           )}
         </div>
@@ -691,6 +712,7 @@ const OrderDetail = ({ orderId, variant = 'page', onDeleted, linkCustomer = true
     <div className={isPanel ? 'space-y-6' : 'space-y-8'}>
       {isEditing && metadataCard}
       {productsCard}
+      <OrderShipments order={formData} disabled={isEditing} onPersist={persistPatch} />
       {docsCard}
       {notesCard}
     </div>
