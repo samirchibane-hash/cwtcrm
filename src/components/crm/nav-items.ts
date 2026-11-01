@@ -1,4 +1,4 @@
-import { Users, FileText, ShoppingCart, BarChart2, Bot, CheckSquare2, Zap, LucideIcon } from 'lucide-react';
+import { Users, FileText, ShoppingCart, BarChart2, Bot, CheckSquare2, Zap, Landmark, LucideIcon } from 'lucide-react';
 
 export interface NavItem {
   id: string;
@@ -34,6 +34,12 @@ export const NAV_GROUPS: NavGroup[] = [
       { id: 'orders', label: 'Orders', icon: ShoppingCart, subtitle: 'Customer orders, invoices and shipments' },
       { id: 'reports', label: 'Reports', icon: FileText, subtitle: 'Revenue analytics and business insights' },
       { id: 'activity', label: 'Activity', icon: BarChart2, subtitle: 'Call and email activity across all companies' },
+    ],
+  },
+  {
+    label: 'Fundraising',
+    items: [
+      { id: 'investors', label: 'Investors', icon: Landmark, subtitle: 'Firms and angels, and where each relationship stands' },
     ],
   },
 ];

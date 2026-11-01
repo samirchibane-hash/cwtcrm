@@ -125,7 +125,7 @@ const ContactDetailsPanel = ({ contact, onSave, onDelete, onClose }: ContactDeta
         <SheetDescription className="sr-only">
           {isEditing
             ? 'Update this contact’s name, role, and contact details.'
-            : 'Add a new contact for this company, including their direct contact details.'}
+            : 'Add a new contact, including their direct contact details.'}
         </SheetDescription>
       </div>
 
@@ -245,7 +245,7 @@ const ContactDetailsPanel = ({ contact, onSave, onDelete, onClose }: ContactDeta
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete {contact?.name}?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This removes {contact?.name} from this company’s contacts. This action cannot be undone.
+                  This removes {contact?.name} from the contacts list. This action cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

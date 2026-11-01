@@ -550,6 +550,63 @@ export type Database = {
         }
         Relationships: []
       }
+      investors: {
+        Row: {
+          city: string | null
+          contacts: Json
+          country: string | null
+          created_at: string
+          engagements: Json
+          id: string
+          investor_type: string | null
+          last_contact: string | null
+          linkedin: string | null
+          name: string
+          notes: string | null
+          phone: string | null
+          stage: string | null
+          state: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          city?: string | null
+          contacts?: Json
+          country?: string | null
+          created_at?: string
+          engagements?: Json
+          id?: string
+          investor_type?: string | null
+          last_contact?: string | null
+          linkedin?: string | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          stage?: string | null
+          state?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          city?: string | null
+          contacts?: Json
+          country?: string | null
+          created_at?: string
+          engagements?: Json
+          id?: string
+          investor_type?: string | null
+          last_contact?: string | null
+          linkedin?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          stage?: string | null
+          state?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
       orders: {
         Row: {
           attachments: Json

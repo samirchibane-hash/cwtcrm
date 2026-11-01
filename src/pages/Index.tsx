@@ -13,9 +13,10 @@ import { AIRecommendationsPage } from '@/components/crm/AIRecommendationsPage';
 import { OutreachAgentPage } from '@/components/crm/OutreachAgentPage';
 import { TasksPage } from '@/components/crm/TasksPage';
 import AutomationsPage from '@/components/crm/AutomationsPage';
+import InvestorsTable from '@/components/crm/InvestorsTable';
 import { Prospect } from '@/data/prospects';
 
-const VIEWS = ['pipeline', 'prospects', 'agent', 'automations', 'orders', 'reports', 'activity', 'tasks'];
+const VIEWS = ['pipeline', 'prospects', 'agent', 'automations', 'orders', 'reports', 'activity', 'tasks', 'investors'];
 // Legacy params (briefing = retired Daily Briefing tab) all land on the pipeline
 const LEGACY_PIPELINE_VIEWS = ['prospects', 'customers', 'dashboard', 'briefing'];
 
@@ -67,6 +68,8 @@ const Index = () => {
         return <ActivityDashboard />;
       case 'tasks':
         return <TasksPage />;
+      case 'investors':
+        return <InvestorsTable />;
       default:
         return <ProspectsTable onSelectProspect={handleSelectProspect} />;
     }

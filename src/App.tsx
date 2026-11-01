@@ -7,12 +7,14 @@ import { ProductModelsProvider } from "@/context/ProductModelsContext";
 import { OrdersProvider } from "@/context/OrdersContext";
 import { ProspectsProvider } from "@/context/ProspectsContext";
 import { TasksProvider } from "@/context/TasksContext";
+import { InvestorsProvider } from "@/context/InvestorsContext";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Index from "./pages/Index";
 import CompanyPage from "./pages/CompanyPage";
 import OrderPage from "./pages/OrderPage";
+import InvestorPage from "./pages/InvestorPage";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -24,6 +26,7 @@ const App = () => (
       <ProductModelsProvider>
         <OrdersProvider>
           <ProspectsProvider>
+          <InvestorsProvider>
           <TasksProvider>
           <TooltipProvider>
             <Toaster />
@@ -42,6 +45,11 @@ const App = () => (
                     <CompanyPage />
                   </ProtectedRoute>
                 } />
+                <Route path="/investor/:id" element={
+                  <ProtectedRoute>
+                    <InvestorPage />
+                  </ProtectedRoute>
+                } />
                 <Route path="/order/:id" element={
                   <ProtectedRoute>
                     <OrderPage />
@@ -54,6 +62,7 @@ const App = () => (
             </BrowserRouter>
           </TooltipProvider>
           </TasksProvider>
+          </InvestorsProvider>
           </ProspectsProvider>
         </OrdersProvider>
       </ProductModelsProvider>

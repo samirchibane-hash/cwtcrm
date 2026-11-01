@@ -1,7 +1,10 @@
 import type { Prospect } from '@/data/prospects';
+
+// Anything with an activity history: companies and investors
+type HasActivity = Pick<Prospect, 'engagements' | 'lastContact'>;
 import { formatMmDdYyyy, parseDateLoose } from '@/lib/date';
 
-export function getProspectLastContactDate(prospect: Prospect): Date | null {
+export function getProspectLastContactDate(prospect: HasActivity): Date | null {
   let best: Date | null = null;
 
   // Prefer derived engagement timestamps (notes, calls, etc.)
@@ -18,11 +21,11 @@ export function getProspectLastContactDate(prospect: Prospect): Date | null {
   return best;
 }
 
-export function getProspectLastContactSortValue(prospect: Prospect): number {
+export function getProspectLastContactSortValue(prospect: HasActivity): number {
   return getProspectLastContactDate(prospect)?.getTime() ?? 0;
 }
 
-export function getProspectLastContactLabel(prospect: Prospect): string {
+export function getProspectLastContactLabel(prospect: HasActivity): string {
   const d = getProspectLastContactDate(prospect);
   return d ? formatMmDdYyyy(d) : '';
 }

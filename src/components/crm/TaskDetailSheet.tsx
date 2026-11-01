@@ -19,6 +19,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/lib/utils';
 import { useTasks, Task, TaskComment, ContactTag, TaskStatus, TaskPriority } from '@/context/TasksContext';
 import { useProspects } from '@/context/ProspectsContext';
+import { useInvestors } from '@/context/InvestorsContext';
 import { useOrders } from '@/context/OrdersContext';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -301,6 +302,7 @@ function ProspectCombobox({ value, label, onChange, onClear }: {
   onClear: () => void;
 }) {
   const { prospects } = useProspects();
+  const { investors } = useInvestors();
   const [open, setOpen] = useState(false);
 
   return (
@@ -314,7 +316,7 @@ function ProspectCombobox({ value, label, onChange, onClear }: {
         >
           <Building2 className="w-4 h-4 text-muted-foreground shrink-0" />
           <span className={cn('flex-1 truncate', !label && 'text-muted-foreground')}>
-            {label || 'Link company…'}
+            {label || 'Link company or investor…'}
           </span>
           {label ? (
             <span
@@ -334,10 +336,10 @@ function ProspectCombobox({ value, label, onChange, onClear }: {
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
         <Command>
-          <CommandInput placeholder="Search companies…" />
+          <CommandInput placeholder="Search companies and investors…" />
           <CommandList>
-            <CommandEmpty>No company found.</CommandEmpty>
-            <CommandGroup>
+            <CommandEmpty>No company or investor found.</CommandEmpty>
+            <CommandGroup heading="Companies">
               {prospects.map(p => (
                 <CommandItem
                   key={p.id}
@@ -351,6 +353,22 @@ function ProspectCombobox({ value, label, onChange, onClear }: {
                 </CommandItem>
               ))}
             </CommandGroup>
+            {investors.length > 0 && (
+              <CommandGroup heading="Investors">
+                {investors.map(i => (
+                  <CommandItem
+                    key={i.id}
+                    value={`${i.name} investor`}
+                    onSelect={() => { onChange(i.id, i.name); setOpen(false); }}
+                    className="flex items-center gap-2"
+                  >
+                    <Check className={cn('w-4 h-4 shrink-0', value === i.id ? 'opacity-100' : 'opacity-0')} />
+                    <span className="flex-1 truncate">{i.name}</span>
+                    {i.stage && <span className="ml-auto pl-2 text-xs text-muted-foreground shrink-0">{i.stage}</span>}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
           </CommandList>
         </Command>
       </PopoverContent>
@@ -448,9 +466,20 @@ function ContactPicker({ prospectId, tags, onChange }: {
   onChange: (tags: ContactTag[]) => void;
 }) {
   const { prospects } = useProspects();
+  const { investors } = useInvestors();
   const [open, setOpen] = useState(false);
 
   const availableContacts = useMemo(() => {
+    const investor = prospectId ? investors.find(x => x.id === prospectId) : undefined;
+    if (investor) {
+      return investor.contacts.map(c => ({
+        id: c.id,
+        name: c.name,
+        role: c.role,
+        companyId: investor.id,
+        companyName: investor.name,
+      }));
+    }
     if (prospectId) {
       const p = prospects.find(x => x.id === prospectId);
       return (p?.contacts || []).map(c => ({
@@ -470,7 +499,7 @@ function ContactPicker({ prospectId, tags, onChange }: {
         companyName: p.companyName,
       }))
     );
-  }, [prospects, prospectId]);
+  }, [prospects, investors, prospectId]);
 
   const toggle = (contact: ContactTag) => {
     const exists = tags.find(t => t.id === contact.id);
@@ -575,6 +604,7 @@ export function TaskDetailSheet({ task, isNew, onClose, user, defaultProspect }:
 }) {
   const { addTask, updateTask, deleteTask, getComments, addComment, updateComment, deleteComment } = useTasks();
   const navigate = useNavigate();
+  const { investors } = useInvestors();
   const { toast } = useToast();
 
   // Form state (used for both new and edit)
@@ -842,11 +872,11 @@ export function TaskDetailSheet({ task, isNew, onClose, user, defaultProspect }:
             </div>
             {prospectId && (
               <button
-                onClick={() => navigate(`/company/${prospectId}`)}
+                onClick={() => navigate(investors.some(i => i.id === prospectId) ? `/investor/${prospectId}` : `/company/${prospectId}`)}
                 className="flex items-center gap-1.5 text-xs text-accent hover:underline"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
-                Open company page
+                {investors.some(i => i.id === prospectId) ? 'Open investor page' : 'Open company page'}
               </button>
             )}
           </div>

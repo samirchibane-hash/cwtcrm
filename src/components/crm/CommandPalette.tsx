@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2 } from 'lucide-react';
+import { Building2, Landmark } from 'lucide-react';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { useProspects } from '@/context/ProspectsContext';
+import { useInvestors } from '@/context/InvestorsContext';
+import InvestorStageBadge from './InvestorStageBadge';
 import { NAV_ITEMS } from './nav-items';
 import StageBadge from './StageBadge';
 
@@ -18,6 +20,7 @@ const MAX_COMPANY_RESULTS = 8;
 const CommandPalette = ({ open, onOpenChange, onNavigate }: CommandPaletteProps) => {
   const navigate = useNavigate();
   const { prospects } = useProspects();
+  const { investors } = useInvestors();
   const [query, setQuery] = useState('');
 
   // ⌘K / Ctrl+K toggles from anywhere
@@ -60,6 +63,13 @@ const CommandPalette = ({ open, onOpenChange, onNavigate }: CommandPaletteProps)
     return matches;
   }, [prospects, q]);
 
+  const matchingInvestors = useMemo(() => {
+    if (!q) return [];
+    return investors
+      .filter(i => i.name.toLowerCase().includes(q) || i.contacts.some(c => c.name.toLowerCase().includes(q)))
+      .slice(0, MAX_COMPANY_RESULTS);
+  }, [investors, q]);
+
   const run = (action: () => void) => {
     onOpenChange(false);
     action();
@@ -71,13 +81,13 @@ const CommandPalette = ({ open, onOpenChange, onNavigate }: CommandPaletteProps)
         <DialogTitle className="sr-only">Search CRM</DialogTitle>
         <Command shouldFilter={false} className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-input]]:h-12">
           <CommandInput
-            placeholder="Search companies, contacts, or jump to a view…"
+            placeholder="Search companies, investors, contacts, or jump to a view…"
             value={query}
             onValueChange={setQuery}
           />
           <CommandList className="max-h-[min(60vh,420px)]">
             <CommandEmpty>
-              No companies or views match “{query}”.
+              Nothing matches “{query}”.
             </CommandEmpty>
             {companies.length > 0 && (
               <CommandGroup heading="Companies">
@@ -97,6 +107,29 @@ const CommandPalette = ({ open, onOpenChange, onNavigate }: CommandPaletteProps)
                     </div>
                     <div className="hidden shrink-0 sm:block">
                       <StageBadge stage={p.stage} maxVisible={1} />
+                    </div>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+            {matchingInvestors.length > 0 && (
+              <CommandGroup heading="Investors">
+                {matchingInvestors.map(i => (
+                  <CommandItem
+                    key={i.id}
+                    value={`investor-${i.id}`}
+                    onSelect={() => run(() => navigate(`/investor/${i.id}`, { state: { from: '/?view=investors' } }))}
+                    className="gap-3"
+                  >
+                    <Landmark className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{i.name}</p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {[i.investorType, i.contacts[0]?.name].filter(Boolean).join(' · ') || '—'}
+                      </p>
+                    </div>
+                    <div className="hidden shrink-0 sm:block">
+                      <InvestorStageBadge stage={i.stage} />
                     </div>
                   </CommandItem>
                 ))}
