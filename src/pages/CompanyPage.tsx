@@ -455,7 +455,7 @@ const CompanyPage = () => {
   const lastContactLabel = getProspectLastContactLabel(prospect);
   const cityStateZip = [[city, state].filter(Boolean).join(', '), zip].filter(Boolean).join(' ');
   const addressLine = [street, cityStateZip, country].filter(Boolean).join(', ');
-  const initials = companyName.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+  const initials = companyName.split(/\s+/).filter(w => /^[a-z0-9]/i.test(w)).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
   const canEnroll = contacts.some(c => c.email);
 
   const focusComposer = () => {
