@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
 import { useToast } from '@/hooks/use-toast';
 
 export type TaskStatus = 'todo' | 'in_progress' | 'done' | 'cancelled';
@@ -56,7 +57,7 @@ interface TasksContextType {
 
 const TasksContext = createContext<TasksContextType | undefined>(undefined);
 
-const mapRow = (row: any): Task => ({
+const mapRow = (row: Tables<'tasks'>): Task => ({
   id: row.id,
   title: row.title,
   description: row.description ?? null,
@@ -74,7 +75,7 @@ const mapRow = (row: any): Task => ({
   updated_at: row.updated_at,
 });
 
-const mapCommentRow = (row: any): TaskComment => ({
+const mapCommentRow = (row: Tables<'task_comments'>): TaskComment => ({
   id: row.id,
   task_id: row.task_id,
   content: row.content,
@@ -139,7 +140,10 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  // Optimistic: reflect the change immediately, roll back if the write fails
   const updateTask = async (task: Task): Promise<void> => {
+    const previous = tasks.find(t => t.id === task.id);
+    setTasks(prev => prev.map(t => t.id === task.id ? task : t));
     try {
       const { error } = await supabase
         .from('tasks')
@@ -159,9 +163,9 @@ export const TasksProvider = ({ children }: { children: ReactNode }) => {
         })
         .eq('id', task.id);
       if (error) throw error;
-      setTasks(prev => prev.map(t => t.id === task.id ? task : t));
     } catch (err) {
       console.error('Failed to update task:', err);
+      if (previous) setTasks(prev => prev.map(t => t.id === task.id ? previous : t));
       toast({ title: 'Error', description: 'Failed to update task.', variant: 'destructive' });
     }
   };

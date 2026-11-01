@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { format, subDays, subMonths, startOfMonth, endOfMonth, startOfYear } from 'date-fns';
+import { format, isSameDay, subDays, subMonths, startOfMonth, endOfMonth, startOfYear } from 'date-fns';
 import { CalendarIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -27,36 +27,35 @@ const PRESETS: { label: string; getRange: () => DateRange }[] = [
   { label: 'Last 12 Months', getRange: () => ({ from: subMonths(new Date(), 12), to: new Date() }) },
 ];
 
-const getYTDRange = (): DateRange => ({ from: startOfYear(new Date()), to: new Date() });
+export const getYTDRange = (): DateRange => ({ from: startOfYear(new Date()), to: new Date() });
 
+const sameDay = (a?: Date, b?: Date) => (!a && !b) || (!!a && !!b && isSameDay(a, b));
+
+// The parent owns the value (and its default); this is a controlled picker
 const DateRangeFilter = ({ value, onChange }: DateRangeFilterProps) => {
   const [open, setOpen] = useState(false);
-  const [initialized, setInitialized] = useState(false);
-
-  // Set default to Year to Date on mount
-  if (!initialized) {
-    setInitialized(true);
-    onChange(getYTDRange());
-  }
 
   const activePreset = useMemo(() => {
-    if (!value.from && !value.to) return 'All Time';
-    return null;
+    const match = PRESETS.find(p => {
+      const r = p.getRange();
+      return sameDay(r.from, value.from) && sameDay(r.to, value.to);
+    });
+    return match?.label ?? null;
   }, [value]);
 
   const displayLabel = useMemo(() => {
-    if (!value.from && !value.to) return 'All Time';
+    if (activePreset) return activePreset;
     if (value.from && value.to) {
       return `${format(value.from, 'MMM d, yyyy')} – ${format(value.to, 'MMM d, yyyy')}`;
     }
     if (value.from) return `From ${format(value.from, 'MMM d, yyyy')}`;
     return 'All Time';
-  }, [value]);
+  }, [value, activePreset]);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2 text-xs font-medium">
+        <Button variant="outline" size="sm" className="h-9 gap-2 text-xs font-medium" aria-label={`Date range: ${displayLabel}`}>
           <CalendarIcon className="h-3.5 w-3.5" />
           {displayLabel}
         </Button>
@@ -72,10 +71,12 @@ const DateRangeFilter = ({ value, onChange }: DateRangeFilterProps) => {
                   onChange(preset.getRange());
                   setOpen(false);
                 }}
+                type="button"
+                aria-pressed={activePreset === preset.label}
                 className={cn(
-                  'text-left px-1.5 py-0.5 rounded text-[11px] whitespace-nowrap transition-colors',
+                  'text-left px-2 py-1 rounded text-xs whitespace-nowrap transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
                   activePreset === preset.label
-                    ? 'bg-accent text-accent-foreground font-medium'
+                    ? 'bg-muted text-foreground font-medium'
                     : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                 )}
               >

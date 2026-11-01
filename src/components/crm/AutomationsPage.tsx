@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   AlertCircle,
   Copy,
@@ -16,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
@@ -60,14 +62,30 @@ const STATUS_LABELS: Record<Enrollment['status'], string> = {
 };
 
 const DAYS = [
-  { value: 1, label: 'M' },
-  { value: 2, label: 'T' },
-  { value: 3, label: 'W' },
-  { value: 4, label: 'T' },
-  { value: 5, label: 'F' },
-  { value: 6, label: 'S' },
-  { value: 7, label: 'S' },
+  { value: 1, label: 'M', name: 'Monday' },
+  { value: 2, label: 'T', name: 'Tuesday' },
+  { value: 3, label: 'W', name: 'Wednesday' },
+  { value: 4, label: 'T', name: 'Thursday' },
+  { value: 5, label: 'F', name: 'Friday' },
+  { value: 6, label: 'S', name: 'Saturday' },
+  { value: 7, label: 'S', name: 'Sunday' },
 ];
+
+const TABS = ['workflows', 'enrollments', 'settings'] as const;
+const ENROLLMENT_FILTERS: { value: 'all' | Enrollment['status']; label: string }[] = [
+  { value: 'all', label: 'All' },
+  { value: 'active', label: 'Active' },
+  { value: 'paused', label: 'Paused' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'replied', label: 'Replied' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'stopped', label: 'Stopped' },
+];
+
+const clampInt = (raw: string, min: number, max: number, fallback: number) => {
+  const n = parseInt(raw, 10);
+  return Number.isNaN(n) ? fallback : Math.min(max, Math.max(min, n));
+};
 
 const formatDue = (iso?: string) => {
   if (!iso) return '—';
@@ -93,18 +111,65 @@ const AutomationsPage = () => {
   const [draftExitOnReply, setDraftExitOnReply] = useState(true);
   const [confirmArchive, setConfirmArchive] = useState<WorkflowTemplate | null>(null);
   const [running, setRunning] = useState(false);
+  const [confirmStop, setConfirmStop] = useState<Enrollment | null>(null);
+
+  // Tab and enrollment filter live in the URL
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tab = TABS.includes(searchParams.get('tab') as typeof TABS[number]) ? searchParams.get('tab')! : 'workflows';
+  const enrollmentFilter = ENROLLMENT_FILTERS.some(f => f.value === searchParams.get('status')) ? searchParams.get('status')! : 'all';
+  const setParam = (key: string, value: string, defaultValue: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (value === defaultValue) next.delete(key);
+    else next.set(key, value);
+    if (key === 'tab' && value !== 'enrollments') next.delete('status');
+    setSearchParams(next, { replace: true });
+  };
+
+  // Settings are edited locally and committed on blur, clamped to valid values
+  const [settingsDraft, setSettingsDraft] = useState({ start: '', end: '', cap: '' });
+  useEffect(() => {
+    if (settings) {
+      setSettingsDraft({
+        start: String(settings.sendWindowStart),
+        end: String(settings.sendWindowEnd),
+        cap: String(settings.dailySendCap),
+      });
+    }
+  }, [settings]);
+
+  const commitSettings = () => {
+    if (!settings) return;
+    const start = clampInt(settingsDraft.start, 0, 23, settings.sendWindowStart);
+    const end = clampInt(settingsDraft.end, 0, 23, settings.sendWindowEnd);
+    const cap = clampInt(settingsDraft.cap, 1, 10000, settings.dailySendCap);
+    if (end <= start) {
+      toast({ title: 'Send window is empty', description: '“Send until” must be later than “Send from”.', variant: 'destructive' });
+      setSettingsDraft({ start: String(settings.sendWindowStart), end: String(settings.sendWindowEnd), cap: String(cap) });
+      return;
+    }
+    if (start === settings.sendWindowStart && end === settings.sendWindowEnd && cap === settings.dailySendCap) return;
+    updateSettings({ sendWindowStart: start, sendWindowEnd: end, dailySendCap: cap });
+    setSettingsDraft({ start: String(start), end: String(end), cap: String(cap) });
+    toast({ title: 'Send rails saved' });
+  };
 
   const activeCount = enrollments.filter(e => e.status === 'active').length;
   const repliedCount = enrollments.filter(e => e.status === 'replied').length;
   const failedCount = enrollments.filter(e => e.status === 'failed').length;
 
+  const enrollmentCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: enrollments.length };
+    for (const e of enrollments) counts[e.status] = (counts[e.status] ?? 0) + 1;
+    return counts;
+  }, [enrollments]);
+
   const sortedEnrollments = useMemo(
     () =>
-      [...enrollments].sort((a, b) => {
+      enrollments.filter(e => enrollmentFilter === 'all' || e.status === enrollmentFilter).sort((a, b) => {
         const rank = (e: Enrollment) => (e.status === 'active' ? 0 : e.status === 'failed' ? 1 : 2);
         return rank(a) - rank(b) || (a.nextRunAt ?? '').localeCompare(b.nextRunAt ?? '');
       }),
-    [enrollments],
+    [enrollments, enrollmentFilter],
   );
 
   const openNew = () => {
@@ -194,7 +259,7 @@ const AutomationsPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-3">
         <div
           className={cn(
-            'content-card p-5 lg:col-span-2 flex items-center justify-between gap-4',
+            'content-card px-4 py-3 lg:col-span-2 flex items-center justify-between gap-4',
             settings && !settings.enabled && 'border-warning/40 bg-warning/5',
           )}
         >
@@ -224,36 +289,56 @@ const AutomationsPage = () => {
             </div>
           </div>
           <Switch
+            aria-label="Automations live"
             checked={settings?.enabled ?? false}
-            onCheckedChange={v => updateSettings({ enabled: v })}
+            disabled={!settings}
+            onCheckedChange={v => {
+              updateSettings({ enabled: v });
+              toast({ title: v ? 'Automations are live' : 'Automations paused', description: v ? undefined : 'No scheduled email will go out until you turn them back on.' });
+            }}
           />
         </div>
 
-        <div className="content-card p-5">
-          <p className="text-2xl font-semibold tracking-tight">{activeCount}</p>
-          <p className="text-xs text-muted-foreground mt-1">In flight</p>
-        </div>
-        <div className="content-card p-5">
-          <p className="text-2xl font-semibold tracking-tight">{repliedCount}</p>
-          <p className="text-xs text-muted-foreground mt-1">Stopped on reply</p>
+        <div className="content-card lg:col-span-2 grid grid-cols-2 gap-px bg-border">
+          <div className="bg-card px-4 py-3">
+            <p className="text-[11px] font-medium text-muted-foreground">In flight</p>
+            <p className="mt-1 text-lg font-semibold leading-tight tabular-nums">{activeCount}</p>
+          </div>
+          <div className="bg-card px-4 py-3">
+            <p className="text-[11px] font-medium text-muted-foreground">Stopped on reply</p>
+            <p className="mt-1 text-lg font-semibold leading-tight tabular-nums">{repliedCount}</p>
+          </div>
         </div>
       </div>
 
       {failedCount > 0 && (
         <div className="rounded-2xl border border-destructive/30 bg-destructive/5 p-4 flex items-start gap-3">
-          <AlertCircle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
-          <div>
-            <p className="text-sm font-medium text-destructive">
+          <AlertCircle className="w-4 h-4 text-danger-foreground shrink-0 mt-0.5" aria-hidden="true" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-danger-foreground">
               {failedCount} enrollment{failedCount === 1 ? '' : 's'} failed to send
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               They're parked so nothing retries blindly. Check the address, then resume.
             </p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="shrink-0"
+            onClick={() => {
+              const next = new URLSearchParams(searchParams);
+              next.set('tab', 'enrollments');
+              next.set('status', 'failed');
+              setSearchParams(next, { replace: true });
+            }}
+          >
+            Review failed
+          </Button>
         </div>
       )}
 
-      <Tabs defaultValue="workflows">
+      <Tabs value={tab} onValueChange={v => setParam('tab', v, 'workflows')}>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <TabsList>
             <TabsTrigger value="workflows">Workflows</TabsTrigger>
@@ -275,7 +360,18 @@ const AutomationsPage = () => {
         {/* Workflows */}
         <TabsContent value="workflows" className="mt-4">
           {isLoading ? (
-            <p className="text-sm text-muted-foreground p-8 text-center">Loading…</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3" aria-busy="true" aria-label="Loading workflows">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="content-card p-5 space-y-3">
+                  <Skeleton className="h-4 w-1/2" />
+                  <Skeleton className="h-3 w-3/4" />
+                  <div className="flex gap-2 pt-2">
+                    <Skeleton className="h-5 w-16 rounded-full" />
+                    <Skeleton className="h-5 w-14 rounded-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : templates.length === 0 ? (
             <div className="content-card p-12 text-center">
               <Workflow className="w-10 h-10 mx-auto mb-4 text-muted-foreground/30" />
@@ -298,7 +394,7 @@ const AutomationsPage = () => {
                       <button
                         type="button"
                         onClick={() => openEdit(t)}
-                        className="min-w-0 text-left flex-1"
+                        className="min-w-0 text-left flex-1 rounded outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       >
                         <p className="text-sm font-medium truncate">{t.name}</p>
                         {t.description && (
@@ -307,13 +403,17 @@ const AutomationsPage = () => {
                           </p>
                         )}
                       </button>
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                      {/* Always visible on touch; revealed on hover/focus with a pointer */}
+                      <div className="flex items-center gap-0.5 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity shrink-0">
                         <Button
                           variant="ghost"
                           size="icon"
                           className="h-7 w-7"
-                          onClick={() => duplicateTemplate(t)}
-                          aria-label="Duplicate workflow"
+                          onClick={async () => {
+                            await duplicateTemplate(t);
+                            toast({ title: `Duplicated “${t.name}”` });
+                          }}
+                          aria-label={`Duplicate ${t.name}`}
                         >
                           <Copy className="w-3.5 h-3.5" />
                         </Button>
@@ -322,7 +422,7 @@ const AutomationsPage = () => {
                           size="icon"
                           className="h-7 w-7 text-muted-foreground hover:text-destructive"
                           onClick={() => setConfirmArchive(t)}
-                          aria-label="Archive workflow"
+                          aria-label={`Archive ${t.name}`}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </Button>
@@ -357,18 +457,49 @@ const AutomationsPage = () => {
 
         {/* Enrollments */}
         <TabsContent value="enrollments" className="mt-4">
+          {enrollments.length > 0 && (
+            <div className="mb-3 flex items-center gap-1 overflow-x-auto" role="group" aria-label="Filter enrollments by status">
+              {ENROLLMENT_FILTERS.filter(f => f.value === 'all' || (enrollmentCounts[f.value] ?? 0) > 0).map(f => {
+                const active = enrollmentFilter === f.value;
+                return (
+                  <button
+                    key={f.value}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setParam('status', f.value, 'all')}
+                    className={cn(
+                      'flex h-7 shrink-0 items-center gap-1.5 px-2.5 rounded-md text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
+                    )}
+                  >
+                    {f.label}
+                    <span className="tabular-nums text-muted-foreground">{enrollmentCounts[f.value] ?? 0}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {sortedEnrollments.length === 0 ? (
             <div className="content-card p-12 text-center">
-              <Zap className="w-10 h-10 mx-auto mb-4 text-muted-foreground/30" />
-              <p className="text-sm font-medium">Nobody is enrolled yet</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Open a company profile and add a contact to an automation.
-              </p>
+              <Zap className="w-8 h-8 mx-auto mb-3 text-muted-foreground" aria-hidden="true" />
+              {enrollments.length === 0 ? (
+                <>
+                  <p className="text-sm font-medium">Nobody is enrolled yet</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Open a company profile and add a contact to an automation.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm text-muted-foreground">No enrollments with this status.</p>
+                  <Button variant="outline" size="sm" className="mt-3" onClick={() => setParam('status', 'all', 'all')}>Show all</Button>
+                </>
+              )}
             </div>
           ) : (
             <div className="content-card divide-y divide-border">
               {sortedEnrollments.map(e => (
-                <div key={e.id} className="p-4 flex items-center gap-4">
+                <div key={e.id} className="px-4 py-3 flex items-center gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <p className="text-sm font-medium truncate">
@@ -383,7 +514,7 @@ const AutomationsPage = () => {
                       {e.status === 'active' && ` · next ${formatDue(e.nextRunAt)}`}
                     </p>
                     {e.lastError && (
-                      <p className="text-xs text-destructive truncate mt-1">{e.lastError}</p>
+                      <p className="text-xs text-danger-foreground line-clamp-2 mt-1">{e.lastError}</p>
                     )}
                   </div>
 
@@ -394,7 +525,7 @@ const AutomationsPage = () => {
                         size="icon"
                         className="h-8 w-8"
                         onClick={() => setStatus(e.id, 'paused')}
-                        aria-label="Pause enrollment"
+                        aria-label={`Pause sequence for ${e.contactName || e.contactEmail}`}
                       >
                         <Pause className="w-3.5 h-3.5" />
                       </Button>
@@ -405,7 +536,7 @@ const AutomationsPage = () => {
                         size="icon"
                         className="h-8 w-8"
                         onClick={() => setStatus(e.id, 'active')}
-                        aria-label="Resume enrollment"
+                        aria-label={`Resume sequence for ${e.contactName || e.contactEmail}`}
                       >
                         <Play className="w-3.5 h-3.5" />
                       </Button>
@@ -415,8 +546,8 @@ const AutomationsPage = () => {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                        onClick={() => setStatus(e.id, 'stopped')}
-                        aria-label="Stop enrollment"
+                        onClick={() => setConfirmStop(e)}
+                        aria-label={`Stop sequence for ${e.contactName || e.contactEmail}`}
                       >
                         <Square className="w-3.5 h-3.5" />
                       </Button>
@@ -445,8 +576,11 @@ const AutomationsPage = () => {
                       type="number"
                       min={0}
                       max={23}
-                      value={settings.sendWindowStart}
-                      onChange={e => updateSettings({ sendWindowStart: Number(e.target.value) })}
+                      inputMode="numeric"
+                      value={settingsDraft.start}
+                      onChange={e => setSettingsDraft(d => ({ ...d, start: e.target.value }))}
+                      onBlur={commitSettings}
+                      onKeyDown={e => { if (e.key === 'Enter') commitSettings(); }}
                       className="rounded-xl"
                     />
                   </div>
@@ -457,22 +591,28 @@ const AutomationsPage = () => {
                       type="number"
                       min={0}
                       max={23}
-                      value={settings.sendWindowEnd}
-                      onChange={e => updateSettings({ sendWindowEnd: Number(e.target.value) })}
+                      inputMode="numeric"
+                      value={settingsDraft.end}
+                      onChange={e => setSettingsDraft(d => ({ ...d, end: e.target.value }))}
+                      onBlur={commitSettings}
+                      onKeyDown={e => { if (e.key === 'Enter') commitSettings(); }}
                       className="rounded-xl"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Send days</Label>
-                  <div className="flex items-center gap-1.5">
+                  <Label id="send-days-label">Send days</Label>
+                  <div className="flex items-center gap-1.5" role="group" aria-labelledby="send-days-label">
                     {DAYS.map(d => {
                       const on = settings.sendDays.includes(d.value);
                       return (
                         <button
                           key={d.value}
                           type="button"
+                          aria-pressed={on}
+                          aria-label={d.name}
+                          title={d.name}
                           onClick={() =>
                             updateSettings({
                               sendDays: on
@@ -481,7 +621,7 @@ const AutomationsPage = () => {
                             })
                           }
                           className={cn(
-                            'w-9 h-9 rounded-lg text-xs font-medium transition-colors',
+                            'w-9 h-9 rounded-lg text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
                             on
                               ? 'bg-accent text-accent-foreground'
                               : 'bg-muted text-muted-foreground hover:bg-muted/70',
@@ -500,8 +640,11 @@ const AutomationsPage = () => {
                     id="daily-cap"
                     type="number"
                     min={1}
-                    value={settings.dailySendCap}
-                    onChange={e => updateSettings({ dailySendCap: Number(e.target.value) })}
+                    inputMode="numeric"
+                    value={settingsDraft.cap}
+                    onChange={e => setSettingsDraft(d => ({ ...d, cap: e.target.value }))}
+                    onBlur={commitSettings}
+                    onKeyDown={e => { if (e.key === 'Enter') commitSettings(); }}
                     className="rounded-xl"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -534,6 +677,7 @@ const AutomationsPage = () => {
                   <Label htmlFor="workflow-name">Name</Label>
                   <Input
                     id="workflow-name"
+                    autoFocus
                     value={draftName}
                     onChange={e => setDraftName(e.target.value)}
                     placeholder="UVC intro — OEM water coolers"
@@ -610,7 +754,30 @@ const AutomationsPage = () => {
                 setConfirmArchive(null);
               }}
             >
-              Archive
+              Archive workflow
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmStop} onOpenChange={open => !open && setConfirmStop(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop the sequence for {confirmStop?.contactName || confirmStop?.contactEmail}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The remaining emails in “{confirmStop?.templateName}” won’t send. A stopped sequence can’t be resumed — pause it instead if you may want to continue.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (confirmStop) setStatus(confirmStop.id, 'stopped');
+                setConfirmStop(null);
+              }}
+            >
+              Stop sequence
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

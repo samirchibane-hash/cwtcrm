@@ -78,6 +78,13 @@
     --warning-foreground: 32 95% 35%;
     --info: 211 100% 50%;
     --info-foreground: 211 100% 40%;
+    --danger: 0 84% 60%;
+    --danger-foreground: 0 74% 42%;
+
+    /* Chart categorical slots, fixed order (dataviz reference palette, validated for CVD) */
+    --chart-1: 213 68% 50%;
+    --chart-2: 17 82% 56%;
+    --chart-3: 159 73% 40%;
 
     /* Champion contact marker (star) */
     --champion: 38 92% 50%;
@@ -154,6 +161,10 @@
     --success-foreground: 142 69% 58%;
     --warning-foreground: 43 96% 60%;
     --info-foreground: 211 100% 70%;
+    --danger-foreground: 0 91% 71%;
+    --chart-1: 213 77% 56%;
+    --chart-2: 17 70% 50%;
+    --chart-3: 159 73% 36%;
     --champion: 43 96% 56%;
 
     --order-po-foreground: 27 96% 65%;
@@ -179,23 +190,6 @@
 }
 
 @layer components {
-  .glass-card {
-    @apply bg-card border border-border shadow-sm rounded-2xl;
-  }
-
-  .metric-card {
-    @apply bg-card border border-border rounded-2xl p-6 transition-all duration-300;
-  }
-
-  .metric-card:hover {
-    @apply shadow-lg;
-    transform: translateY(-2px);
-  }
-
-  .stage-badge {
-    @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium tracking-wide;
-  }
-
   /* Soft status pill: pair with a tint + foreground, e.g. bg-success/10 text-success-foreground */
   .badge-soft {
     @apply inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium leading-4;

@@ -190,7 +190,7 @@ const EditNoteDialog = ({ engagement, onSave, onDelete }: EditNoteDialogProps) =
                     onClick={() => setLoggedBy(rep.name)}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
                       loggedBy === rep.name
-                        ? `${rep.activeClass} border-current`
+                        ? 'border-foreground/20 bg-muted text-foreground'
                         : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'
                     }`}
                   >

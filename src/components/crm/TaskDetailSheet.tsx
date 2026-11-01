@@ -22,21 +22,22 @@ import { useProspects } from '@/context/ProspectsContext';
 import { useOrders } from '@/context/OrdersContext';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import { toast as notify } from 'sonner';
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 export const PRIORITY_CONFIG: Record<TaskPriority, { label: string; color: string; dot: string; icon: typeof ArrowUp }> = {
-  urgent: { label: 'Urgent', color: 'text-red-600', dot: 'bg-red-500', icon: ArrowUp },
-  high:   { label: 'High',   color: 'text-orange-500', dot: 'bg-orange-400', icon: ArrowUp },
-  medium: { label: 'Medium', color: 'text-blue-500', dot: 'bg-blue-400', icon: ArrowRight },
-  low:    { label: 'Low',    color: 'text-slate-400', dot: 'bg-slate-300', icon: ArrowDown },
+  urgent: { label: 'Urgent', color: 'text-danger-foreground', dot: 'bg-danger', icon: ArrowUp },
+  high:   { label: 'High',   color: 'text-warning-foreground', dot: 'bg-warning', icon: ArrowUp },
+  medium: { label: 'Medium', color: 'text-info-foreground', dot: 'bg-info', icon: ArrowRight },
+  low:    { label: 'Low',    color: 'text-muted-foreground', dot: 'bg-muted-foreground/40', icon: ArrowDown },
 };
 
 export const STATUS_CONFIG: Record<TaskStatus, { label: string; icon: typeof Circle; color: string }> = {
-  todo:        { label: 'To Do',       icon: Circle,       color: 'text-slate-400' },
-  in_progress: { label: 'In Progress', icon: Clock,        color: 'text-blue-500' },
-  done:        { label: 'Done',        icon: CheckCircle2, color: 'text-green-500' },
-  cancelled:   { label: 'Cancelled',   icon: X,            color: 'text-slate-400' },
+  todo:        { label: 'To Do',       icon: Circle,       color: 'text-muted-foreground' },
+  in_progress: { label: 'In Progress', icon: Clock,        color: 'text-info-foreground' },
+  done:        { label: 'Done',        icon: CheckCircle2, color: 'text-success-foreground' },
+  cancelled:   { label: 'Cancelled',   icon: X,            color: 'text-muted-foreground' },
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -44,8 +45,8 @@ export const STATUS_CONFIG: Record<TaskStatus, { label: string; icon: typeof Cir
 export function dueDateDisplay(due: string | null, status: TaskStatus) {
   if (!due || status === 'done' || status === 'cancelled') return null;
   const d = parseISO(due);
-  if (isPast(d) && !isToday(d)) return { label: `Overdue · ${format(d, 'MMM d')}`, className: 'text-red-500 bg-red-50 border-red-200' };
-  if (isToday(d)) return { label: 'Due today', className: 'text-orange-600 bg-orange-50 border-orange-200' };
+  if (isPast(d) && !isToday(d)) return { label: `Overdue · ${format(d, 'MMM d')}`, className: 'text-danger-foreground bg-danger/10 border-danger/20' };
+  if (isToday(d)) return { label: 'Due today', className: 'text-warning-foreground bg-warning/10 border-warning/20' };
   return { label: format(d, 'MMM d'), className: 'text-muted-foreground bg-muted/50 border-transparent' };
 }
 
@@ -65,6 +66,22 @@ function formatCommentTime(iso: string) {
   return format(d, 'MMM d');
 }
 
+// Tick/untick a task optimistically; completing offers Undo
+export function useToggleTaskDone() {
+  const { updateTask } = useTasks();
+  return (task: Task, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const next: TaskStatus = task.status === 'done' ? 'todo' : 'done';
+    updateTask({ ...task, status: next });
+    if (next === 'done') {
+      notify.success('Task completed', {
+        description: task.title,
+        action: { label: 'Undo', onClick: () => updateTask(task) },
+      });
+    }
+  };
+}
+
 // ─── Task Card ────────────────────────────────────────────────────────────────
 
 export function TaskCard({ task, commentCounts, onClick, onToggleDone }: {
@@ -76,87 +93,86 @@ export function TaskCard({ task, commentCounts, onClick, onToggleDone }: {
   const p = PRIORITY_CONFIG[task.priority];
   const dueInfo = dueDateDisplay(task.due_date, task.status);
   const isDone = task.status === 'done';
-  const isCancelled = task.status === 'cancelled';
-  const dimmed = isDone || isCancelled;
+  const dimmed = isDone || task.status === 'cancelled';
+  const comments = commentCounts[task.id] ?? 0;
 
   return (
-    <div
-      onClick={onClick}
-      className={cn(
-        'group flex items-start gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all',
-        'hover:border-accent/30 hover:shadow-sm hover:bg-muted/20',
-        dimmed ? 'bg-muted/10 border-border/50' : 'bg-card border-border'
-      )}
-    >
-      {/* Checkbox */}
+    <div className="group relative flex items-start gap-3 px-4 py-2.5 transition-colors hover:bg-muted/30 focus-within:bg-muted/30">
+      {/* Checkbox sits above the stretched title button */}
       <button
+        type="button"
+        role="checkbox"
+        aria-checked={isDone}
+        aria-label={isDone ? `Mark “${task.title}” as not done` : `Mark “${task.title}” as done`}
         onClick={onToggleDone}
         className={cn(
-          'mt-0.5 flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors',
+          'relative z-10 mt-0.5 flex-shrink-0 w-[18px] h-[18px] rounded-full border-2 flex items-center justify-center transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
           isDone
-            ? 'border-green-500 bg-green-500 text-white'
-            : 'border-muted-foreground/40 hover:border-green-400'
+            ? 'border-success bg-success text-white'
+            : 'border-muted-foreground/40 hover:border-success'
         )}
       >
         {isDone && <Check className="w-3 h-3" strokeWidth={3} />}
       </button>
 
-      {/* Content */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* Priority dot */}
-          <span className={cn('w-2 h-2 rounded-full flex-shrink-0', p.dot)} />
-          {/* Title */}
-          <span className={cn(
-            'font-medium text-sm leading-snug',
-            dimmed ? 'line-through text-muted-foreground' : 'text-foreground'
-          )}>
+        <div className="flex items-center gap-2">
+          <span className={cn('w-2 h-2 rounded-full flex-shrink-0', p.dot)} aria-hidden="true" />
+          {/* Stretched button: the whole row opens the task, and it's a real keyboard target */}
+          <button
+            type="button"
+            onClick={onClick}
+            className={cn(
+              'min-w-0 truncate text-left text-sm font-medium leading-snug outline-none after:absolute after:inset-0 focus-visible:underline',
+              dimmed ? 'line-through text-muted-foreground' : 'text-foreground'
+            )}
+          >
+            <span className="sr-only">{p.label} priority: </span>
             {task.title}
-          </span>
+          </button>
         </div>
 
-        {/* Sub-line */}
-        <div className="flex items-center flex-wrap gap-1.5 mt-1.5">
-          {task.prospect_name && (
-            <Badge variant="outline" className="text-xs h-5 gap-1 font-normal px-1.5">
-              <Building2 className="w-3 h-3" />
-              {task.prospect_name}
-            </Badge>
-          )}
-          {task.order_name && (
-            <Badge variant="outline" className="text-xs h-5 gap-1 font-normal px-1.5">
-              <ShoppingCart className="w-3 h-3" />
-              {task.order_name}
-            </Badge>
-          )}
-          {task.contact_tags.slice(0, 2).map(c => (
-            <Badge key={c.id} variant="secondary" className="text-xs h-5 gap-1 font-normal px-1.5">
-              <User className="w-3 h-3" />
-              {c.name}
-            </Badge>
-          ))}
-          {task.contact_tags.length > 2 && (
-            <span className="text-xs text-muted-foreground">+{task.contact_tags.length - 2}</span>
-          )}
-          {task.labels.map(l => (
-            <span key={l} className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded-md">
-              #{l}
-            </span>
-          ))}
-        </div>
+        {(task.prospect_name || task.order_name || task.contact_tags.length > 0 || task.labels.length > 0) && (
+          <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-1 text-xs text-muted-foreground">
+            {task.prospect_name && (
+              <span className="flex items-center gap-1 min-w-0">
+                <Building2 className="w-3 h-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">{task.prospect_name}</span>
+              </span>
+            )}
+            {task.order_name && (
+              <span className="flex items-center gap-1 min-w-0">
+                <ShoppingCart className="w-3 h-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">{task.order_name}</span>
+              </span>
+            )}
+            {task.contact_tags.length > 0 && (
+              <span className="flex items-center gap-1 min-w-0">
+                <User className="w-3 h-3 shrink-0" aria-hidden="true" />
+                <span className="truncate">
+                  {task.contact_tags.slice(0, 2).map(c => c.name).join(', ')}
+                  {task.contact_tags.length > 2 && ` +${task.contact_tags.length - 2}`}
+                </span>
+              </span>
+            )}
+            {task.labels.map(l => (
+              <span key={l} className="bg-muted px-1.5 py-px rounded">#{l}</span>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Right meta */}
       <div className="flex items-center gap-2 flex-shrink-0 mt-0.5">
-        {dueInfo && (
-          <span className={cn('text-xs px-1.5 py-0.5 rounded-md border', dueInfo.className)}>
-            {dueInfo.label}
+        {comments > 0 && (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <MessageSquare className="w-3.5 h-3.5" aria-hidden="true" />
+            {comments}
+            <span className="sr-only">comment{comments !== 1 ? 's' : ''}</span>
           </span>
         )}
-        {(commentCounts[task.id] ?? 0) > 0 && (
-          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-            <MessageSquare className="w-3.5 h-3.5" />
-            {commentCounts[task.id]}
+        {dueInfo && (
+          <span className={cn('text-xs px-1.5 py-0.5 rounded-md border whitespace-nowrap', dueInfo.className)}>
+            {dueInfo.label}
           </span>
         )}
       </div>

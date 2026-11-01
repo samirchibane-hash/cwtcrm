@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
 
 export interface ActivityLogEntry {
   id: string;
@@ -13,7 +14,7 @@ export interface ActivityLogEntry {
   createdAt: string;
 }
 
-const mapRow = (row: any): ActivityLogEntry => ({
+const mapRow = (row: Tables<'activity_log'>): ActivityLogEntry => ({
   id: row.id,
   date: row.date,
   loggedBy: row.logged_by,
@@ -60,9 +61,14 @@ export const useActivityLog = () => {
     return newEntry;
   };
 
-  const deleteEntry = async (id: string) => {
-    await supabase.from('activity_log').delete().eq('id', id);
+  const deleteEntry = async (id: string): Promise<boolean> => {
+    const { error } = await supabase.from('activity_log').delete().eq('id', id);
+    if (error) {
+      console.error('Failed to delete activity entry:', error);
+      return false;
+    }
     setEntries(prev => prev.filter(e => e.id !== id));
+    return true;
   };
 
   return { entries, isLoading, addEntry, deleteEntry };

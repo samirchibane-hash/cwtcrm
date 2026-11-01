@@ -21,9 +21,9 @@ import OrderDetail from '@/components/OrderDetail';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
 import { keepLocalEscape } from '@/lib/escape-scope';
 import { useOrders } from '@/context/OrdersContext';
-import { useTasks, Task, TaskStatus } from '@/context/TasksContext';
+import { useTasks, Task } from '@/context/TasksContext';
 import { useAuth } from '@/hooks/useAuth';
-import { TaskCard, TaskDetailSheet } from '@/components/crm/TaskDetailSheet';
+import { TaskCard, TaskDetailSheet, useToggleTaskDone } from '@/components/crm/TaskDetailSheet';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
@@ -916,6 +916,7 @@ const CompanyAutomationsSection = ({
   canEnroll: boolean;
 }) => {
   const { enrollments, reload, setStatus } = useEnrollments(prospectId);
+  const [confirmStop, setConfirmStop] = useState<Enrollment | null>(null);
 
   useEffect(() => {
     if (refreshKey > 0) reload();
@@ -975,7 +976,7 @@ const CompanyAutomationsSection = ({
                         size="icon"
                         className="h-7 w-7"
                         onClick={() => setStatus(e.id, e.status === 'active' ? 'paused' : 'active')}
-                        aria-label={e.status === 'active' ? 'Pause sequence' : 'Resume sequence'}
+                        aria-label={`${e.status === 'active' ? 'Pause' : 'Resume'} sequence for ${e.contactName || e.contactEmail}`}
                       >
                         {e.status === 'active' ? (
                           <Pause className="w-3.5 h-3.5" />
@@ -987,8 +988,8 @@ const CompanyAutomationsSection = ({
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                        onClick={() => setStatus(e.id, 'stopped')}
-                        aria-label="Stop sequence"
+                        onClick={() => setConfirmStop(e)}
+                        aria-label={`Stop sequence for ${e.contactName || e.contactEmail}`}
                       >
                         <SquareIcon className="w-3.5 h-3.5" />
                       </Button>
@@ -1004,6 +1005,29 @@ const CompanyAutomationsSection = ({
           })}
         </div>
       )}
+
+      <AlertDialog open={!!confirmStop} onOpenChange={open => !open && setConfirmStop(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Stop the sequence for {confirmStop?.contactName || confirmStop?.contactEmail}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The remaining emails in “{confirmStop?.templateName}” won’t send. A stopped sequence can’t be resumed — pause it instead if you may want to continue.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (confirmStop) setStatus(confirmStop.id, 'stopped');
+                setConfirmStop(null);
+              }}
+            >
+              Stop sequence
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 };
@@ -1073,7 +1097,7 @@ const CountField = ({ id, icon: Icon, label, value, onChange }: {
 
 // Company-scoped task list — mirrors the Tasks page interface, filtered to this company
 const CompanyTasksSection = ({ companyId, companyName }: { companyId: string; companyName: string }) => {
-  const { tasks, updateTask, getComments } = useTasks();
+  const { tasks, getComments } = useTasks();
   const { user } = useAuth();
 
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
@@ -1131,11 +1155,7 @@ const CompanyTasksSection = ({ companyId, companyName }: { companyId: string; co
     setIsNewTask(false);
   };
 
-  const toggleDone = async (task: Task, e: React.MouseEvent) => {
-    e.stopPropagation();
-    const next: TaskStatus = task.status === 'done' ? 'todo' : 'done';
-    await updateTask({ ...task, status: next });
-  };
+  const toggleDone = useToggleTaskDone();
 
   return (
     <section className="content-card p-4">
@@ -1148,7 +1168,7 @@ const CompanyTasksSection = ({ companyId, companyName }: { companyId: string; co
             Add task
           </Button>
         </div>
-        <div className="space-y-2">
+        <div className="-mx-4 -mb-4 border-t border-border divide-y divide-border">
           {companyTasks.map(task => (
             <TaskCard
               key={task.id}

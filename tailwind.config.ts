@@ -104,9 +104,11 @@ export default {
           "loaner-foreground": "hsl(var(--order-loaner-foreground))",
         },
         champion: "hsl(var(--champion))",
+        chart: { 1: "hsl(var(--chart-1))", 2: "hsl(var(--chart-2))", 3: "hsl(var(--chart-3))" },
         success: { DEFAULT: "hsl(var(--success))", foreground: "hsl(var(--success-foreground))" },
         warning: { DEFAULT: "hsl(var(--warning))", foreground: "hsl(var(--warning-foreground))" },
         info: { DEFAULT: "hsl(var(--info))", foreground: "hsl(var(--info-foreground))" },
+        danger: { DEFAULT: "hsl(var(--danger))", foreground: "hsl(var(--danger-foreground))" },
         type: {
           oem: "hsl(var(--type-oem))",
           "oem-foreground": "hsl(var(--type-oem-foreground))",

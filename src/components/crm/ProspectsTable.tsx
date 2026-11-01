@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Search, Filter, ChevronDown, ChevronUp, ArrowUpDown, Download, X, CalendarIcon, ChevronRight, Bookmark, Building2, Star } from 'lucide-react';
+import { Search, Filter, Download, X, CalendarIcon, ChevronRight, Bookmark, Building2, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { Calendar } from '@/components/ui/calendar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -29,6 +29,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import AddProspectPanel from './AddProspectPanel';
+import SortableTh, { type SortDirection } from './SortableTh';
 
 interface FilterPreset {
   id: string;
@@ -45,7 +46,6 @@ interface ProspectsTableProps {
 }
 
 type SortField = 'companyName' | 'contacts' | 'state' | 'type' | 'stage' | 'lastContact' | 'engagements';
-type SortDirection = 'asc' | 'desc' | null;
 
 interface ExportColumn {
   key: string;
@@ -474,12 +474,6 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     }
   };
 
-  const getSortIcon = (field: SortField) => {
-    if (sortField !== field || !sortDirection) return <ArrowUpDown className="w-3 h-3 opacity-50" aria-hidden="true" />;
-    if (sortDirection === 'asc') return <ChevronUp className="w-3 h-3" aria-hidden="true" />;
-    return <ChevronDown className="w-3 h-3" aria-hidden="true" />;
-  };
-
   const filteredAndSortedProspects = useMemo(() => {
     let result = prospects.filter((prospect) => {
       const matchesSearch = 
@@ -645,29 +639,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     return count > 0 ? `${count} contact${count === 1 ? '' : 's'}` : '—';
   };
 
-  const renderSortHeader = (field: SortField, label: string, align: 'left' | 'right' = 'left') => (
-    <th
-      scope="col"
-      aria-sort={sortField === field && sortDirection ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-      className={cn(
-        'sticky top-0 z-10 bg-card px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shadow-[inset_0_-1px_0_hsl(var(--border))]',
-        align === 'right' ? 'text-right' : 'text-left',
-      )}
-    >
-      <button
-        type="button"
-        onClick={() => handleSort(field)}
-        className={cn(
-          'inline-flex items-center gap-1 rounded uppercase tracking-wider hover:text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
-          align === 'right' && 'flex-row-reverse',
-          sortField === field && sortDirection && 'text-foreground',
-        )}
-      >
-        {label}
-        {getSortIcon(field)}
-      </button>
-    </th>
-  );
+  const sortProps = { sortField, sortDirection, onSort: handleSort };
 
   const handleRowClick = (prospect: Prospect) => {
     const prospectIds = filteredAndSortedProspects.map(p => p.id);
@@ -945,13 +917,13 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
             <table className="w-full">
               <thead>
                 <tr>
-                  {renderSortHeader('companyName', 'Company')}
-                  {renderSortHeader('contacts', 'Contacts')}
-                  {renderSortHeader('state', 'Location')}
-                  {renderSortHeader('type', 'Business Model')}
-                  {renderSortHeader('stage', 'Stage')}
-                  {renderSortHeader('lastContact', 'Last Contact')}
-                  {renderSortHeader('engagements', 'Engagements', 'right')}
+                  <SortableTh field="companyName" label="Company" {...sortProps} />
+                  <SortableTh field="contacts" label="Contacts" {...sortProps} />
+                  <SortableTh field="state" label="Location" {...sortProps} />
+                  <SortableTh field="type" label="Business Model" {...sortProps} />
+                  <SortableTh field="stage" label="Stage" {...sortProps} />
+                  <SortableTh field="lastContact" label="Last Contact" {...sortProps} />
+                  <SortableTh field="engagements" label="Engagements" align="right" {...sortProps} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
