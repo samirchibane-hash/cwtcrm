@@ -42,10 +42,10 @@ import {
 import WorkflowStepEditor from '@/components/crm/WorkflowStepEditor';
 
 const STATUS_STYLES: Record<Enrollment['status'], string> = {
-  active: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-  paused: 'bg-amber-500/10 text-amber-600 dark:text-amber-400',
+  active: 'bg-success/10 text-success-foreground',
+  paused: 'bg-warning/10 text-warning-foreground',
   completed: 'bg-muted text-muted-foreground',
-  replied: 'bg-blue-500/10 text-blue-600 dark:text-blue-400',
+  replied: 'bg-info/10 text-info-foreground',
   stopped: 'bg-muted text-muted-foreground',
   failed: 'bg-destructive/10 text-destructive',
 };
@@ -195,20 +195,20 @@ const AutomationsPage = () => {
         <div
           className={cn(
             'content-card p-5 lg:col-span-2 flex items-center justify-between gap-4',
-            settings && !settings.enabled && 'border-amber-500/40 bg-amber-500/5',
+            settings && !settings.enabled && 'border-warning/40 bg-warning/5',
           )}
         >
           <div className="flex items-center gap-3 min-w-0">
             <div
               className={cn(
                 'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
-                settings?.enabled ? 'bg-emerald-500/10' : 'bg-amber-500/10',
+                settings?.enabled ? 'bg-success/10' : 'bg-warning/10',
               )}
             >
               <Zap
                 className={cn(
                   'w-5 h-5',
-                  settings?.enabled ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400',
+                  settings?.enabled ? 'text-success-foreground' : 'text-warning-foreground',
                 )}
               />
             </div>
@@ -338,12 +338,12 @@ const AutomationsPage = () => {
                         {totalDays(t.steps)} days
                       </span>
                       {t.exitOnReply && (
-                        <span className="badge-soft bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                        <span className="badge-soft bg-info/10 text-info-foreground">
                           Stops on reply
                         </span>
                       )}
                       {enrolled > 0 && (
-                        <span className="badge-soft bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                        <span className="badge-soft bg-success/10 text-success-foreground">
                           {enrolled} enrolled
                         </span>
                       )}

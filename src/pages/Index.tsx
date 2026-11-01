@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Sidebar from '@/components/crm/Sidebar';
 import MobileNav from '@/components/crm/MobileNav';
 import MobileHeader from '@/components/crm/MobileHeader';
+import CommandPalette from '@/components/crm/CommandPalette';
+import { NAV_ITEMS } from '@/components/crm/nav-items';
 import ProspectsTable from '@/components/crm/ProspectsTable';
 import OrdersReportingDashboard from '@/components/crm/OrdersReportingDashboard';
 import OrdersTable from '@/components/crm/OrdersTable';
@@ -13,22 +15,35 @@ import { TasksPage } from '@/components/crm/TasksPage';
 import AutomationsPage from '@/components/crm/AutomationsPage';
 import { Prospect } from '@/data/prospects';
 
+const VIEWS = ['pipeline', 'prospects', 'agent', 'automations', 'orders', 'reports', 'activity', 'tasks'];
+// Legacy params (briefing = retired Daily Briefing tab) all land on the pipeline
+const LEGACY_PIPELINE_VIEWS = ['prospects', 'customers', 'dashboard', 'briefing'];
+
+const resolveView = (param: string | null) => {
+  if (!param || LEGACY_PIPELINE_VIEWS.includes(param) || !VIEWS.includes(param)) return 'pipeline';
+  return param;
+};
+
 const Index = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const [activeView, setActiveView] = useState('pipeline');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchOpen, setSearchOpen] = useState(false);
+  // The view lives in the URL so it survives refresh and can be shared
+  const activeView = resolveView(searchParams.get('view'));
+  // Pipeline filters live in the URL too; remember them while the user visits other views
+  const pipelineSearch = useRef<string>(activeView === 'pipeline' ? searchParams.toString() : '');
+  if (activeView === 'pipeline') pipelineSearch.current = searchParams.toString();
 
-  // Handle view query parameter (e.g., /?view=orders)
-  useEffect(() => {
-    const viewParam = searchParams.get('view');
-    if (viewParam && ['pipeline', 'prospects', 'agent', 'automations', 'orders', 'reports', 'activity', 'tasks'].includes(viewParam)) {
-      setActiveView(viewParam);
+  const setActiveView = (view: string) => {
+    if (view === activeView) return;
+    if (view === 'pipeline') {
+      const params = new URLSearchParams(pipelineSearch.current);
+      params.set('view', 'pipeline');
+      setSearchParams(params);
+    } else {
+      setSearchParams({ view });
     }
-    // Support legacy params (briefing = retired Daily Briefing tab)
-    if (viewParam === 'prospects' || viewParam === 'customers' || viewParam === 'dashboard' || viewParam === 'briefing') {
-      setActiveView('pipeline');
-    }
-  }, [searchParams]);
+  };
 
   const handleSelectProspect = (prospect: Prospect) => {
     navigate(`/company/${prospect.id}`);
@@ -57,50 +72,24 @@ const Index = () => {
     }
   };
 
-  const getViewTitle = () => {
-    switch (activeView) {
-      case 'pipeline': return 'Pipeline';
-      case 'prospects': return 'AI Prospects';
-      case 'agent': return 'Claude Agent';
-      case 'automations': return 'Automations';
-      case 'orders': return 'Orders';
-      case 'reports': return 'Reports';
-      case 'activity': return 'Activity Tracker';
-      case 'tasks': return 'Tasks';
-      default: return 'Pipeline';
-    }
-  };
-
-  const getViewSubtitle = () => {
-    switch (activeView) {
-      case 'pipeline': return 'Manage and track all your prospects and customers';
-      case 'prospects': return 'AI-recommended companies based on your existing pipeline';
-      case 'agent': return 'Discover contacts, review, and launch outreach campaigns';
-      case 'automations': return 'Build email sequences that send themselves and stop when someone replies';
-      case 'orders': return 'Track all customer orders and shipments';
-      case 'reports': return 'Revenue analytics and business insights';
-      case 'activity': return 'Aggregate call and email activity across all companies';
-      case 'tasks': return 'Manage tasks, track follow-ups, and link to pipeline companies';
-      default: return 'Manage and track all your prospects and customers';
-    }
-  };
+  const current = NAV_ITEMS.find(item => item.id === activeView) ?? NAV_ITEMS[0];
 
   return (
     <div className="min-h-screen bg-background">
       {/* Desktop Sidebar - Hidden on mobile */}
       <div className="hidden md:block">
-        <Sidebar activeView={activeView} onViewChange={setActiveView} />
+        <Sidebar activeView={activeView} onViewChange={setActiveView} onOpenSearch={() => setSearchOpen(true)} />
       </div>
-      
+
       {/* Mobile Header - Hidden on desktop */}
-      <MobileHeader title={getViewTitle()} />
-      
+      <MobileHeader title={current.label} onOpenSearch={() => setSearchOpen(true)} />
+
       {/* Main Content */}
-      <main className="md:ml-64 px-4 py-4 md:p-8 mb-safe-nav md:mb-0">
+      <main className="md:ml-60 px-4 py-4 md:px-8 md:py-6 mb-safe-nav md:mb-0">
         {/* Desktop Header - Hidden on mobile */}
-        <header className="mb-6 md:mb-8 hidden md:block">
-          <h1 className="text-3xl font-semibold tracking-tight">{getViewTitle()}</h1>
-          <p className="text-muted-foreground mt-1">{getViewSubtitle()}</p>
+        <header className="mb-5 hidden md:block">
+          <h1 className="text-xl font-semibold tracking-tight">{current.label}</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">{current.subtitle}</p>
         </header>
 
         {renderView()}
@@ -108,6 +97,8 @@ const Index = () => {
 
       {/* Mobile Bottom Nav - Hidden on desktop */}
       <MobileNav activeView={activeView} onViewChange={setActiveView} />
+
+      <CommandPalette open={searchOpen} onOpenChange={setSearchOpen} onNavigate={setActiveView} />
     </div>
   );
 };

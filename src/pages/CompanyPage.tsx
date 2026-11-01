@@ -1,5 +1,6 @@
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Package, Truck, Loader2, Star, ChevronLeft, ChevronRight, Globe, Trash2, CheckCircle, XCircle, Pencil, Copy, Check, CheckSquare, Zap, Pause, Play, Square as SquareIcon } from 'lucide-react';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Package, Truck, Star, ChevronRight, ChevronUp, ChevronDown, Globe, Trash2, CheckCircle, XCircle, Pencil, Copy, Check, CheckSquare, Zap, Pause, Play, Square as SquareIcon, MoreHorizontal, CalendarDays, type LucideIcon } from 'lucide-react';
+import { format } from 'date-fns';
 import { Contact, Engagement, CompanyType, MarketType, REPS, getRepConfig } from '@/data/prospects';
 import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
 import { parseDateLoose, formatMmDdYyyy } from '@/lib/date';
@@ -25,7 +26,17 @@ import { useAuth } from '@/hooks/useAuth';
 import { TaskCard, TaskDetailSheet } from '@/components/crm/TaskDetailSheet';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -35,9 +46,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useProspectActivityLog } from '@/hooks/useActivityLog';
 
@@ -75,7 +85,7 @@ const CopyButton = ({ value, label }: { value: string; label: string }) => {
       onClick={copy}
       title={copied ? 'Copied!' : `Copy ${label}`}
       aria-label={`Copy ${label}`}
-      className={`p-0.5 rounded transition-colors ${copied ? 'text-green-500' : 'text-muted-foreground/50 hover:text-foreground hover:bg-muted'}`}
+      className={`p-0.5 rounded transition-colors ${copied ? 'text-success-foreground' : 'text-muted-foreground/50 hover:text-foreground hover:bg-muted'}`}
     >
       {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
     </button>
@@ -124,6 +134,16 @@ const CompanyPage = () => {
   const prospect = id ? getProspectById(id) : null;
   const { prospects } = useProspects();
   const { entries: activityLogEntries } = useProspectActivityLog(id);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const { tasks } = useTasks();
+  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const tabParam = searchParams.get('tab');
+  const tab = tabParam === 'tasks' || tabParam === 'orders' ? tabParam : 'activity';
+  const openTaskCount = useMemo(
+    () => tasks.filter(t => t.prospect_id === id && t.status !== 'done' && t.status !== 'cancelled').length,
+    [tasks, id]
+  );
 
   // Merge activity_log entries (from scripts) with JSONB engagements, deduplicated by id, sorted by date
   const allEngagements = useMemo(() => {
@@ -157,7 +177,26 @@ const CompanyPage = () => {
   // Get previous and next prospect for navigation based on the passed order
   const currentIndex = prospectIds.findIndex(pId => pId === id);
   const previousProspectId = currentIndex > 0 ? prospectIds[currentIndex - 1] : null;
-  const nextProspectId = currentIndex < prospectIds.length - 1 ? prospectIds[currentIndex + 1] : null;
+  const nextProspectId = currentIndex >= 0 && currentIndex < prospectIds.length - 1 ? prospectIds[currentIndex + 1] : null;
+
+  // Keep the open tab when stepping through records
+  const goTo = (targetId: string | null) => {
+    if (targetId) navigate(`/company/${targetId}${location.search}`, { state: location.state });
+  };
+
+  // J / K step through the list the user came from (skipped while typing or with an overlay open)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const el = e.target as HTMLElement;
+      if (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return;
+      if (document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"]')) return;
+      const target = e.key === 'j' ? nextProspectId : e.key === 'k' ? previousProspectId : null;
+      if (target) navigate(`/company/${target}${location.search}`, { state: location.state });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [nextProspectId, previousProspectId, navigate, location.search, location.state]);
   // Initialize state from prospect data
   useEffect(() => {
     if (prospect) {
@@ -184,20 +223,43 @@ const CompanyPage = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="min-h-screen bg-background" aria-busy="true" aria-label="Loading company">
+        <div className="border-b border-border h-12" />
+        <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-6">
+          <div className="flex items-center gap-3">
+            <Skeleton className="h-11 w-11 rounded-xl" />
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-56" />
+              <Skeleton className="h-4 w-40" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-6">
+            <div className="space-y-4">
+              <Skeleton className="h-28 w-full rounded-2xl" />
+              <Skeleton className="h-64 w-full rounded-2xl" />
+            </div>
+            <div className="space-y-4">
+              <Skeleton className="h-32 w-full rounded-2xl" />
+              <Skeleton className="h-80 w-full rounded-2xl" />
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (!prospect) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-2xl font-semibold mb-2">Company not found</h1>
-          <Button variant="outline" onClick={() => navigate('/')}>
+      <div className="min-h-screen bg-background flex items-center justify-center px-4">
+        <div className="text-center space-y-3">
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+            <Building2 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+          </div>
+          <h1 className="text-lg font-semibold">Company not found</h1>
+          <p className="text-sm text-muted-foreground">It may have been deleted, or the link is out of date.</p>
+          <Button variant="outline" onClick={() => navigate('/?view=pipeline')}>
             <ArrowLeft className="w-4 h-4 mr-2" />
-            Back to Dashboard
+            Back to Pipeline
           </Button>
         </div>
       </div>
@@ -259,7 +321,7 @@ const CompanyPage = () => {
       title: 'Company deleted',
       description: `${companyName} has been removed.`,
     });
-    navigate('/?view=prospects');
+    navigate('/?view=pipeline');
   };
 
   const openAddContact = () => {
@@ -393,218 +455,203 @@ const CompanyPage = () => {
   const lastContactLabel = getProspectLastContactLabel(prospect);
   const cityStateZip = [[city, state].filter(Boolean).join(', '), zip].filter(Boolean).join(' ');
   const addressLine = [street, cityStateZip, country].filter(Boolean).join(', ');
-  const hasRecord = Boolean(addressLine || googleMapsUrl || phone || website || linkedIn || lastContactLabel);
+  const initials = companyName.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
+  const canEnroll = contacts.some(c => c.email);
+
+  const focusComposer = () => {
+    composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    composerRef.current?.focus({ preventScroll: true });
+  };
+
+  const setTab = (next: string) => {
+    const params = new URLSearchParams(searchParams);
+    if (next === 'activity') params.delete('tab');
+    else params.set('tab', next);
+    setSearchParams(params, { replace: true, state: location.state });
+  };
+
+  // Group the timeline by month, newest first (allEngagements is already sorted)
+  const engagementGroups: { label: string; items: Engagement[] }[] = [];
+  for (const engagement of allEngagements) {
+    const d = parseDateLoose(engagement.date ?? '');
+    const label = d ? format(d, 'MMMM yyyy') : 'Undated';
+    const last = engagementGroups[engagementGroups.length - 1];
+    if (last && last.label === label) last.items.push(engagement);
+    else engagementGroups.push({ label, items: [engagement] });
+  }
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-xl border-b border-border">
-        <div className="max-w-6xl mx-auto px-6">
-          {/* Nav row */}
-          <div className="flex items-center justify-between py-3">
+      {/* Record bar: breadcrumb + position in the list the user came from */}
+      <header className="sticky top-0 z-20 bg-background/80 backdrop-blur-xl border-b border-border">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-12 flex items-center justify-between gap-4">
+          <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-1.5 text-sm">
             <button
-              onClick={() => {
-                const from = location.state?.from;
-                navigate(from || '/?view=pipeline');
-              }}
-              className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => navigate(location.state?.from || '/?view=pipeline')}
+              className="flex shrink-0 items-center gap-1.5 rounded text-muted-foreground hover:text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ArrowLeft className="w-4 h-4" />
-              Back
+              Pipeline
             </button>
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="truncate font-medium" aria-current="page">{companyName}</span>
+          </nav>
 
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => previousProspectId && navigate(`/company/${previousProspectId}`, { state: location.state })}
-                disabled={!previousProspectId}
-                className="gap-1 text-muted-foreground"
-              >
-                <ChevronLeft className="w-4 h-4" />
-                Prev
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => nextProspectId && navigate(`/company/${nextProspectId}`, { state: location.state })}
-                disabled={!nextProspectId}
-                className="gap-1 text-muted-foreground"
-              >
-                Next
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Identity row */}
-          <div className="flex items-start justify-between gap-6 pb-5">
-            {/* Identity + company record, side by side */}
-            <div className="flex items-center gap-5 min-w-0 flex-wrap">
-              <div className="min-w-0">
-                <h1 className="text-2xl font-semibold tracking-tight truncate">{companyName}</h1>
-                <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-                  <TypeBadge type={companyType} />
-                  <MarketTypeBadge marketType={marketType} />
-                  <StageBadge stage={stage} maxVisible={3} />
-                </div>
-              </div>
-
-              {/* Company record — address+phone / links / last contact */}
-              {hasRecord && (
-                <div className="flex flex-col gap-1 pl-5 border-l border-border text-xs text-muted-foreground">
-                  {(addressLine || googleMapsUrl || phone) && (
-                    <div className="flex items-center gap-x-4 gap-y-1 flex-wrap">
-                      {(addressLine || googleMapsUrl) && (
-                        <span className="flex items-center gap-1">
-                          {googleMapsUrl ? (
-                            <a href={normalizeUrl(googleMapsUrl)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline">
-                              <MapPin className="w-3.5 h-3.5 shrink-0" />
-                              {addressLine || 'View on Maps'}
-                            </a>
-                          ) : (
-                            <span className="flex items-center gap-1">
-                              <MapPin className="w-3.5 h-3.5 shrink-0" />
-                              {addressLine}
-                            </span>
-                          )}
-                          {addressLine && <CopyButton value={addressLine} label="address" />}
-                        </span>
-                      )}
-                      {phone && (
-                        <span className="flex items-center gap-1">
-                          <a href={`tel:${phone}`} className="flex items-center gap-1 hover:text-foreground transition-colors">
-                            <Phone className="w-3.5 h-3.5 shrink-0" />
-                            {phone}
-                          </a>
-                          <CopyButton value={phone} label="phone" />
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {(website || linkedIn) && (
-                    <div className="flex items-center gap-x-4 gap-y-1 flex-wrap">
-                      {website && (
-                        <span className="flex items-center gap-1">
-                          <a href={normalizeUrl(website)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline">
-                            <Globe className="w-3.5 h-3.5 shrink-0" />
-                            {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
-                          </a>
-                          <CopyButton value={normalizeUrl(website)} label="website" />
-                        </span>
-                      )}
-                      {linkedIn && (
-                        <a href={normalizeUrl(linkedIn)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-accent hover:underline">
-                          <Linkedin className="w-3.5 h-3.5 shrink-0" />
-                          LinkedIn
-                        </a>
-                      )}
-                    </div>
-                  )}
-                  {lastContactLabel && (
-                    <span className="flex items-center gap-1">
-                      <MessageSquare className="w-3.5 h-3.5 shrink-0" />
-                      Last contact <span className="font-medium text-foreground">{lastContactLabel}</span>
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center gap-2 shrink-0">
-              <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditPanelOpen(true)}>
-                <Pencil className="w-4 h-4" />
-                Edit
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive">
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent className="rounded-2xl">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete Company</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Are you sure you want to delete <strong>{companyName}</strong>? This action cannot be undone and will remove all contacts and engagement history.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDeleteCompany} className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                      Delete Company
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {currentIndex >= 0 && (
+              <span className="hidden sm:inline text-xs text-muted-foreground tabular-nums mr-1">
+                {(currentIndex + 1).toLocaleString()} of {prospectIds.length.toLocaleString()}
+              </span>
+            )}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => goTo(previousProspectId)} disabled={!previousProspectId} aria-label="Previous company">
+                  <ChevronUp className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Previous company <kbd className="ml-1 text-[10px] text-muted-foreground">K</kbd></TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => goTo(nextProspectId)} disabled={!nextProspectId} aria-label="Next company">
+                  <ChevronDown className="w-4 h-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Next company <kbd className="ml-1 text-[10px] text-muted-foreground">J</kbd></TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </header>
 
-      {/* Content */}
-      <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
-        {/* At-a-glance stat strip */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 animate-fade-in">
-          <StatTile label="Contacts" value={contacts.length} />
-          <StatTile label="Orders" value={companyOrders.length} />
-          <StatTile label="Engagements" value={allEngagements.length} />
-          <StatTile label="Lifetime Value" value={formatCurrency(lifetimeValue)} accent />
+      <main className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-6 animate-fade-in">
+        {/* Identity + primary actions */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-muted text-sm font-semibold text-muted-foreground" aria-hidden="true">
+              {initials}
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-semibold tracking-tight truncate">{companyName}</h1>
+              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                <StageBadge stage={stage} maxVisible={3} />
+                {companyType && <TypeBadge type={companyType} />}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <Button size="sm" className="gap-1.5" onClick={focusComposer}>
+              <Plus className="w-4 h-4" />
+              Log activity
+            </Button>
+            <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditPanelOpen(true)}>
+              <Pencil className="w-4 h-4" />
+              Edit
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="h-9 w-9" aria-label="More actions">
+                  <MoreHorizontal className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem disabled={!canEnroll} onSelect={() => { setEnrollContactId(undefined); setEnrollPanelOpen(true); }}>
+                  <Zap className="w-4 h-4 mr-2" />
+                  Add to automation
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setDeleteOpen(true)}>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete company
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main column */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Contacts */}
-            <section className="content-card animate-fade-in" style={{ animationDelay: '60ms' }}>
-              <div className="flex items-center justify-between p-5 border-b border-border">
-                <h2 className="section-header mb-0 flex items-center gap-2">
-                  <Building2 className="w-4 h-4" />
-                  Contacts
-                  {contacts.length > 0 && <span className="text-muted-foreground/60 font-normal">{contacts.length}</span>}
-                </h2>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-xl"
-                    disabled={!contacts.some(c => c.email)}
-                    title={
-                      contacts.some(c => c.email)
-                        ? 'Add a contact to an email automation'
-                        : 'Add a contact with an email address first'
-                    }
-                    onClick={() => {
-                      setEnrollContactId(undefined);
-                      setEnrollPanelOpen(true);
-                    }}
-                  >
-                    <Zap className="w-4 h-4 mr-2" />
-                    Automate
-                  </Button>
-                  <EmailVerificationDialog
-                    companyWebsite={website}
-                    onEmailVerified={(email) => {
-                      toast({
-                        title: 'Email Verified',
-                        description: `Add a contact with email: ${email}`,
-                      });
-                    }}
-                  />
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 px-2"
-                    onClick={openAddContact}
-                    aria-label="Add contact"
-                    title="Add contact"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[320px_minmax(0,1fr)] gap-6 items-start">
+          {/* Left rail: who they are */}
+          <aside className="space-y-4">
+            {/* At a glance */}
+            <section aria-label="At a glance" className="content-card grid grid-cols-2 gap-px bg-border">
+              <StatTile label="Lifetime value" value={formatCurrency(lifetimeValue)} />
+              <StatTile label="Orders" value={companyOrders.length} />
+              <StatTile label="Engagements" value={allEngagements.length} />
+              <StatTile label="Last contact" value={lastContactLabel || '—'} />
+            </section>
 
+            {/* Details */}
+            <section className="content-card">
+              <RailHeader title="Details">
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setEditPanelOpen(true)} aria-label="Edit company details">
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+              </RailHeader>
+              <dl className="px-4 py-2">
+                <PropertyRow icon={Building2} label="Business model" onAdd={() => setEditPanelOpen(true)}>
+                  {companyType ? <TypeBadge type={companyType} /> : null}
+                </PropertyRow>
+                <PropertyRow icon={Package} label="Vertical" onAdd={() => setEditPanelOpen(true)}>
+                  {marketType ? <MarketTypeBadge marketType={marketType} /> : null}
+                </PropertyRow>
+                <PropertyRow icon={MapPin} label="Address" onAdd={() => setEditPanelOpen(true)}>
+                  {addressLine || googleMapsUrl ? (
+                    <span className="flex items-start gap-1">
+                      {googleMapsUrl ? (
+                        <a href={normalizeUrl(googleMapsUrl)} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline break-words">
+                          {addressLine || 'View on Maps'}
+                        </a>
+                      ) : (
+                        <span className="break-words">{addressLine}</span>
+                      )}
+                      {addressLine && <CopyButton value={addressLine} label="address" />}
+                    </span>
+                  ) : null}
+                </PropertyRow>
+                <PropertyRow icon={Phone} label="Phone" onAdd={() => setEditPanelOpen(true)}>
+                  {phone ? (
+                    <span className="flex items-center gap-1">
+                      <a href={`tel:${phone}`} className="font-mono hover:underline">{phone}</a>
+                      <CopyButton value={phone} label="phone" />
+                    </span>
+                  ) : null}
+                </PropertyRow>
+                <PropertyRow icon={Globe} label="Website" onAdd={() => setEditPanelOpen(true)}>
+                  {website ? (
+                    <span className="flex items-center gap-1 min-w-0">
+                      <a href={normalizeUrl(website)} target="_blank" rel="noopener noreferrer" className="truncate text-accent hover:underline">
+                        {website.replace(/^https?:\/\//, '').replace(/\/$/, '')}
+                      </a>
+                      <CopyButton value={normalizeUrl(website)} label="website" />
+                    </span>
+                  ) : null}
+                </PropertyRow>
+                <PropertyRow icon={Linkedin} label="LinkedIn" onAdd={() => setEditPanelOpen(true)}>
+                  {linkedIn ? (
+                    <a href={normalizeUrl(linkedIn)} target="_blank" rel="noopener noreferrer" className="text-accent hover:underline">
+                      Company page
+                    </a>
+                  ) : null}
+                </PropertyRow>
+              </dl>
+            </section>
+
+            {/* Contacts */}
+            <section className="content-card">
+              <RailHeader title="Contacts" count={contacts.length}>
+                <EmailVerificationDialog
+                  companyWebsite={website}
+                  onEmailVerified={(email) => {
+                    toast({
+                      title: 'Email verified',
+                      description: `Add a contact with email: ${email}`,
+                    });
+                  }}
+                />
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={openAddContact} aria-label="Add contact">
+                  <Plus className="w-4 h-4" />
+                </Button>
+              </RailHeader>
               {contacts.length > 0 ? (
                 <div className="divide-y divide-border">
                   {contacts.map((contact) => (
@@ -617,55 +664,16 @@ const CompanyPage = () => {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-12 text-muted-foreground">
-                  <p className="text-sm">No contacts yet — add the people you sell to here.</p>
-                  <Button variant="outline" size="sm" className="mt-3" onClick={openAddContact}>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Add Contact
+                <div className="px-4 py-6 text-center">
+                  <p className="text-sm text-muted-foreground">Add the people you sell to here.</p>
+                  <Button variant="outline" size="sm" className="mt-3 gap-1.5" onClick={openAddContact}>
+                    <Plus className="w-4 h-4" />
+                    Add contact
                   </Button>
                 </div>
               )}
             </section>
 
-            {/* Engagement History */}
-            <section className="content-card animate-fade-in" style={{ animationDelay: '120ms' }}>
-              <div className="p-5 border-b border-border flex items-center justify-between">
-                <h2 className="section-header mb-0 flex items-center gap-2">
-                  <MessageSquare className="w-4 h-4" />
-                  Recent Engagements
-                </h2>
-              </div>
-
-              {allEngagements.length > 0 ? (
-                <div className="divide-y divide-border">
-                  {allEngagements.map((engagement) => (
-                    <EngagementCard
-                      key={engagement.id}
-                      engagement={engagement}
-                      onEdit={engagement.id.startsWith('alog-') ? undefined : handleEditNote}
-                      onDelete={engagement.id.startsWith('alog-') ? undefined : handleDeleteNote}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="p-12 text-center text-muted-foreground">
-                  <MessageSquare className="w-12 h-12 mx-auto mb-4 opacity-30" />
-                  <p className="text-sm">No engagements recorded yet</p>
-                  <p className="text-xs mt-1">Use the composer to start tracking interactions</p>
-                </div>
-              )}
-
-              {prospect.engagementNotes && (
-                <div className="p-5 bg-muted/30 border-t border-border">
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Original Notes</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{prospect.engagementNotes}</p>
-                </div>
-              )}
-            </section>
-          </div>
-
-          {/* Right rail */}
-          <div className="space-y-6">
             {/* Email automations running for this company */}
             <CompanyAutomationsSection
               prospectId={prospect.id}
@@ -674,99 +682,154 @@ const CompanyPage = () => {
                 setEnrollContactId(contactId);
                 setEnrollPanelOpen(true);
               }}
-              canEnroll={contacts.some(c => c.email)}
+              canEnroll={canEnroll}
             />
+          </aside>
 
-            {/* Tasks for this company */}
-            <CompanyTasksSection companyId={prospect.id} companyName={companyName} />
-
-            {/* Log Activity composer */}
-            <section className="content-card p-5 animate-fade-in" style={{ animationDelay: '60ms' }}>
-              <h2 className="section-header flex items-center gap-2">
-                <Plus className="w-4 h-4" />
-                Log Activity
-              </h2>
-              <div className="space-y-3">
+          {/* Main: what's happening */}
+          <div className="space-y-4 min-w-0">
+            {/* Log activity composer */}
+            <section className="content-card p-4" aria-labelledby="log-activity-heading">
+              <h2 id="log-activity-heading" className="sr-only">Log activity</h2>
+              <form onSubmit={e => { e.preventDefault(); handleAddNote(); }} className="space-y-3">
                 <Textarea
-                  placeholder="Add a note about this company..."
+                  ref={composerRef}
+                  aria-label="Activity note"
+                  placeholder="Log a call, email, or note about this company…"
                   value={newNote}
                   onChange={(e) => setNewNote(e.target.value)}
-                  className="min-h-[90px] resize-none border-0 bg-muted/50 focus:bg-card focus:ring-2 focus:ring-accent rounded-xl"
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                      e.preventDefault();
+                      handleAddNote();
+                    }
+                  }}
+                  className="min-h-[72px] resize-y border-0 bg-muted/50 focus-visible:bg-card rounded-lg"
                 />
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                      <Phone className="w-3 h-3" /> Calls
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={newNoteCalls || ''}
-                      onChange={(e) => setNewNoteCalls(Math.max(0, parseInt(e.target.value) || 0))}
-                      placeholder="0"
-                      className="w-full h-9 rounded-lg border border-input bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
+                <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+                  <CountField id="note-calls" icon={Phone} label="Calls" value={newNoteCalls} onChange={setNewNoteCalls} />
+                  <CountField id="note-emails" icon={Mail} label="Emails" value={newNoteEmails} onChange={setNewNoteEmails} />
+                  <CountField id="note-linkedin" icon={Linkedin} label="LinkedIn" value={newNoteLinkedIn} onChange={setNewNoteLinkedIn} />
+                  <div className="space-y-1" role="radiogroup" aria-label="Logged by">
+                    <span className="block text-xs font-medium text-muted-foreground">Logged by</span>
+                    <div className="flex gap-1">
+                      {REPS.map(rep => (
+                        <button
+                          key={rep.name}
+                          type="button"
+                          role="radio"
+                          aria-checked={newNoteLoggedBy === rep.name}
+                          onClick={() => setNewNoteLoggedBy(rep.name)}
+                          className={`flex h-8 items-center gap-1.5 px-2 rounded-md text-xs font-medium border transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                            newNoteLoggedBy === rep.name
+                              ? 'border-foreground/20 bg-muted text-foreground'
+                              : 'border-transparent text-muted-foreground hover:bg-muted/50'
+                          }`}
+                        >
+                          <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${rep.avatarClass}`} aria-hidden="true">
+                            {rep.initials}
+                          </span>
+                          {rep.name}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                      <Mail className="w-3 h-3" /> Emails
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={newNoteEmails || ''}
-                      onChange={(e) => setNewNoteEmails(Math.max(0, parseInt(e.target.value) || 0))}
-                      placeholder="0"
-                      className="w-full h-9 rounded-lg border border-input bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
-                  </div>
-                  <div className="space-y-1 col-span-2">
-                    <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
-                      <Linkedin className="w-3 h-3" /> LinkedIn messages
-                    </label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={newNoteLinkedIn || ''}
-                      onChange={(e) => setNewNoteLinkedIn(Math.max(0, parseInt(e.target.value) || 0))}
-                      placeholder="0"
-                      className="w-full h-9 rounded-lg border border-input bg-muted/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-accent"
-                    />
+                  <div className="ml-auto flex items-center gap-2">
+                    <span className="hidden sm:inline text-[11px] text-muted-foreground">⌘↵ to save</span>
+                    <Button type="submit" size="sm" disabled={!newNote.trim()}>
+                      Save activity
+                    </Button>
                   </div>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium text-muted-foreground">Logged by</label>
-                  <div className="flex gap-2 flex-wrap">
-                    {REPS.map(rep => (
-                      <button
-                        key={rep.name}
-                        type="button"
-                        onClick={() => setNewNoteLoggedBy(rep.name)}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
-                          newNoteLoggedBy === rep.name
-                            ? `${rep.activeClass} border-current`
-                            : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'
-                        }`}
-                      >
-                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${rep.avatarClass}`}>
-                          {rep.initials}
-                        </span>
-                        {rep.name}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <Button size="sm" onClick={handleAddNote} disabled={!newNote.trim()} className="w-full">
-                  Save Activity
-                </Button>
-              </div>
+              </form>
             </section>
+
+            <Tabs value={tab} onValueChange={setTab}>
+              <TabsList className="h-auto w-full justify-start gap-5 rounded-none border-b border-border bg-transparent p-0">
+                {[
+                  { value: 'activity', label: 'Activity', count: allEngagements.length },
+                  { value: 'tasks', label: 'Tasks', count: openTaskCount },
+                  { value: 'orders', label: 'Orders', count: companyOrders.length },
+                ].map(t => (
+                  <TabsTrigger
+                    key={t.value}
+                    value={t.value}
+                    className="-mb-px gap-1.5 rounded-none border-b-2 border-transparent bg-transparent px-0 pb-2.5 pt-0 text-sm text-muted-foreground shadow-none data-[state=active]:border-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none"
+                  >
+                    {t.label}
+                    {t.count > 0 && <span className="rounded-full bg-muted px-1.5 text-[11px] tabular-nums text-muted-foreground">{t.count}</span>}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+
+              <TabsContent value="activity" className="mt-4">
+                <section className="content-card">
+                  {allEngagements.length > 0 ? (
+                    <div className="px-4 py-2">
+                      {engagementGroups.map(group => (
+                        <div key={group.label}>
+                          <h3 className="pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">{group.label}</h3>
+                          <ol className="relative">
+                            {group.items.map((engagement, i) => (
+                              <EngagementCard
+                                key={engagement.id}
+                                engagement={engagement}
+                                isLast={i === group.items.length - 1}
+                                onEdit={engagement.id.startsWith('alog-') ? undefined : handleEditNote}
+                                onDelete={engagement.id.startsWith('alog-') ? undefined : handleDeleteNote}
+                              />
+                            ))}
+                          </ol>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="px-6 py-12 text-center">
+                      <MessageSquare className="w-8 h-8 mx-auto mb-3 text-muted-foreground" aria-hidden="true" />
+                      <p className="text-sm text-muted-foreground">No activity yet. Log your first call, email or note.</p>
+                      <Button variant="outline" size="sm" className="mt-3" onClick={focusComposer}>
+                        Log activity
+                      </Button>
+                    </div>
+                  )}
+
+                  {prospect.engagementNotes && (
+                    <div className="px-4 py-4 bg-muted/30 border-t border-border">
+                      <h3 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-1.5">Original notes</h3>
+                      <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-line">{prospect.engagementNotes}</p>
+                    </div>
+                  )}
+                </section>
+              </TabsContent>
+
+              <TabsContent value="tasks" className="mt-4">
+                <CompanyTasksSection companyId={prospect.id} companyName={companyName} />
+              </TabsContent>
+
+              <TabsContent value="orders" className="mt-4">
+                <OrderHistorySection companyName={companyName} companyId={prospect.id} />
+              </TabsContent>
+            </Tabs>
           </div>
         </div>
-
-        {/* Order History Section */}
-        <OrderHistorySection companyName={companyName} companyId={prospect.id} />
       </main>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent className="rounded-2xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {companyName}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the company with all of its contacts and engagement history. It can’t be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCompany} className="rounded-xl bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Delete company
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Edit company details slide-over — keeps the user on the company profile */}
       <Sheet open={editPanelOpen} onOpenChange={setEditPanelOpen}>
@@ -833,10 +896,10 @@ const CompanyPage = () => {
 // Live email sequences for this company. Mirrors the Automations page controls
 // so a sequence can be paused or stopped without leaving the profile.
 const AUTOMATION_STATUS: Record<Enrollment['status'], { label: string; className: string }> = {
-  active: { label: 'Active', className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
-  paused: { label: 'Paused', className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+  active: { label: 'Active', className: 'bg-success/10 text-success-foreground' },
+  paused: { label: 'Paused', className: 'bg-warning/10 text-warning-foreground' },
   completed: { label: 'Done', className: 'bg-muted text-muted-foreground' },
-  replied: { label: 'Replied', className: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
+  replied: { label: 'Replied', className: 'bg-info/10 text-info-foreground' },
   stopped: { label: 'Stopped', className: 'bg-muted text-muted-foreground' },
   failed: { label: 'Failed', className: 'bg-destructive/10 text-destructive' },
 };
@@ -862,27 +925,26 @@ const CompanyAutomationsSection = ({
   const finished = enrollments.filter(e => e.status !== 'active' && e.status !== 'paused');
 
   return (
-    <section className="content-card animate-fade-in">
-      <div className="flex items-center justify-between p-5 border-b border-border">
-        <h2 className="section-header mb-0 flex items-center gap-2">
-          <Zap className="w-4 h-4" />
-          Automations
-          {live.length > 0 && <span className="text-muted-foreground/60 font-normal">{live.length}</span>}
-        </h2>
+    <section className="content-card">
+      <RailHeader title="Automations" count={live.length}>
         {canEnroll && (
-          <Button variant="ghost" size="sm" className="rounded-xl" onClick={() => onEnroll()}>
-            <Plus className="w-4 h-4 mr-1" />
-            Add
+          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onEnroll()} aria-label="Add a contact to an automation">
+            <Plus className="w-4 h-4" />
           </Button>
         )}
-      </div>
+      </RailHeader>
 
       {enrollments.length === 0 ? (
-        <div className="p-6 text-center">
-          <p className="text-sm text-muted-foreground">No sequences running</p>
-          <p className="text-xs text-muted-foreground/70 mt-1">
-            Enroll a contact to start an automated email sequence.
-          </p>
+        <div className="px-4 py-6 text-center">
+          <p className="text-sm text-muted-foreground">No sequences running.</p>
+          {canEnroll ? (
+            <Button variant="outline" size="sm" className="mt-3 gap-1.5" onClick={() => onEnroll()}>
+              <Zap className="w-4 h-4" />
+              Add to automation
+            </Button>
+          ) : (
+            <p className="text-xs text-muted-foreground mt-1">Add a contact with an email address to start one.</p>
+          )}
         </div>
       ) : (
         <div className="divide-y divide-border">
@@ -890,7 +952,7 @@ const CompanyAutomationsSection = ({
             const status = AUTOMATION_STATUS[e.status];
             const nextRun = e.nextRunAt ? parseDateLoose(e.nextRunAt) : null;
             return (
-              <div key={e.id} className="p-4">
+              <div key={e.id} className="px-4 py-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{e.contactName || e.contactEmail}</p>
@@ -946,10 +1008,66 @@ const CompanyAutomationsSection = ({
   );
 };
 
-const StatTile = ({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) => (
-  <div className="content-card px-4 py-3">
-    <div className={`text-xl font-semibold leading-none tabular-nums ${accent ? 'text-accent' : ''}`}>{value}</div>
-    <div className="mt-1.5 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
+const StatTile = ({ label, value }: { label: string; value: string | number }) => (
+  <div className="bg-card px-4 py-3 min-w-0">
+    <div className="text-[11px] font-medium text-muted-foreground">{label}</div>
+    <div className="mt-1 truncate text-base font-semibold leading-tight tabular-nums">{value}</div>
+  </div>
+);
+
+const RailHeader = ({ title, count, children }: { title: string; count?: number; children?: React.ReactNode }) => (
+  <div className="flex items-center justify-between gap-2 px-4 h-11 border-b border-border">
+    <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+      {title}
+      {!!count && <span className="text-xs font-normal text-muted-foreground tabular-nums">{count}</span>}
+    </h2>
+    <div className="flex items-center gap-1">{children}</div>
+  </div>
+);
+
+// Label/value pair in the Details card. Empty values become an "Add …" affordance (Attio-style)
+const PropertyRow = ({ icon: Icon, label, onAdd, children }: {
+  icon: LucideIcon;
+  label: string;
+  onAdd: () => void;
+  children: React.ReactNode;
+}) => (
+  <div className="flex items-start gap-3 py-1.5 text-sm">
+    <dt className="flex w-28 shrink-0 items-center gap-2 pt-px text-muted-foreground">
+      <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      {label}
+    </dt>
+    <dd className="min-w-0 flex-1">
+      {children ?? (
+        <button type="button" onClick={onAdd} className="rounded text-muted-foreground hover:text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          Add {label.toLowerCase()}…
+        </button>
+      )}
+    </dd>
+  </div>
+);
+
+const CountField = ({ id, icon: Icon, label, value, onChange }: {
+  id: string;
+  icon: LucideIcon;
+  label: string;
+  value: number;
+  onChange: (n: number) => void;
+}) => (
+  <div className="space-y-1">
+    <label htmlFor={id} className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+      <Icon className="w-3 h-3" aria-hidden="true" /> {label}
+    </label>
+    <Input
+      id={id}
+      type="number"
+      min={0}
+      inputMode="numeric"
+      value={value || ''}
+      onChange={(e) => onChange(Math.max(0, parseInt(e.target.value) || 0))}
+      placeholder="0"
+      className="h-8 w-16 text-sm tabular-nums"
+    />
   </div>
 );
 
@@ -1020,20 +1138,16 @@ const CompanyTasksSection = ({ companyId, companyName }: { companyId: string; co
   };
 
   return (
-    <section className="content-card p-5 animate-fade-in" style={{ animationDelay: '40ms' }}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="section-header mb-0 flex items-center gap-2">
-          <CheckSquare className="w-4 h-4" />
-          Tasks
-          {openCount > 0 && <span className="text-muted-foreground/60 font-normal">{openCount}</span>}
-        </h2>
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={openNewTask}>
-          <Plus className="w-4 h-4" />
-          Add Task
-        </Button>
-      </div>
-
+    <section className="content-card p-4">
       {companyTasks.length > 0 ? (
+        <>
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm text-muted-foreground">{openCount > 0 ? `${openCount} open` : 'All done'}</p>
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={openNewTask}>
+            <Plus className="w-4 h-4" />
+            Add task
+          </Button>
+        </div>
         <div className="space-y-2">
           {companyTasks.map(task => (
             <TaskCard
@@ -1045,13 +1159,14 @@ const CompanyTasksSection = ({ companyId, companyName }: { companyId: string; co
             />
           ))}
         </div>
+        </>
       ) : (
-        <div className="text-center py-8 text-muted-foreground">
-          <CheckSquare className="w-10 h-10 mx-auto mb-3 opacity-30" />
-          <p className="text-sm">No tasks for this company yet</p>
+        <div className="text-center py-8">
+          <CheckSquare className="w-8 h-8 mx-auto mb-3 text-muted-foreground" aria-hidden="true" />
+          <p className="text-sm text-muted-foreground">No tasks yet. Add a follow-up so this account doesn’t go cold.</p>
           <Button variant="outline" size="sm" className="mt-3 gap-1.5" onClick={openNewTask}>
             <Plus className="w-4 h-4" />
-            Add Task
+            Add task
           </Button>
         </div>
       )}
@@ -1078,69 +1193,70 @@ const ContactRow =({ contact, onToggleChampion, onEdit }: {
   onEdit: (contact: Contact) => void;
 }) => {
   return (
-    <div className="flex items-center gap-3 px-5 py-3.5 hover:bg-muted/30 transition-colors group">
+    <div className="flex items-start gap-2.5 px-4 py-3 hover:bg-muted/30 transition-colors group">
       <button
+        type="button"
         onClick={() => onToggleChampion(contact.id)}
-        className={`p-1.5 rounded-lg transition-colors shrink-0 ${
-          contact.isChampion
-            ? 'text-amber-500 bg-amber-500/10 hover:bg-amber-500/20'
-            : 'text-muted-foreground/40 hover:text-amber-500 hover:bg-muted'
-        }`}
+        aria-pressed={!!contact.isChampion}
+        aria-label={contact.isChampion ? `Remove ${contact.name} as champion` : `Set ${contact.name} as champion`}
         title={contact.isChampion ? 'Remove as champion' : 'Set as champion'}
+        className={`mt-px p-1 rounded-md transition-colors shrink-0 outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+          contact.isChampion
+            ? 'text-champion bg-champion/10 hover:bg-champion/20'
+            : 'text-muted-foreground hover:text-champion hover:bg-muted'
+        }`}
       >
-        <Star className={`w-4 h-4 ${contact.isChampion ? 'fill-current' : ''}`} />
+        <Star className={`w-3.5 h-3.5 ${contact.isChampion ? 'fill-current' : ''}`} />
       </button>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="font-medium text-sm truncate">{contact.name}</p>
-          {contact.role && <span className="text-xs text-muted-foreground truncate">· {contact.role}</span>}
-        </div>
-        <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-          {contact.email ? (
-            <span className="flex items-center gap-1">
-              <a href={`mailto:${contact.email}`} className="text-xs text-accent hover:underline flex items-center gap-1">
-                {contact.emailVerified === true && <CheckCircle className="w-3 h-3 text-green-500 shrink-0" />}
-                {contact.emailVerified === false && <XCircle className="w-3 h-3 text-red-500 shrink-0" />}
-                <Mail className="w-3 h-3" />
-                {contact.email}
-              </a>
-              <CopyButton value={contact.email} label="email" />
-            </span>
-          ) : null}
-          {contact.phone && (
-            <span className="flex items-center gap-1">
-              <a href={`tel:${contact.phone}`} className="text-xs font-mono text-muted-foreground hover:text-foreground flex items-center gap-1">
-                <Phone className="w-3 h-3" />
-                {contact.phone}
-              </a>
-              <CopyButton value={contact.phone} label="phone" />
-            </span>
-          )}
-        </div>
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <p className="text-sm font-medium truncate">{contact.name}</p>
+        {contact.role && <p className="text-xs text-muted-foreground truncate">{contact.role}</p>}
+        {contact.email && (
+          <span className="flex items-center gap-1 min-w-0">
+            {contact.emailVerified === true && (
+              <CheckCircle className="w-3 h-3 text-success-foreground shrink-0" aria-label="Verified email" />
+            )}
+            {contact.emailVerified === false && (
+              <XCircle className="w-3 h-3 text-destructive shrink-0" aria-label="Email failed verification" />
+            )}
+            <a href={`mailto:${contact.email}`} className="truncate text-xs text-accent hover:underline">
+              {contact.email}
+            </a>
+            <CopyButton value={contact.email} label="email" />
+          </span>
+        )}
+        {contact.phone && (
+          <span className="flex items-center gap-1">
+            <a href={`tel:${contact.phone}`} className="text-xs font-mono text-muted-foreground hover:text-foreground">
+              {contact.phone}
+            </a>
+            <CopyButton value={contact.phone} label="phone" />
+          </span>
+        )}
       </div>
 
-      {contact.linkedIn && (
-        <a
-          href={contact.linkedIn}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-accent/10 text-accent hover:bg-accent/20 transition-colors shrink-0"
-        >
-          <Linkedin className="w-4 h-4" />
-        </a>
-      )}
       {/* Visible on touch/small screens and on keyboard focus, not hover-only */}
-      <div className="shrink-0 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity">
+      <div className="flex shrink-0 items-center opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity">
+        {contact.linkedIn && (
+          <a
+            href={contact.linkedIn}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label={`${contact.name} on LinkedIn`}
+            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Linkedin className="w-3.5 h-3.5" />
+          </a>
+        )}
         <Button
           variant="ghost"
-          size="sm"
-          className="h-8 px-2"
+          size="icon"
+          className="h-7 w-7"
           onClick={() => onEdit(contact)}
           aria-label={`Edit ${contact.name}`}
-          title={`Edit ${contact.name}`}
         >
-          <Pencil className="w-4 h-4" />
+          <Pencil className="w-3.5 h-3.5" />
         </Button>
       </div>
     </div>
@@ -1167,18 +1283,11 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
 
   if (companyOrders.length === 0) {
     return (
-      <section className="content-card animate-fade-in" style={{ animationDelay: '180ms' }}>
-        <div className="p-5 border-b border-border flex items-center justify-between">
-          <h2 className="section-header mb-0 flex items-center gap-2">
-            <Package className="w-4 h-4" />
-            Order History
-          </h2>
-          {addOrderButton}
-        </div>
-        <div className="p-12 text-center text-muted-foreground">
-          <Package className="w-12 h-12 mx-auto mb-4 opacity-30" />
-          <p className="text-sm">No orders found for this company</p>
-          <p className="text-xs mt-1">Create your first order above</p>
+      <section className="content-card">
+        <div className="px-6 py-12 text-center">
+          <Package className="w-8 h-8 mx-auto mb-3 text-muted-foreground" aria-hidden="true" />
+          <p className="text-sm text-muted-foreground">No orders yet. Record the first one when a PO comes in.</p>
+          <div className="mt-3 flex justify-center">{addOrderButton}</div>
         </div>
       </section>
     );
@@ -1189,41 +1298,49 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
   const lifetimeValue = companyOrders.reduce((sum, o) => sum + o.totalValue, 0);
 
   return (
-    <section className="content-card animate-fade-in" style={{ animationDelay: '180ms' }}>
-      <div className="p-5 border-b border-border flex flex-wrap items-center justify-between gap-4">
-        <h2 className="section-header mb-0 flex items-center gap-2">
-          <Package className="w-4 h-4" />
-          Order History
-        </h2>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center divide-x divide-border rounded-xl border border-border bg-muted/30 overflow-hidden">
-            <div className="px-4 py-2 text-center">
-              <div className="text-base font-semibold leading-none tabular-nums">{totalOrders}</div>
-              <div className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Orders</div>
-            </div>
-            <div className="px-4 py-2 text-center">
-              <div className="text-base font-semibold leading-none tabular-nums">{totalUnits}</div>
-              <div className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Units</div>
-            </div>
-            <div className="px-4 py-2 text-center">
-              <div className="text-base font-semibold leading-none tabular-nums text-accent">{formatCurrency(lifetimeValue)}</div>
-              <div className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground">Lifetime Value</div>
-            </div>
-          </div>
-          {addOrderButton}
-        </div>
+    <section className="content-card">
+      <div className="px-4 py-3 border-b border-border flex flex-wrap items-center justify-between gap-3">
+        <p className="text-sm text-muted-foreground">
+          <span className="font-semibold text-foreground tabular-nums">{totalOrders}</span> order{totalOrders !== 1 ? 's' : ''}
+          {' · '}<span className="font-semibold text-foreground tabular-nums">{totalUnits}</span> units
+          {' · '}<span className="font-semibold text-foreground tabular-nums">{formatCurrency(lifetimeValue)}</span> lifetime
+        </p>
+        {addOrderButton}
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Mobile: cards */}
+      <ul className="md:hidden divide-y divide-border">
+        {companyOrders.map(order => (
+          <li key={order.id}>
+            <button
+              type="button"
+              onClick={() => setSelectedOrderId(order.id)}
+              className="w-full text-left px-4 py-3 space-y-1.5 active:bg-muted/50 outline-none focus-visible:bg-muted/50"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium truncate">{order.modelType || 'Order'}</span>
+                <span className="text-sm font-semibold tabular-nums">{order.totalValue > 0 ? formatCurrency(order.totalValue) : '—'}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span className="font-mono">{order.placed}</span>
+                <span>· {order.units} units</span>
+                <OrderStatusBadge status={order.status} />
+              </div>
+            </button>
+          </li>
+        ))}
+      </ul>
+
+      <div className="hidden md:block overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-border bg-muted/30">
-              <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Date</th>
-              <th className="text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Units</th>
-              <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Model</th>
-              <th className="text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Total</th>
-              <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Status</th>
-              <th className="text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground px-6 py-3">Links</th>
+              <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-4 py-2.5">Date</th>
+              <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-4 py-2.5">Units</th>
+              <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-4 py-2.5">Model</th>
+              <th className="text-right text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-4 py-2.5">Total</th>
+              <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-4 py-2.5">Status</th>
+              <th className="text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground px-4 py-2.5">Links</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border">
@@ -1231,19 +1348,21 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
               return (
                 <tr
                   key={order.id}
+                  tabIndex={0}
                   onClick={() => setSelectedOrderId(order.id)}
-                  className="hover:bg-muted/30 transition-colors group cursor-pointer"
+                  onKeyDown={(e) => { if (e.key === 'Enter') setSelectedOrderId(order.id); }}
+                  className="hover:bg-muted/30 transition-colors group cursor-pointer outline-none focus-visible:bg-muted/50"
                 >
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-2.5">
                     <span className="text-sm font-mono text-foreground group-hover:text-accent transition-colors">{order.placed}</span>
                   </td>
-                  <td className="px-6 py-4 text-center">
-                    <Badge variant="outline" className="font-mono">{order.units}</Badge>
+                  <td className="px-4 py-2.5 text-right">
+                    <span className="text-sm font-mono tabular-nums">{order.units}</span>
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-2.5">
                     <span className="text-sm">{order.modelType}</span>
                   </td>
-                  <td className="px-6 py-4 text-right">
+                  <td className="px-4 py-2.5 text-right">
                     {order.totalValue > 0 ? (
                       <span className="text-sm font-semibold tabular-nums">{formatCurrency(order.totalValue)}</span>
                     ) : (
@@ -1252,20 +1371,21 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
                       </span>
                     )}
                   </td>
-                  <td className="px-6 py-4">
+                  <td className="px-4 py-2.5">
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <OrderStatusBadge status={order.status} />
                       <ShipmentProgressText order={order} />
                     </div>
                   </td>
-                  <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-4 py-2.5" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-2">
                       {order.invoice && order.invoice.startsWith('http') && (
                         <a
                           href={order.invoice}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-500/10 text-blue-500 hover:bg-blue-500/20 transition-colors"
+                          aria-label="Open invoice"
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                           title="View Invoice"
                         >
                           <FileText className="w-4 h-4" />
@@ -1276,7 +1396,8 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
                           href={order.tracking}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-green-500/10 text-green-500 hover:bg-green-500/20 transition-colors"
+                          aria-label="Track shipment"
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                           title="Track Shipment"
                         >
                           <Truck className="w-4 h-4" />
@@ -1313,74 +1434,77 @@ const OrderHistorySection = ({ companyName, companyId }: { companyName: string; 
 
 interface EngagementCardProps {
   engagement: Engagement;
+  isLast?: boolean;
   onEdit?: (id: string, details: string, activity?: { calls?: number; emails?: number; linkedin?: number }, loggedBy?: string) => void;
   onDelete?: (id: string) => void;
 }
 
-const EngagementCard = ({ engagement, onEdit, onDelete }: EngagementCardProps) => {
-  const hasCalls = (engagement.activity?.calls || 0) > 0;
-  const hasEmails = (engagement.activity?.emails || 0) > 0;
-  const hasLinkedIn = (engagement.activity?.linkedin || 0) > 0;
+const ENGAGEMENT_ICON: Record<Engagement['type'], LucideIcon> = {
+  call: Phone,
+  email: Mail,
+  linkedin: Linkedin,
+  meeting: CalendarDays,
+  note: MessageSquare,
+};
+
+const EngagementCard = ({ engagement, isLast, onEdit, onDelete }: EngagementCardProps) => {
+  const calls = engagement.activity?.calls || 0;
+  const emails = engagement.activity?.emails || 0;
+  const linkedin = engagement.activity?.linkedin || 0;
   const rep = getRepConfig(engagement.loggedBy);
+  const Icon = ENGAGEMENT_ICON[engagement.type] ?? MessageSquare;
+  const date = parseDateLoose(engagement.date ?? '');
+
+  const chips = [
+    calls > 0 && { icon: Phone, label: `${calls} call${calls !== 1 ? 's' : ''}` },
+    emails > 0 && { icon: Mail, label: `${emails} email${emails !== 1 ? 's' : ''}` },
+    linkedin > 0 && { icon: Linkedin, label: `${linkedin} LinkedIn` },
+  ].filter(Boolean) as { icon: LucideIcon; label: string }[];
 
   return (
-    <div className="px-5 py-3 hover:bg-muted/30 transition-colors group">
-      <div className="flex items-start gap-3">
-        {engagement.loggedBy && (
-          <div className="flex-shrink-0 pt-0.5">
-            <span
-              className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold ${rep.avatarClass}`}
-              title={rep.name}
-            >
-              {rep.initials}
-            </span>
+    <li className="relative flex gap-3 pb-4 group">
+      {/* Timeline rail */}
+      {!isLast && <span className="absolute left-[13px] top-7 bottom-0 w-px bg-border" aria-hidden="true" />}
+      <span className="relative z-[1] mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-card text-muted-foreground">
+        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+        <span className="sr-only">{engagement.type}</span>
+      </span>
+
+      <div className="min-w-0 flex-1 pt-1">
+        <div className="flex items-start justify-between gap-2">
+          <p className="text-sm whitespace-pre-line break-words">{engagement.details || engagement.summary}</p>
+          {onEdit && onDelete && (
+            <div className="shrink-0 -mt-1 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-within:opacity-100 transition-opacity">
+              <EditNoteDialog engagement={engagement} onSave={onEdit} onDelete={onDelete} />
+            </div>
+          )}
+        </div>
+        {chips.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+            {chips.map(chip => (
+              <span key={chip.label} className="inline-flex items-center gap-1 rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium text-foreground">
+                <chip.icon className="w-3 h-3 text-muted-foreground" aria-hidden="true" />
+                {chip.label}
+              </span>
+            ))}
           </div>
         )}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <p className="text-sm">{engagement.details || engagement.summary}</p>
-              {(hasCalls || hasEmails || hasLinkedIn) && (
-                <div className="flex items-center gap-2 mt-1.5">
-                  {hasCalls && (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-chart-1/10 text-chart-1">
-                      <Phone className="w-3 h-3" />
-                      {engagement.activity!.calls} call{engagement.activity!.calls !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                  {hasEmails && (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-chart-2/10 text-chart-2">
-                      <Mail className="w-3 h-3" />
-                      {engagement.activity!.emails} email{engagement.activity!.emails !== 1 ? 's' : ''}
-                    </span>
-                  )}
-                  {hasLinkedIn && (
-                    <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full" style={{ background: 'rgba(0,119,181,0.1)', color: '#0077b5' }}>
-                      <Linkedin className="w-3 h-3" />
-                      {engagement.activity!.linkedin} LinkedIn
-                    </span>
-                  )}
-                </div>
-              )}
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span className="text-xs text-muted-foreground font-mono whitespace-nowrap">
-                {(() => { const d = parseDateLoose(engagement.date); return d ? formatMmDdYyyy(d) : engagement.date; })()}
+        <div className="flex items-center gap-1.5 mt-1.5 text-xs text-muted-foreground">
+          {engagement.loggedBy && (
+            <>
+              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold ${rep.avatarClass}`} aria-hidden="true">
+                {rep.initials}
               </span>
-              {onEdit && onDelete && (
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                  <EditNoteDialog
-                    engagement={engagement}
-                    onSave={onEdit}
-                    onDelete={onDelete}
-                  />
-                </div>
-              )}
-            </div>
-          </div>
+              <span>{rep.name}</span>
+              <span aria-hidden="true">·</span>
+            </>
+          )}
+          <time className="font-mono" dateTime={date?.toISOString()}>
+            {date ? formatMmDdYyyy(date) : engagement.date || 'No date'}
+          </time>
         </div>
       </div>
-    </div>
+    </li>
   );
 };
 

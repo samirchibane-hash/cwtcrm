@@ -1,7 +1,8 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Search, ExternalLink, Filter, ChevronDown, ChevronUp, Loader2, ArrowUpDown, Download, X, CalendarIcon, ChevronRight, Bookmark } from 'lucide-react';
+import { Search, Filter, ChevronDown, ChevronUp, ArrowUpDown, Download, X, CalendarIcon, ChevronRight, Bookmark, Building2, Star } from 'lucide-react';
+import { toast } from 'sonner';
 import { Calendar } from '@/components/ui/calendar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
@@ -16,6 +17,17 @@ import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import AddProspectPanel from './AddProspectPanel';
 
 interface FilterPreset {
@@ -351,31 +363,18 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   });
   const [savePresetName, setSavePresetName] = useState('');
   const [showSaveInput, setShowSaveInput] = useState(false);
+  const [presetToDelete, setPresetToDelete] = useState<FilterPreset | null>(null);
 
   const savePreset = () => {
-    if (!savePresetName.trim()) return;
-    const preset: FilterPreset = {
-      id: Date.now().toString(),
-      name: savePresetName.trim(),
-      params: {
-        ...(searchQuery && { q: searchQuery }),
-        ...(typeFilter.length && { type: typeFilter.join(',') }),
-        ...(stageFilter.length && { stage: stageFilter.join(',') }),
-        ...(verticalFilter.length && { vertical: verticalFilter.join(',') }),
-        ...(typeFilterMode === 'exclude' && { typeMode: 'exclude' }),
-        ...(stageFilterMode === 'exclude' && { stageMode: 'exclude' }),
-        ...(verticalFilterMode === 'exclude' && { verticalMode: 'exclude' }),
-        ...(engagementsMin && { engMin: engagementsMin }),
-        ...(engagementsMax && { engMax: engagementsMax }),
-      },
-      ...(lastContactFrom && { lastContactFrom: lastContactFrom.toISOString() }),
-      ...(lastContactTo && { lastContactTo: lastContactTo.toISOString() }),
-    };
+    const name = savePresetName.trim();
+    if (!name) return;
+    const preset: FilterPreset = { id: Date.now().toString(), name, ...presetPayload() };
     const updated = [...savedPresets, preset];
     setSavedPresets(updated);
     localStorage.setItem(FILTER_PRESETS_KEY, JSON.stringify(updated));
     setSavePresetName('');
     setShowSaveInput(false);
+    toast.success(`Saved view “${name}”`);
   };
 
   const loadPreset = (preset: FilterPreset) => {
@@ -476,9 +475,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   };
 
   const getSortIcon = (field: SortField) => {
-    if (sortField !== field) return <ArrowUpDown className="w-3 h-3 ml-1 opacity-50" />;
-    if (sortDirection === 'asc') return <ChevronUp className="w-3 h-3 ml-1" />;
-    return <ChevronDown className="w-3 h-3 ml-1" />;
+    if (sortField !== field || !sortDirection) return <ArrowUpDown className="w-3 h-3 opacity-50" aria-hidden="true" />;
+    if (sortDirection === 'asc') return <ChevronUp className="w-3 h-3" aria-hidden="true" />;
+    return <ChevronDown className="w-3 h-3" aria-hidden="true" />;
   };
 
   const filteredAndSortedProspects = useMemo(() => {
@@ -577,6 +576,99 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     return result;
   }, [prospects, searchQuery, typeFilter, stageFilter, verticalFilter, typeFilterMode, stageFilterMode, verticalFilterMode, lastContactFrom, lastContactTo, engagementsMin, engagementsMax, sortField, sortDirection]);
 
+  const presetPayload = (): Omit<FilterPreset, 'id' | 'name'> => ({
+    params: {
+      ...(searchQuery && { q: searchQuery }),
+      ...(typeFilter.length && { type: typeFilter.join(',') }),
+      ...(stageFilter.length && { stage: stageFilter.join(',') }),
+      ...(verticalFilter.length && { vertical: verticalFilter.join(',') }),
+      ...(typeFilterMode === 'exclude' && { typeMode: 'exclude' }),
+      ...(stageFilterMode === 'exclude' && { stageMode: 'exclude' }),
+      ...(verticalFilterMode === 'exclude' && { verticalMode: 'exclude' }),
+      ...(engagementsMin && { engMin: engagementsMin }),
+      ...(engagementsMax && { engMax: engagementsMax }),
+    },
+    ...(lastContactFrom && { lastContactFrom: lastContactFrom.toISOString() }),
+    ...(lastContactTo && { lastContactTo: lastContactTo.toISOString() }),
+  });
+
+  const presetSignature = (p: Omit<FilterPreset, 'id' | 'name'>) =>
+    JSON.stringify([Object.entries(p.params).sort(), p.lastContactFrom ?? '', p.lastContactTo ?? '']);
+  const currentSignature = presetSignature(presetPayload());
+  const activePresetId = savedPresets.find(p => presetSignature(p) === currentSignature)?.id;
+
+  const clearAllFilters = () => {
+    setTypeFilter([]);
+    setStageFilter([]);
+    setVerticalFilter([]);
+    setTypeFilterMode('include');
+    setStageFilterMode('include');
+    setVerticalFilterMode('include');
+    setLastContactFrom(undefined);
+    setLastContactTo(undefined);
+    setEngagementsMin('');
+    setEngagementsMax('');
+  };
+
+  const isUnfiltered = totalActiveFilters === 0 && !searchQuery;
+
+  const fmtDate = (d: Date) => format(d, 'MMM d, yyyy');
+  const activeChips: { key: string; label: string; negated?: boolean; value: string; clear: () => void }[] = [];
+  if (typeFilter.length) activeChips.push({ key: 'type', label: 'Business model', negated: typeFilterMode === 'exclude', value: typeFilter.join(', '), clear: () => { setTypeFilter([]); setTypeFilterMode('include'); } });
+  if (stageFilter.length) activeChips.push({ key: 'stage', label: 'Stage', negated: stageFilterMode === 'exclude', value: stageFilter.join(', '), clear: () => { setStageFilter([]); setStageFilterMode('include'); } });
+  if (verticalFilter.length) activeChips.push({ key: 'vertical', label: 'Vertical', negated: verticalFilterMode === 'exclude', value: verticalFilter.join(', '), clear: () => { setVerticalFilter([]); setVerticalFilterMode('include'); } });
+  if (hasLastContactFilter) activeChips.push({
+    key: 'lastContact',
+    label: 'Last contact',
+    value: lastContactFrom && lastContactTo ? `${fmtDate(lastContactFrom)} – ${fmtDate(lastContactTo)}` : lastContactFrom ? `after ${fmtDate(lastContactFrom)}` : `before ${fmtDate(lastContactTo!)}`,
+    clear: () => { setLastContactFrom(undefined); setLastContactTo(undefined); },
+  });
+  if (hasEngagementsFilter) activeChips.push({
+    key: 'engagements',
+    label: 'Engagements',
+    value: engagementsMin && engagementsMax ? `${engagementsMin}–${engagementsMax}` : engagementsMin ? `≥ ${engagementsMin}` : `≤ ${engagementsMax}`,
+    clear: () => { setEngagementsMin(''); setEngagementsMax(''); },
+  });
+
+  const renderContacts = (prospect: Prospect) => {
+    const champion = prospect.contacts.find(c => c.isChampion);
+    if (champion) {
+      return (
+        <span className="flex items-center gap-1.5 min-w-0">
+          <Star className="h-3.5 w-3.5 shrink-0 fill-champion text-champion" aria-hidden="true" />
+          <span className="sr-only">Champion: </span>
+          <span className="truncate font-medium text-foreground">{champion.name}</span>
+        </span>
+      );
+    }
+    const count = prospect.contacts.length;
+    return count > 0 ? `${count} contact${count === 1 ? '' : 's'}` : '—';
+  };
+
+  const renderSortHeader = (field: SortField, label: string, align: 'left' | 'right' = 'left') => (
+    <th
+      scope="col"
+      aria-sort={sortField === field && sortDirection ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
+      className={cn(
+        'sticky top-0 z-10 bg-card px-3 py-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground shadow-[inset_0_-1px_0_hsl(var(--border))]',
+        align === 'right' ? 'text-right' : 'text-left',
+      )}
+    >
+      <button
+        type="button"
+        onClick={() => handleSort(field)}
+        className={cn(
+          'inline-flex items-center gap-1 rounded uppercase tracking-wider hover:text-foreground transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+          align === 'right' && 'flex-row-reverse',
+          sortField === field && sortDirection && 'text-foreground',
+        )}
+      >
+        {label}
+        {getSortIcon(field)}
+      </button>
+    </th>
+  );
+
   const handleRowClick = (prospect: Prospect) => {
     const prospectIds = filteredAndSortedProspects.map(p => p.id);
     navigate(`/company/${prospect.id}`, {
@@ -589,30 +681,49 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
 
   if (isLoading) {
     return (
-      <div className="content-card p-12 flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      <div className="content-card" aria-busy="true" aria-label="Loading pipeline">
+        <div className="p-3 border-b border-border flex gap-2">
+          <Skeleton className="h-10 flex-1 rounded-lg" />
+          <Skeleton className="h-10 w-24 rounded-lg" />
+          <Skeleton className="h-10 w-24 rounded-lg hidden sm:block" />
+          <Skeleton className="h-10 w-36 rounded-lg hidden sm:block" />
+        </div>
+        <div className="divide-y divide-border">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-6 px-3 py-3">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-4 w-28 hidden md:block" />
+              <Skeleton className="h-4 w-10 hidden md:block" />
+              <Skeleton className="h-4 w-20 hidden md:block" />
+              <Skeleton className="h-5 w-24 rounded-full" />
+              <Skeleton className="h-4 w-20 hidden md:block ml-auto" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="content-card overflow-hidden animate-fade-in">
-      {/* Header */}
-      <div className="p-4 border-b border-border flex flex-col sm:flex-row gap-3">
+    <div className="content-card animate-fade-in">
+      {/* Toolbar */}
+      <div className="p-3 border-b border-border flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
           <Input
+            type="search"
+            aria-label="Search companies"
             placeholder="Search companies, contacts, notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-11 h-11 border-0 bg-muted/50 rounded-xl"
+            className="pl-9 h-10 border-0 bg-muted/50 rounded-lg"
           />
         </div>
         <div className="flex gap-2 flex-wrap">
           {/* Consolidated Filters Popover */}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-2 rounded-xl h-11 px-4">
+              <Button variant="outline" size="sm" className="gap-2 rounded-lg h-10 px-3">
                 <Filter className="w-4 h-4" />
                 Filters
                 {totalActiveFilters > 0 && (
@@ -627,18 +738,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                 <span className="text-sm font-semibold">Filters</span>
                 {totalActiveFilters > 0 && (
                   <button
-                    onClick={() => {
-                      setTypeFilter([]);
-                      setStageFilter([]);
-                      setVerticalFilter([]);
-                      setTypeFilterMode('include');
-                      setStageFilterMode('include');
-                      setVerticalFilterMode('include');
-                      setLastContactFrom(undefined);
-                      setLastContactTo(undefined);
-                      setEngagementsMin('');
-                      setEngagementsMax('');
-                    }}
+                    onClick={clearAllFilters}
                     className="text-xs text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Clear all
@@ -692,60 +792,6 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   hasEngagementsFilter={hasEngagementsFilter}
                 />
               </div>
-              {/* Saved Presets Footer */}
-              <div className="border-t border-border p-3 space-y-2">
-                {savedPresets.length > 0 && (
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Saved Presets</span>
-                    <div className="flex flex-wrap gap-1">
-                      {savedPresets.map(preset => (
-                        <div key={preset.id} className="flex items-center gap-0.5 bg-muted rounded-lg px-2 py-1">
-                          <button
-                            onClick={() => loadPreset(preset)}
-                            className="text-xs text-foreground hover:text-primary transition-colors"
-                          >
-                            {preset.name}
-                          </button>
-                          <button
-                            onClick={() => deletePreset(preset.id)}
-                            className="ml-1 text-muted-foreground hover:text-destructive transition-colors"
-                          >
-                            <X className="h-2.5 w-2.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {showSaveInput ? (
-                  <div className="flex gap-1.5">
-                    <Input
-                      autoFocus
-                      placeholder="Preset name..."
-                      value={savePresetName}
-                      onChange={e => setSavePresetName(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') savePreset();
-                        if (e.key === 'Escape') { setShowSaveInput(false); setSavePresetName(''); }
-                      }}
-                      className="h-7 text-xs flex-1"
-                    />
-                    <Button size="sm" className="h-7 px-2 text-xs" onClick={savePreset} disabled={!savePresetName.trim()}>Save</Button>
-                    <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setShowSaveInput(false); setSavePresetName(''); }}>✕</Button>
-                  </div>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full h-7 text-xs gap-1.5"
-                    onClick={() => setShowSaveInput(true)}
-                    disabled={totalActiveFilters === 0}
-                  >
-                    <Bookmark className="h-3 w-3" />
-                    Save current filters as preset
-                  </Button>
-                )}
-              </div>
             </PopoverContent>
           </Popover>
 
@@ -754,106 +800,225 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="bg-muted/30">
-              <th 
-                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                onClick={() => handleSort('companyName')}
+      {/* Saved views */}
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-border overflow-x-auto" role="group" aria-label="Saved views">
+        <button
+          type="button"
+          aria-pressed={isUnfiltered}
+          onClick={() => { clearAllFilters(); setSearchQuery(''); }}
+          className={cn(
+            'h-7 shrink-0 px-2.5 rounded-md text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            isUnfiltered ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
+          )}
+        >
+          All companies
+        </button>
+        {savedPresets.map(preset => {
+          const active = preset.id === activePresetId;
+          return (
+            <div
+              key={preset.id}
+              className={cn(
+                'group flex h-7 shrink-0 items-center rounded-md transition-colors',
+                active ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
+              )}
+            >
+              <button
+                type="button"
+                aria-pressed={active}
+                onClick={() => loadPreset(preset)}
+                className="h-full pl-2.5 pr-1 rounded-md text-xs font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="flex items-center">Company{getSortIcon('companyName')}</span>
-              </th>
-              <th 
-                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                onClick={() => handleSort('contacts')}
+                {preset.name}
+              </button>
+              <button
+                type="button"
+                aria-label={`Delete view ${preset.name}`}
+                onClick={() => setPresetToDelete(preset)}
+                className="mr-1 rounded p-0.5 text-muted-foreground hover:text-destructive outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="flex items-center">Contacts{getSortIcon('contacts')}</span>
-              </th>
-              <th 
-                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                onClick={() => handleSort('state')}
-              >
-                <span className="flex items-center">Location{getSortIcon('state')}</span>
-              </th>
-              <th 
-                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                onClick={() => handleSort('type')}
-              >
-                <span className="flex items-center">Business Model{getSortIcon('type')}</span>
-              </th>
-              <th
-                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                onClick={() => handleSort('stage')}
-              >
-                <span className="flex items-center">Stage{getSortIcon('stage')}</span>
-              </th>
-              <th
-                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                onClick={() => handleSort('lastContact')}
-              >
-                <span className="flex items-center">Last Contact{getSortIcon('lastContact')}</span>
-              </th>
-              <th
-                className="text-left p-4 text-xs font-semibold uppercase tracking-wider text-muted-foreground cursor-pointer hover:text-foreground transition-colors"
-                onClick={() => handleSort('engagements')}
-              >
-                <span className="flex items-center">Engagements{getSortIcon('engagements')}</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {filteredAndSortedProspects.map((prospect) => (
-              <tr 
-                key={prospect.id} 
-                className="table-row-hover cursor-pointer"
-                onClick={() => handleRowClick(prospect)}
-              >
-                <td className="p-4">
-                  <span className="font-medium">{prospect.companyName}</span>
-                </td>
-                <td className="p-4 text-sm text-muted-foreground">
-                  {(() => {
-                    const champion = prospect.contacts.find(c => c.isChampion);
-                    if (champion) {
-                      return (
-                        <span className="flex items-center gap-1.5">
-                          <span className="text-amber-500">★</span>
-                          <span className="font-medium text-foreground">{champion.name}</span>
-                        </span>
-                      );
-                    }
-                    return prospect.contacts.length > 0
-                      ? `${prospect.contacts.length}`
-                      : '—';
-                  })()}
-                </td>
-                <td className="p-4 text-sm font-mono text-muted-foreground">
-                  {prospect.state || '—'}
-                </td>
-                <td className="p-4 text-sm text-muted-foreground">
-                  {prospect.type || '—'}
-                </td>
-                <td className="p-4">
-                  <StageBadge stage={prospect.stage} />
-                </td>
-                <td className="p-4 text-sm font-mono text-muted-foreground">
-                  {getProspectLastContactLabel(prospect) || '—'}
-                </td>
-                <td className="p-4 text-sm font-mono text-muted-foreground">
-                  {(prospect.engagements || []).length > 0 ? (prospect.engagements || []).length : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          );
+        })}
       </div>
 
+      {/* Active filter chips */}
+      {activeChips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 px-3 py-2 border-b border-border bg-muted/20">
+          {activeChips.map(chip => (
+            <span key={chip.key} className="inline-flex max-w-full items-center gap-1 h-7 pl-2.5 pr-1 rounded-md border border-border bg-card text-xs">
+              <span className="text-muted-foreground shrink-0">{chip.label} {chip.negated ? 'is not' : chip.key === 'lastContact' || chip.key === 'engagements' ? '' : 'is'}</span>
+              <span className="truncate max-w-[16rem] font-medium" title={chip.value}>{chip.value}</span>
+              <button
+                type="button"
+                aria-label={`Remove ${chip.label} filter`}
+                onClick={chip.clear}
+                className="ml-0.5 rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={clearAllFilters}
+            className="h-7 px-2 rounded-md text-xs text-muted-foreground hover:text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            Clear all
+          </button>
+          <div className="ml-auto flex items-center gap-1.5">
+            {showSaveInput ? (
+              <form
+                className="flex items-center gap-1.5"
+                onSubmit={e => { e.preventDefault(); savePreset(); }}
+              >
+                <Input
+                  autoFocus
+                  aria-label="View name"
+                  placeholder="View name…"
+                  value={savePresetName}
+                  onChange={e => setSavePresetName(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Escape') { setShowSaveInput(false); setSavePresetName(''); } }}
+                  className="h-7 w-40 text-xs"
+                />
+                <Button type="submit" size="sm" className="h-7 px-2.5 text-xs" disabled={!savePresetName.trim()}>Save</Button>
+                <Button type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => { setShowSaveInput(false); setSavePresetName(''); }}>Cancel</Button>
+              </form>
+            ) : !activePresetId && (
+              <Button variant="ghost" size="sm" className="h-7 gap-1.5 px-2 text-xs" onClick={() => setShowSaveInput(true)}>
+                <Bookmark className="h-3 w-3" />
+                Save as view
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {filteredAndSortedProspects.length === 0 ? (
+        <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-muted">
+            <Building2 className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+          </div>
+          {prospects.length === 0 ? (
+            <>
+              <p className="text-sm text-muted-foreground">Your pipeline is empty. Add the first company you’re working.</p>
+              <AddProspectPanel />
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">No companies match {searchQuery ? `“${searchQuery}” with ` : ''}these filters.</p>
+              <Button variant="outline" size="sm" onClick={() => { clearAllFilters(); setSearchQuery(''); }}>
+                Clear search and filters
+              </Button>
+            </>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Mobile: cards instead of a sideways-scrolling table */}
+          <ul className="md:hidden divide-y divide-border">
+            {filteredAndSortedProspects.map(prospect => (
+              <li key={prospect.id}>
+                <button
+                  type="button"
+                  onClick={() => handleRowClick(prospect)}
+                  className="w-full text-left px-3 py-3 space-y-1.5 active:bg-muted/50 outline-none focus-visible:bg-muted/50"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="font-medium text-sm leading-snug">{prospect.companyName}</span>
+                    <StageBadge stage={prospect.stage} maxVisible={1} />
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="min-w-0 truncate">{renderContacts(prospect)}</span>
+                    {prospect.state && <span className="shrink-0">· {prospect.state}</span>}
+                    <span className="ml-auto shrink-0 font-mono">{getProspectLastContactLabel(prospect) || '—'}</span>
+                  </div>
+                </button>
+              </li>
+            ))}
+          </ul>
+
+          {/* Desktop table */}
+          <div className="hidden md:block max-h-[calc(100dvh-19rem)] overflow-auto">
+            <table className="w-full">
+              <thead>
+                <tr>
+                  {renderSortHeader('companyName', 'Company')}
+                  {renderSortHeader('contacts', 'Contacts')}
+                  {renderSortHeader('state', 'Location')}
+                  {renderSortHeader('type', 'Business Model')}
+                  {renderSortHeader('stage', 'Stage')}
+                  {renderSortHeader('lastContact', 'Last Contact')}
+                  {renderSortHeader('engagements', 'Engagements', 'right')}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {filteredAndSortedProspects.map((prospect) => {
+                  const engagementCount = (prospect.engagements || []).length;
+                  return (
+                    <tr
+                      key={prospect.id}
+                      tabIndex={0}
+                      className="table-row-hover cursor-pointer outline-none focus-visible:bg-muted/50 focus-visible:shadow-[inset_2px_0_0_hsl(var(--ring))]"
+                      onClick={() => handleRowClick(prospect)}
+                      onKeyDown={e => { if (e.key === 'Enter') handleRowClick(prospect); }}
+                    >
+                      <td className="px-3 py-2.5">
+                        <span className="font-medium text-sm">{prospect.companyName}</span>
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-muted-foreground max-w-[12rem]">
+                        {renderContacts(prospect)}
+                      </td>
+                      <td className="px-3 py-2.5 text-sm font-mono text-muted-foreground">
+                        {prospect.state || '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-sm text-muted-foreground">
+                        {prospect.type || '—'}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <StageBadge stage={prospect.stage} />
+                      </td>
+                      <td className="px-3 py-2.5 text-sm font-mono text-muted-foreground whitespace-nowrap">
+                        {getProspectLastContactLabel(prospect) || '—'}
+                      </td>
+                      <td className="px-3 py-2.5 text-sm font-mono text-muted-foreground text-right tabular-nums">
+                        {engagementCount > 0 ? engagementCount : '—'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
       {/* Footer */}
-      <div className="p-4 border-t border-border text-sm text-muted-foreground">
-        Showing {filteredAndSortedProspects.length} of {prospects.length} companies
+      <div className="px-3 py-2.5 border-t border-border text-xs text-muted-foreground">
+        Showing {filteredAndSortedProspects.length.toLocaleString()} of {prospects.length.toLocaleString()} companies
       </div>
+
+      <AlertDialog open={!!presetToDelete} onOpenChange={open => { if (!open) setPresetToDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete the “{presetToDelete?.name}” view?</AlertDialogTitle>
+            <AlertDialogDescription>
+              The saved filters are removed from this browser. Companies in the pipeline aren’t affected.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => { if (presetToDelete) deletePreset(presetToDelete.id); setPresetToDelete(null); }}
+            >
+              Delete view
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

@@ -71,6 +71,17 @@
     --stage-indirect: 271 25% 48%;
     --stage-indirect-foreground: 0 0% 100%;
 
+    /* Semantic status: base hue (dots, 10% tint) + foreground for text/icons on that tint */
+    --success: 142 71% 45%;
+    --success-foreground: 142 72% 29%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 32 95% 35%;
+    --info: 211 100% 50%;
+    --info-foreground: 211 100% 40%;
+
+    /* Champion contact marker (star) */
+    --champion: 38 92% 50%;
+
     --type-oem: 271 91% 65%;
     --type-oem-foreground: 0 0% 100%;
     --type-distributor: 173 80% 40%;
@@ -140,6 +151,11 @@
     --sidebar-border: 0 0% 18%;
     --sidebar-ring: 211 100% 50%;
 
+    --success-foreground: 142 69% 58%;
+    --warning-foreground: 43 96% 60%;
+    --info-foreground: 211 100% 70%;
+    --champion: 43 96% 56%;
+
     --order-po-foreground: 27 96% 65%;
     --order-invoiced-foreground: 234 89% 78%;
     --order-paid-foreground: 211 100% 70%;
@@ -180,6 +196,11 @@
     @apply inline-flex items-center px-3 py-1 rounded-full text-xs font-medium tracking-wide;
   }
 
+  /* Soft status pill: pair with a tint + foreground, e.g. bg-success/10 text-success-foreground */
+  .badge-soft {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium leading-4;
+  }
+
   .type-badge {
     @apply inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium;
   }
@@ -189,7 +210,7 @@
   }
 
   .sidebar-item {
-    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-sidebar-foreground/70 transition-all duration-200 font-medium;
+    @apply flex items-center gap-2.5 h-8 px-2.5 rounded-md text-sm text-sidebar-foreground/70 transition-colors font-medium outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring;
   }
 
   .sidebar-item:hover {
@@ -197,7 +218,11 @@
   }
 
   .sidebar-item.active {
-    @apply bg-sidebar-primary text-sidebar-primary-foreground;
+    @apply bg-sidebar-accent text-sidebar-foreground;
+  }
+
+  .sidebar-item.active svg {
+    @apply text-sidebar-primary;
   }
 
   .apple-input {

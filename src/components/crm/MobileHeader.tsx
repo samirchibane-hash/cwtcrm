@@ -1,4 +1,4 @@
-import { Droplets, LogOut, MoreHorizontal } from 'lucide-react';
+import { LogOut, MoreHorizontal, Search } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -13,9 +13,10 @@ import {
 interface MobileHeaderProps {
   title: string;
   subtitle?: string;
+  onOpenSearch: () => void;
 }
 
-const MobileHeader = ({ title, subtitle }: MobileHeaderProps) => {
+const MobileHeader = ({ title, subtitle, onOpenSearch }: MobileHeaderProps) => {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
 
@@ -32,9 +33,7 @@ const MobileHeader = ({ title, subtitle }: MobileHeaderProps) => {
       <div className="relative flex items-center justify-between px-4 py-3 safe-top">
         {/* Logo & Title */}
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-accent flex items-center justify-center">
-            <Droplets className="w-5 h-5 text-accent-foreground" />
-          </div>
+          <img src="/canopus-logo.png" alt="" className="w-8 h-8 rounded-lg object-cover" />
           <div>
             <h1 className="font-semibold text-lg leading-tight">{title}</h1>
             {subtitle && (
@@ -43,10 +42,15 @@ const MobileHeader = ({ title, subtitle }: MobileHeaderProps) => {
           </div>
         </div>
 
+        <div className="flex items-center gap-1">
+        <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" onClick={onOpenSearch} aria-label="Search">
+          <Search className="h-5 w-5" />
+        </Button>
+
         {/* More Menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full">
+            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full" aria-label="Account menu">
               <MoreHorizontal className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
@@ -65,6 +69,7 @@ const MobileHeader = ({ title, subtitle }: MobileHeaderProps) => {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
     </header>
   );
