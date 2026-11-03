@@ -1,5 +1,5 @@
 import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Package, Truck, ChevronRight, ChevronUp, ChevronDown, Globe, Trash2, Pencil, Zap, Pause, Play, Square as SquareIcon, MoreHorizontal } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Phone, Mail, Linkedin, Plus, FileText, MessageSquare, Package, Truck, ChevronRight, ChevronUp, ChevronDown, Globe, Trash2, Pencil, Zap, Pause, Play, Square as SquareIcon, MoreHorizontal, Network } from 'lucide-react';
 import { format } from 'date-fns';
 import { Contact, Engagement, CompanyType, MarketType, REPS } from '@/data/prospects';
 import { getProspectLastContactLabel } from '@/lib/prospect-last-contact';
@@ -12,6 +12,7 @@ import TypeBadge from '@/components/crm/TypeBadge';
 import MarketTypeBadge from '@/components/crm/MarketTypeBadge';
 import ContactDetailsPanel from '@/components/crm/ContactDetailsPanel';
 import EditCompanyDetailsPanel from '@/components/crm/EditCompanyDetailsPanel';
+import { OwnedByField, ParentLine, SubsidiariesSection } from '@/components/crm/CompanyOwnership';
 import EnrollInAutomationPanel from '@/components/crm/EnrollInAutomationPanel';
 import { useEnrollments, type Enrollment } from '@/hooks/useWorkflows';
 import {
@@ -491,6 +492,7 @@ const CompanyPage = () => {
             </div>
             <div className="min-w-0">
               <h1 className="text-xl font-semibold tracking-tight truncate">{companyName}</h1>
+              <ParentLine company={prospect} />
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 <StageBadge stage={stage} maxVisible={3} />
                 {companyType && <TypeBadge type={companyType} />}
@@ -549,6 +551,9 @@ const CompanyPage = () => {
               <dl className="px-4 py-2">
                 <PropertyRow icon={Building2} label="Business model" onAdd={() => setEditPanelOpen(true)}>
                   {companyType ? <TypeBadge type={companyType} /> : null}
+                </PropertyRow>
+                <PropertyRow icon={Network} label="Owned by" onAdd={() => setEditPanelOpen(true)}>
+                  <OwnedByField company={prospect} />
                 </PropertyRow>
                 <PropertyRow icon={Package} label="Vertical" onAdd={() => setEditPanelOpen(true)}>
                   {marketType ? <MarketTypeBadge marketType={marketType} /> : null}
@@ -632,6 +637,9 @@ const CompanyPage = () => {
                 </div>
               )}
             </section>
+
+            {/* Companies this one owns */}
+            <SubsidiariesSection company={prospect} />
 
             {/* Email automations running for this company */}
             <CompanyAutomationsSection

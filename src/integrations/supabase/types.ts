@@ -694,6 +694,7 @@ export type Database = {
           lead_tier: string
           linkedin: string | null
           market_type: string | null
+          parent_id: string | null
           stage: string | null
           starred: boolean
           state: string | null
@@ -717,6 +718,7 @@ export type Database = {
           lead_tier?: string
           linkedin?: string | null
           market_type?: string | null
+          parent_id?: string | null
           stage?: string | null
           starred?: boolean
           state?: string | null
@@ -740,6 +742,7 @@ export type Database = {
           lead_tier?: string
           linkedin?: string | null
           market_type?: string | null
+          parent_id?: string | null
           stage?: string | null
           starred?: boolean
           state?: string | null

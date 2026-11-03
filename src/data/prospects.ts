@@ -81,6 +81,8 @@ export interface Prospect {
   googleMapsUrl?: string;
   phone?: string;
   engagements: Engagement[];
+  /** Owning company (prospects.parent_id), e.g. Hague Quality Water -> A.O. Smith. */
+  parentId?: string | null;
 }
 
 // Parse contacts string into Contact objects

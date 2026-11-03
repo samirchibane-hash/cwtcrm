@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
-import { Search, Filter, Download, X, CalendarIcon, ChevronRight, Bookmark, Building2, Star } from 'lucide-react';
+import { Search, Filter, Download, X, CalendarIcon, ChevronRight, Bookmark, Building2, Star, CornerDownRight, Network } from 'lucide-react';
 import { toast } from 'sonner';
 import { Calendar } from '@/components/ui/calendar';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
@@ -12,6 +12,7 @@ import { Prospect, COMPANY_TYPES } from '@/data/prospects';
 import { useProductVerticals } from '@/hooks/useProductVerticals';
 import { useStageOptions } from '@/hooks/useStageOptions';
 import { getProspectLastContactLabel, getProspectLastContactSortValue, getProspectLastContactDate } from '@/lib/prospect-last-contact';
+import { buildChildrenIndex, matchesOwnership, OWNERSHIP_OPTIONS, type OwnershipFilter } from '@/lib/company-hierarchy';
 import StageBadge from './StageBadge';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -50,11 +51,12 @@ type SortField = 'companyName' | 'contacts' | 'state' | 'type' | 'stage' | 'last
 interface ExportColumn {
   key: string;
   label: string;
-  getValue: (p: Prospect) => string;
+  getValue: (p: Prospect, parentName: (id?: string | null) => string) => string;
 }
 
 const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'company', label: 'Company', getValue: p => p.companyName },
+  { key: 'parent', label: 'Parent Company', getValue: (p, parentName) => parentName(p.parentId) },
   { key: 'state', label: 'State', getValue: p => p.state || '' },
   { key: 'type', label: 'Business Model', getValue: p => p.type || '' },
   { key: 'marketType', label: 'Product Vertical', getValue: p => p.marketType || '' },
@@ -70,9 +72,9 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { key: 'notes', label: 'Notes', getValue: p => p.engagementNotes || '' },
 ];
 
-const DEFAULT_EXPORT_KEYS = ['company', 'state', 'type', 'marketType', 'stage', 'lastContact', 'contacts', 'website', 'linkedIn'];
+const DEFAULT_EXPORT_KEYS = ['company', 'parent', 'state', 'type', 'marketType', 'stage', 'lastContact', 'contacts', 'website', 'linkedIn'];
 
-const ExportColumnsPopover = ({ data }: { data: Prospect[] }) => {
+const ExportColumnsPopover = ({ data, parentName }: { data: Prospect[]; parentName: (id?: string | null) => string }) => {
   const [selectedKeys, setSelectedKeys] = useState<string[]>(DEFAULT_EXPORT_KEYS);
 
   const toggleKey = (key: string, checked: boolean) => {
@@ -82,7 +84,7 @@ const ExportColumnsPopover = ({ data }: { data: Prospect[] }) => {
   const handleExport = () => {
     const cols = EXPORT_COLUMNS.filter(c => selectedKeys.includes(c.key));
     const headers = cols.map(c => c.label);
-    const rows = data.map(p => cols.map(c => c.getValue(p)));
+    const rows = data.map(p => cols.map(c => c.getValue(p, parentName)));
     exportToCSV(`prospects-${new Date().toISOString().slice(0, 10)}`, headers, rows);
   };
 
@@ -333,6 +335,13 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   const [verticalFilterMode, setVerticalFilterMode] = useState<'include' | 'exclude'>(() =>
     searchParams.get('verticalMode') === 'exclude' ? 'exclude' : 'include'
   );
+  const [ownershipFilter, setOwnershipFilter] = useState<OwnershipFilter[]>(() => {
+    const valid = OWNERSHIP_OPTIONS.map(o => o.value);
+    return (searchParams.get('ownership')?.split(',') ?? []).filter((v): v is OwnershipFilter => valid.includes(v as OwnershipFilter));
+  });
+  const [ownershipFilterMode, setOwnershipFilterMode] = useState<'include' | 'exclude'>(() =>
+    searchParams.get('ownershipMode') === 'exclude' ? 'exclude' : 'include'
+  );
   const [lastContactFrom, setLastContactFrom] = useState<Date | undefined>(() => {
     const val = searchParams.get('lastContactFrom');
     return val ? new Date(val) : undefined;
@@ -388,6 +397,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     setTypeFilterMode(preset.params.typeMode === 'exclude' ? 'exclude' : 'include');
     setStageFilterMode(preset.params.stageMode === 'exclude' ? 'exclude' : 'include');
     setVerticalFilterMode(preset.params.verticalMode === 'exclude' ? 'exclude' : 'include');
+    setOwnershipFilter(preset.params.ownership ? preset.params.ownership.split(',') as OwnershipFilter[] : []);
+    setOwnershipFilterMode(preset.params.ownershipMode === 'exclude' ? 'exclude' : 'include');
     setLastContactFrom(preset.lastContactFrom ? new Date(preset.lastContactFrom) : undefined);
     setLastContactTo(preset.lastContactTo ? new Date(preset.lastContactTo) : undefined);
     setEngagementsMin(preset.params.engMin || '');
@@ -430,6 +441,12 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     if (verticalFilterMode === 'exclude') newParams.set('verticalMode', 'exclude');
     else newParams.delete('verticalMode');
 
+    if (ownershipFilter.length > 0) newParams.set('ownership', ownershipFilter.join(','));
+    else newParams.delete('ownership');
+
+    if (ownershipFilterMode === 'exclude') newParams.set('ownershipMode', 'exclude');
+    else newParams.delete('ownershipMode');
+
     if (lastContactFrom) newParams.set('lastContactFrom', lastContactFrom.toISOString());
     else newParams.delete('lastContactFrom');
 
@@ -452,7 +469,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     if (newParams.toString() !== searchParams.toString()) {
       setSearchParams(newParams, { replace: true });
     }
-  }, [searchQuery, typeFilter, stageFilter, verticalFilter, typeFilterMode, stageFilterMode, verticalFilterMode, lastContactFrom, lastContactTo, engagementsMin, engagementsMax, sortField, sortDirection, searchParams, setSearchParams]);
+  }, [searchQuery, typeFilter, stageFilter, verticalFilter, typeFilterMode, stageFilterMode, verticalFilterMode, ownershipFilter, ownershipFilterMode, lastContactFrom, lastContactTo, engagementsMin, engagementsMax, sortField, sortDirection, searchParams, setSearchParams]);
 
   // Filter options: merge static constants with any custom stages present in actual data
   const types = COMPANY_TYPES.filter(t => t !== '');
@@ -461,7 +478,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
 
   const hasLastContactFilter = lastContactFrom !== undefined || lastContactTo !== undefined;
   const hasEngagementsFilter = engagementsMin !== '' || engagementsMax !== '';
-  const totalActiveFilters = typeFilter.length + stageFilter.length + verticalFilter.length + (hasLastContactFilter ? 1 : 0) + (hasEngagementsFilter ? 1 : 0);
+  const totalActiveFilters = typeFilter.length + stageFilter.length + verticalFilter.length + ownershipFilter.length + (hasLastContactFilter ? 1 : 0) + (hasEngagementsFilter ? 1 : 0);
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -474,10 +491,18 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     }
   };
 
+  // Ownership lookups, built once per data change
+  const prospectNameById = useMemo(() => new Map(prospects.map(p => [p.id, p.companyName])), [prospects]);
+  const childrenIndex = useMemo(() => buildChildrenIndex(prospects), [prospects]);
+  const parentName = (id?: string | null) => (id ? prospectNameById.get(id) ?? '' : '');
+
   const filteredAndSortedProspects = useMemo(() => {
+    const q = searchQuery.toLowerCase();
     let result = prospects.filter((prospect) => {
       const matchesSearch = 
         prospect.companyName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        // Searching "A.O. Smith" also surfaces the companies it owns
+        (!!prospect.parentId && (prospectNameById.get(prospect.parentId) ?? '').toLowerCase().includes(q)) ||
         prospect.contacts.some(c => c.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
         prospect.state.toLowerCase().includes(searchQuery.toLowerCase()) ||
         prospect.engagementNotes.toLowerCase().includes(searchQuery.toLowerCase());
@@ -496,6 +521,12 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
 
       const matchesVertical = verticalFilter.length === 0 || (
         verticalFilterMode === 'include' ? verticalFilter.includes(prospect.marketType || '') : !verticalFilter.includes(prospect.marketType || '')
+      );
+
+      const matchesOwnershipFilter = ownershipFilter.length === 0 || (
+        ownershipFilterMode === 'include'
+          ? ownershipFilter.some(f => matchesOwnership(prospect, f, childrenIndex))
+          : !ownershipFilter.some(f => matchesOwnership(prospect, f, childrenIndex))
       );
 
       let matchesLastContact = true;
@@ -522,7 +553,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
         if (max !== null && !Number.isNaN(max) && engagementCount > max) matchesEngagements = false;
       }
 
-      return matchesSearch && matchesType && matchesStage && matchesVertical && matchesLastContact && matchesEngagements;
+      return matchesSearch && matchesType && matchesStage && matchesVertical && matchesOwnershipFilter && matchesLastContact && matchesEngagements;
     });
 
     if (sortField && sortDirection) {
@@ -568,7 +599,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     }
 
     return result;
-  }, [prospects, searchQuery, typeFilter, stageFilter, verticalFilter, typeFilterMode, stageFilterMode, verticalFilterMode, lastContactFrom, lastContactTo, engagementsMin, engagementsMax, sortField, sortDirection]);
+  }, [prospects, prospectNameById, childrenIndex, searchQuery, typeFilter, stageFilter, verticalFilter, typeFilterMode, stageFilterMode, verticalFilterMode, ownershipFilter, ownershipFilterMode, lastContactFrom, lastContactTo, engagementsMin, engagementsMax, sortField, sortDirection]);
 
   const presetPayload = (): Omit<FilterPreset, 'id' | 'name'> => ({
     params: {
@@ -579,6 +610,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
       ...(typeFilterMode === 'exclude' && { typeMode: 'exclude' }),
       ...(stageFilterMode === 'exclude' && { stageMode: 'exclude' }),
       ...(verticalFilterMode === 'exclude' && { verticalMode: 'exclude' }),
+      ...(ownershipFilter.length && { ownership: ownershipFilter.join(',') }),
+      ...(ownershipFilterMode === 'exclude' && { ownershipMode: 'exclude' }),
       ...(engagementsMin && { engMin: engagementsMin }),
       ...(engagementsMax && { engMax: engagementsMax }),
     },
@@ -598,6 +631,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     setTypeFilterMode('include');
     setStageFilterMode('include');
     setVerticalFilterMode('include');
+    setOwnershipFilter([]);
+    setOwnershipFilterMode('include');
     setLastContactFrom(undefined);
     setLastContactTo(undefined);
     setEngagementsMin('');
@@ -611,6 +646,8 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
   if (typeFilter.length) activeChips.push({ key: 'type', label: 'Business model', negated: typeFilterMode === 'exclude', value: typeFilter.join(', '), clear: () => { setTypeFilter([]); setTypeFilterMode('include'); } });
   if (stageFilter.length) activeChips.push({ key: 'stage', label: 'Stage', negated: stageFilterMode === 'exclude', value: stageFilter.join(', '), clear: () => { setStageFilter([]); setStageFilterMode('include'); } });
   if (verticalFilter.length) activeChips.push({ key: 'vertical', label: 'Vertical', negated: verticalFilterMode === 'exclude', value: verticalFilter.join(', '), clear: () => { setVerticalFilter([]); setVerticalFilterMode('include'); } });
+  const ownershipLabel = (v: OwnershipFilter) => OWNERSHIP_OPTIONS.find(o => o.value === v)?.label ?? v;
+  if (ownershipFilter.length) activeChips.push({ key: 'ownership', label: 'Ownership', negated: ownershipFilterMode === 'exclude', value: ownershipFilter.map(ownershipLabel).join(', '), clear: () => { setOwnershipFilter([]); setOwnershipFilterMode('include'); } });
   if (hasLastContactFilter) activeChips.push({
     key: 'lastContact',
     label: 'Last contact',
@@ -637,6 +674,30 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
     }
     const count = prospect.contacts.length;
     return count > 0 ? `${count} contact${count === 1 ? '' : 's'}` : '—';
+  };
+
+  // Second line under the company name: who owns it and/or how many it owns
+  const renderOwnership = (prospect: Prospect) => {
+    const owner = parentName(prospect.parentId);
+    const subsidiaryCount = childrenIndex.get(prospect.id)?.length ?? 0;
+    if (!owner && subsidiaryCount === 0) return null;
+    return (
+      <span className="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+        {owner && (
+          <span className="flex min-w-0 items-center gap-1" title={`Owned by ${owner}`}>
+            <CornerDownRight className="h-3 w-3 shrink-0" aria-hidden="true" />
+            <span className="sr-only">Owned by </span>
+            <span className="truncate">{owner}</span>
+          </span>
+        )}
+        {subsidiaryCount > 0 && (
+          <span className="flex shrink-0 items-center gap-1">
+            <Network className="h-3 w-3" aria-hidden="true" />
+            {subsidiaryCount} {subsidiaryCount === 1 ? 'subsidiary' : 'subsidiaries'}
+          </span>
+        )}
+      </span>
+    );
   };
 
   const sortProps = { sortField, sortDirection, onSort: handleSort };
@@ -745,6 +806,19 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   mode={verticalFilterMode}
                   onModeChange={setVerticalFilterMode}
                 />
+                {/* Ownership (parent / subsidiary) */}
+                <FilterSection
+                  label="Ownership"
+                  items={OWNERSHIP_OPTIONS.map(o => o.label)}
+                  selected={ownershipFilter.map(ownershipLabel)}
+                  onToggle={(label, checked) => {
+                    const value = OWNERSHIP_OPTIONS.find(o => o.label === label)?.value;
+                    if (!value) return;
+                    setOwnershipFilter(prev => checked ? [...prev, value] : prev.filter(v => v !== value));
+                  }}
+                  mode={ownershipFilterMode}
+                  onModeChange={setOwnershipFilterMode}
+                />
                 {/* Last Contact Date Range - collapsible */}
                 <LastContactFilterSection
                   lastContactFrom={lastContactFrom}
@@ -767,7 +841,7 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
             </PopoverContent>
           </Popover>
 
-          <ExportColumnsPopover data={filteredAndSortedProspects} />
+          <ExportColumnsPopover data={filteredAndSortedProspects} parentName={parentName} />
           <AddProspectPanel />
         </div>
       </div>
@@ -899,7 +973,10 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                   className="w-full text-left px-3 py-3 space-y-1.5 active:bg-muted/50 outline-none focus-visible:bg-muted/50"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className="font-medium text-sm leading-snug">{prospect.companyName}</span>
+                    <span className="min-w-0">
+                      <span className="block font-medium text-sm leading-snug">{prospect.companyName}</span>
+                      {renderOwnership(prospect)}
+                    </span>
                     <StageBadge stage={prospect.stage} maxVisible={1} />
                   </div>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -937,8 +1014,9 @@ const ProspectsTable = ({ onSelectProspect }: ProspectsTableProps) => {
                       onClick={() => handleRowClick(prospect)}
                       onKeyDown={e => { if (e.key === 'Enter') handleRowClick(prospect); }}
                     >
-                      <td className="px-3 py-2.5">
-                        <span className="font-medium text-sm">{prospect.companyName}</span>
+                      <td className="px-3 py-2.5 max-w-[18rem]">
+                        <span className="block truncate font-medium text-sm">{prospect.companyName}</span>
+                        {renderOwnership(prospect)}
                       </td>
                       <td className="px-3 py-2.5 text-sm text-muted-foreground max-w-[12rem]">
                         {renderContacts(prospect)}

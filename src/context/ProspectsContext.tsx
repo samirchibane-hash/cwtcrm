@@ -18,6 +18,8 @@ interface ProspectsContextType {
   deleteProspect: (id: string) => void;
   getProspectById: (id: string) => Prospect | undefined;
   addProspect: (prospect: Omit<Prospect, 'id'>) => Promise<Prospect | null>;
+  /** Set or clear (null) the company that owns `id`. Resolves true on success. */
+  setParentCompany: (id: string, parentId: string | null) => Promise<boolean>;
   isLoading: boolean;
 }
 
@@ -42,6 +44,7 @@ const mapRowToProspect = (row: any): Prospect => ({
   phone: row.phone || '',
   contacts: normalizeRecords<Contact>(row.contacts, 'contact', row.id),
   engagements: normalizeRecords<Engagement>(row.engagements, 'eng', row.id),
+  parentId: row.parent_id ?? null,
 });
 
 export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
@@ -148,7 +151,8 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
 
       if (error) throw error;
 
-      setProspects(prev => prev.map(p => p.id === updatedProspect.id ? updatedProspect : p));
+      // Merge so fields this caller didn't pass (e.g. parentId) survive the edit.
+      setProspects(prev => prev.map(p => p.id === updatedProspect.id ? { ...p, ...updatedProspect } : p));
     } catch (error) {
       console.error('Failed to update prospect:', error);
       toast({
@@ -221,6 +225,30 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const setParentCompany = async (id: string, parentId: string | null): Promise<boolean> => {
+    const previous = prospects.find(p => p.id === id)?.parentId ?? null;
+    if (previous === parentId) return true;
+    // Optimistic: the pipeline row and company page update immediately.
+    setProspects(prev => prev.map(p => (p.id === id ? { ...p, parentId } : p)));
+    const { error } = await supabase
+      .from('prospects')
+      .update({ parent_id: parentId })
+      .eq('id', id);
+    if (error) {
+      console.error('Failed to set parent company:', error);
+      setProspects(prev => prev.map(p => (p.id === id ? { ...p, parentId: previous } : p)));
+      toast({
+        title: 'Couldn’t update ownership',
+        description: error.message.includes('own subsidiaries')
+          ? 'A company can’t be owned by one of its own subsidiaries.'
+          : 'The change wasn’t saved. Try again.',
+        variant: 'destructive',
+      });
+      return false;
+    }
+    return true;
+  };
+
   const getProspectById = (id: string): Prospect | undefined => {
     return prospects.find(p => p.id === id);
   };
@@ -232,6 +260,7 @@ export const ProspectsProvider = ({ children }: { children: ReactNode }) => {
       deleteProspect, 
       getProspectById, 
       addProspect,
+      setParentCompany,
       isLoading 
     }}>
       {children}
